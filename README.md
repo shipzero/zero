@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Self-hosted deployment platform for Docker containers and Compose stacks.<br>
+  Self-hosted deployment platform for Docker containers and compose stacks.<br>
   Deploy to your own server with automatic TLS, reverse proxying, and zero-downtime deployments.
 </p>
 
