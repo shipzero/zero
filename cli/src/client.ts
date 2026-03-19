@@ -107,7 +107,12 @@ function createClient() {
               res.on('data', (c) => chunks.push(c))
               res.on('end', () => {
                 const raw = Buffer.concat(chunks).toString()
-                reject(new Error(`HTTP ${res.statusCode}: ${raw}`))
+                let message = raw
+                try {
+                  const parsed = JSON.parse(raw)
+                  if (parsed.error) message = parsed.error
+                } catch {}
+                reject(new Error(message))
               })
               return
             }

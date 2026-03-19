@@ -500,7 +500,7 @@ env rm <app> KEY [KEY ...]              Remove environment variables
 login <host> <token>                    Save server credentials
 logs <app> | --server                   Stream app or server logs
 ls                                      List all apps
-metrics <app>                           Show live resource usage
+metrics <app> | --server                Show live resource usage
 registry login <server> --user --password
                                         Add registry credentials
 registry logout <server>                Remove registry credentials

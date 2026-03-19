@@ -27,10 +27,13 @@ export async function logs(positionals: string[], flags: Record<string, string |
     process.exit(0)
   })
 
-  console.log(dim('Ctrl+C to stop\n'))
-
+  let isFirst = true
   const path = isServer ? '/logs' : `/apps/${encodeURIComponent(appName)}/logs`
   await client.streamSSE(path, (line) => {
+    if (isFirst) {
+      console.log(dim('Ctrl+C to stop\n'))
+      isFirst = false
+    }
     console.log(formatLogLine(line))
   })
 }

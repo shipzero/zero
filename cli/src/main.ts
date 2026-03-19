@@ -72,7 +72,7 @@ function formatHelp(): string {
     ['login <host> <token>', 'Save server credentials'],
     ['logs <app> | --server', 'Stream app or server logs'],
     ['ls', 'List all apps'],
-    ['metrics <app>', 'Show live resource usage'],
+    ['metrics <app> | --server', 'Show live resource usage'],
     ['registry login <server> --user --password', 'Add registry credentials'],
     ['registry logout <server>', 'Remove registry credentials'],
     ['registry ls', 'List configured registries'],
@@ -131,7 +131,7 @@ async function main() {
         await ls()
         break
       case 'metrics':
-        await metrics(parsed.positionals)
+        await metrics(parsed.positionals, parsed.flags)
         break
       case 'registry':
         await registry(parsed.subcommand, parsed.positionals, parsed.flags)

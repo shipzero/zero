@@ -48,15 +48,19 @@ function renderStats(appName: string, stats: ContainerStats, isFirst: boolean): 
   }
 }
 
-export async function metrics(positionals: string[]): Promise<void> {
+export async function metrics(positionals: string[], flags: Record<string, string | true>): Promise<void> {
+  const isServer = flags['server'] === true
   const appName = positionals[0]
 
-  if (!appName) {
+  if (!isServer && !appName) {
     logError('usage: zero metrics <app>')
+    logError('       zero metrics --server')
     process.exit(1)
   }
 
   const client = createClient()
+  const label = isServer ? 'zero' : appName
+  const path = isServer ? '/metrics' : `/apps/${encodeURIComponent(appName)}/metrics`
 
   process.on('SIGINT', () => {
     console.log(dim('\n[disconnected]'))
@@ -64,9 +68,9 @@ export async function metrics(positionals: string[]): Promise<void> {
   })
 
   let isFirst = true
-  await client.streamSSE(`/apps/${encodeURIComponent(appName)}/metrics`, (line) => {
+  await client.streamSSE(path, (line) => {
     const stats: ContainerStats = JSON.parse(line)
-    renderStats(appName, stats, isFirst)
+    renderStats(label, stats, isFirst)
     isFirst = false
   })
 }
