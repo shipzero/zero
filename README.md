@@ -1,6 +1,11 @@
-# zero
+<p align="center">
+  <img src="logo.svg" alt="zero" width="320" />
+</p>
 
-Self-hosted deployment platform for Docker containers and Compose stacks. Deploy to your own server with automatic TLS, reverse proxying, and zero-downtime deployments.
+<p align="center">
+  Self-hosted deployment platform for Docker containers and Compose stacks.<br>
+  Deploy to your own server with automatic TLS, reverse proxying, and zero-downtime deployments.
+</p>
 
 **One server. One command. Your apps live.**
 
