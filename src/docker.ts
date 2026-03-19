@@ -2,6 +2,7 @@ import Dockerode from 'dockerode'
 import http from 'node:http'
 import net from 'node:net'
 import { getRegistryAuth } from './state.ts'
+import type { ContainerStats } from './types.ts'
 
 export const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
 
@@ -145,6 +146,61 @@ export async function* streamLogs(containerId: string): AsyncGenerator<string> {
         .trimEnd()
       if (line) yield line
       offset += 8 + size
+    }
+  }
+}
+
+export async function* streamStats(containerId: string): AsyncGenerator<ContainerStats> {
+  const container = docker.getContainer(containerId)
+  const statsStream = await container.stats({ stream: true })
+
+  let prevCpu = 0
+  let prevSystem = 0
+  let prevRx = 0
+  let prevTx = 0
+  let isFirst = true
+
+  let buffer = ''
+  for await (const chunk of statsStream as AsyncIterable<Buffer>) {
+    buffer += chunk.toString()
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (!line.trim()) continue
+      const raw = JSON.parse(line)
+
+      const cpuDelta = raw.cpu_stats.cpu_usage.total_usage - prevCpu
+      const systemDelta = raw.cpu_stats.system_cpu_usage - prevSystem
+      const numCpus = raw.cpu_stats.online_cpus ?? raw.cpu_stats.cpu_usage.percpu_usage?.length ?? 1
+      const cpu = systemDelta > 0 ? (cpuDelta / systemDelta) * numCpus * 100 : 0
+
+      const memory = raw.memory_stats.usage ?? 0
+      const memoryLimit = raw.memory_stats.limit ?? 0
+
+      let totalRx = 0
+      let totalTx = 0
+      if (raw.networks) {
+        for (const iface of Object.values(raw.networks) as { rx_bytes: number; tx_bytes: number }[]) {
+          totalRx += iface.rx_bytes
+          totalTx += iface.tx_bytes
+        }
+      }
+
+      const networkRx = totalRx - prevRx
+      const networkTx = totalTx - prevTx
+
+      prevCpu = raw.cpu_stats.cpu_usage.total_usage
+      prevSystem = raw.cpu_stats.system_cpu_usage
+      prevRx = totalRx
+      prevTx = totalTx
+
+      if (isFirst) {
+        isFirst = false
+        continue
+      }
+
+      yield { cpu, memory, memoryLimit, networkRx, networkTx }
     }
   }
 }

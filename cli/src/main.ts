@@ -4,6 +4,7 @@ import { add } from './commands/add.ts'
 import { ls } from './commands/ls.ts'
 import { deploy } from './commands/deploy.ts'
 import { logs } from './commands/logs.ts'
+import { metrics } from './commands/metrics.ts'
 import { rollback } from './commands/rollback.ts'
 import { deployments } from './commands/deployments.ts'
 import { env } from './commands/env.ts'
@@ -71,6 +72,7 @@ function formatHelp(): string {
     ['login <host> <token>', 'Save server credentials'],
     ['logs <app> | --server', 'Stream app or server logs'],
     ['ls', 'List all apps'],
+    ['metrics <app>', 'Show live resource usage'],
     ['registry login <server> --user --password', 'Add registry credentials'],
     ['registry logout <server>', 'Remove registry credentials'],
     ['registry ls', 'List configured registries'],
@@ -127,6 +129,9 @@ async function main() {
         break
       case 'ls':
         await ls()
+        break
+      case 'metrics':
+        await metrics(parsed.positionals)
         break
       case 'registry':
         await registry(parsed.subcommand, parsed.positionals, parsed.flags)
