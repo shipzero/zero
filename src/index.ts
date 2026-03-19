@@ -2,6 +2,7 @@ import { loadState, getApps } from './state.ts'
 import { startTLSProxy, startHTTPProxy, startDevProxy, restoreRoutes, updateProxyRoute, closeAllPortListeners } from './proxy.ts'
 import { startApi } from './api.ts'
 import { renewExpiringCerts, isTLSEnabled } from './certs.ts'
+import { VERSION } from './version.ts'
 
 const isDevelopment = process.env.NODE_ENV !== 'production'
 const CERT_RENEW_INTERVAL_MS = Number(process.env.CERT_RENEW_INTERVAL_MS ?? 12 * 60 * 60 * 1000)
@@ -15,7 +16,10 @@ if (!process.env.TOKEN) {
   }
 }
 
-console.log(`[zero] starting zero (${isDevelopment ? 'dev' : 'production'} mode)`)
+console.log('┌──────────┐')
+console.log('│   zero   │')
+console.log('└──────────┘')
+console.log(`[zero] ${isDevelopment ? 'dev' : `${VERSION} (production)`}`)
 
 loadState()
 restoreRoutes(getApps())
