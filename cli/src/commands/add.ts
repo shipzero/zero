@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { createClient, unwrap } from '../client.ts'
 import type { AddAppResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logHint, logError, dim } from '../ui.ts'
+import { logSuccess, logInfo, logHint, logError } from '../ui.ts'
 
 export async function add(flags: Record<string, string | true>): Promise<void> {
   const name = flags['name'] as string | undefined

@@ -16,12 +16,20 @@ import {
   setRegistryAuth,
   removeRegistryAuth
 } from './state.ts'
-import { deploy, rollback, getDeployLogs, deployEvents } from './deploy.ts'
-import { docker, streamLogs, stopContainer, startContainer, waitForHealthy, removeContainer, getContainerState } from './docker.ts'
+import { deploy, rollback, deployEvents } from './deploy.ts'
+import {
+  docker,
+  streamLogs,
+  stopContainer,
+  startContainer,
+  waitForHealthy,
+  removeContainer,
+  getContainerState
+} from './docker.ts'
 import { composeDir, composeDown, composeLogs, removeComposeDir } from './compose.ts'
 import { routeApp, unrouteApp } from './proxy.ts'
 import { isTLSEnabled } from './certs.ts'
-  import { VERSION } from './version.ts'
+import { VERSION } from './version.ts'
 import type {
   MessageResponse,
   VersionResponse,
@@ -146,30 +154,32 @@ route('GET', '/version', async (_req, res) => {
 })
 
 route('GET', '/apps', async (_req, res) => {
-  const apps: AppSummary[] = await Promise.all(getApps().map(async (app) => {
-    const deployment = getCurrentDeployment(app)
-    let status: AppSummary['status'] = 'no deployment'
-    if (deployment) {
-      if (isComposeApp(app)) {
-        status = 'running' // compose apps don't have a single container to check
-      } else {
-        const state = await getContainerState(deployment.containerId)
-        status = state.running ? 'running' : 'stopped'
+  const apps: AppSummary[] = await Promise.all(
+    getApps().map(async (app) => {
+      const deployment = getCurrentDeployment(app)
+      let status: AppSummary['status'] = 'no deployment'
+      if (deployment) {
+        if (isComposeApp(app)) {
+          status = 'running' // compose apps don't have a single container to check
+        } else {
+          const state = await getContainerState(deployment.containerId)
+          status = state.running ? 'running' : 'stopped'
+        }
       }
-    }
-    return {
-      name: app.name,
-      image: app.image,
-      domain: app.domain,
-      hostPort: app.hostPort,
-      trackTag: app.trackTag,
-      currentImage: deployment?.image,
-      port: deployment?.port,
-      deployedAt: deployment?.deployedAt,
-      status,
-      webhookUrl: webhookUrl(app.webhookSecret)
-    }
-  }))
+      return {
+        name: app.name,
+        image: app.image,
+        domain: app.domain,
+        hostPort: app.hostPort,
+        trackTag: app.trackTag,
+        currentImage: deployment?.image,
+        port: deployment?.port,
+        deployedAt: deployment?.deployedAt,
+        status,
+        webhookUrl: webhookUrl(app.webhookSecret)
+      }
+    })
+  )
   json(res, 200, apps)
 })
 
@@ -201,7 +211,18 @@ route('POST', '/apps', async (req, res) => {
     json(res, 400, { error: 'invalid JSON' })
     return
   }
-  const { name, domain, internalPort = 3000, hostPort, command, volumes, healthPath, env = {}, composeFile, entryService } = body
+  const {
+    name,
+    domain,
+    internalPort = 3000,
+    hostPort,
+    command,
+    volumes,
+    healthPath,
+    env = {},
+    composeFile,
+    entryService
+  } = body
 
   if (!name) {
     json(res, 400, { error: 'name required' })
@@ -494,7 +515,9 @@ route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
         if (res.destroyed) break
         res.write(`data: ${line}\n\n`)
       }
-    } catch { /* stream ended */ }
+    } catch {
+      /* stream ended */
+    }
   } else {
     const deployment = getCurrentDeployment(app)
     if (deployment) {
@@ -503,14 +526,14 @@ route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
           if (res.destroyed) break
           res.write(`data: ${line}\n\n`)
         }
-      } catch { /* stream ended */ }
+      } catch {
+        /* stream ended */
+      }
     }
   }
 })
 
-
 route('GET', '/logs', async (_req, res) => {
-
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
