@@ -116,6 +116,10 @@ The installer will:
 After installation, the output shows your API URL and token:
 
 ```
+┌──────────┐
+│   zero   │
+└──────────┘
+
 [zero] zero is running!
 [zero] API:    https://your-server.com
 [zero] TOKEN:  <your-token>

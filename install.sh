@@ -112,6 +112,11 @@ else
   API_URL="http://${DOMAIN}"
 fi
 
+echo ""
+echo "┌──────────┐"
+echo "│   zero   │"
+echo "└──────────┘"
+echo ""
 log "zero is running!"
 log "API:    ${API_URL}"
 if [ "$IS_UPGRADE" = false ]; then
