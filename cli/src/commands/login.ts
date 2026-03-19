@@ -39,7 +39,7 @@ async function verifyConnection(host: string, token: string): Promise<boolean> {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` },
         rejectUnauthorized: false,
-        timeout: 5000,
+        timeout: 30_000,
       },
       (res) => {
         res.resume()
