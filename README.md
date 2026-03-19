@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Self-hosted deployment platform for Docker containers and compose stacks.<br>
+  Self-hosted deployment platform for Docker containers and Compose stacks.<br>
   Deploy to your own server with automatic TLS, reverse proxying, and zero-downtime deployments.
 </p>
 
@@ -36,7 +36,7 @@ zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one i
 - **Docker Compose support** — deploy multi-service stacks with a single command
 - **Webhooks** — auto-deploy on push from GitHub Container Registry or Docker Hub
 - **Rollback** — instantly revert to the previous deployment
-- **Single binary CLI** — available for Linux and macOS
+- **Single binary CLI** — available for Linux, macOS, and Windows
 - **Minimal footprint** — two dependencies (dockerode, acme), runs in a single container
 
 ## Comparison
@@ -174,7 +174,7 @@ docker rmi ghcr.io/shipzero/zero:latest docker:cli
 curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/cli/install.sh | bash
 ```
 
-Pre-built binaries are available for Linux and macOS.
+Pre-built binaries are available for Linux, macOS, and Windows.
 
 ### Build from Source
 
