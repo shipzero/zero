@@ -1,4 +1,4 @@
-# Zero
+# zero
 
 Self-hosted deployment platform for Docker containers and Compose stacks. Deploy to your own server with automatic TLS, reverse proxying, and zero-downtime deployments.
 
@@ -21,9 +21,9 @@ zero deploy myapp
 
 Platforms like Vercel and Railway are great — until the bill arrives or you hit the limits of their walled garden. Self-hosting gives you full control, but setting up Docker, TLS certificates, reverse proxies, and zero-downtime deployments by hand is tedious and error-prone.
 
-Zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one install command, and you have a deployment platform that handles everything. Deploy any Dockerized app with a single CLI command — no YAML pipelines, no vendor lock-in, no surprise invoices.
+zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one install command, and you have a deployment platform that handles everything. Deploy any Dockerized app with a single CLI command — no YAML pipelines, no vendor lock-in, no surprise invoices.
 
-## Why Zero
+## Why zero
 
 - **Zero-downtime deployments** — new containers are health-checked before traffic is swapped
 - **Automatic TLS** — Let's Encrypt certificates provisioned and renewed automatically
@@ -36,9 +36,9 @@ Zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one i
 
 ## Comparison
 
-There are excellent self-hosting tools out there. Here's how Zero fits in:
+There are excellent self-hosting tools out there. Here's how zero fits in:
 
-| | Zero | Coolify | CapRover | Dokku | Kamal |
+| | zero | Coolify | CapRover | Dokku | Kamal |
 |---|---|---|---|---|---|
 | Interface | CLI only | Web UI | Web UI | CLI | CLI |
 | Deploy model | Docker images | Git/Docker | Git/Docker | Git push (Buildpacks) | Docker images |
@@ -49,7 +49,7 @@ There are excellent self-hosting tools out there. Here's how Zero fits in:
 | Compose support | Yes | Yes | No | No | Yes (accessories) |
 | Setup | One command | One command | One command | `apt install` | Gem install + config |
 
-**Zero is for you if** you want the simplest possible path from "I have a server" to "my app is live with HTTPS" — without a web UI, without a database, without dozens of moving parts. One container, one CLI, done.
+**zero is for you if** you want the simplest possible path from "I have a server" to "my app is live with HTTPS" — without a web UI, without a database, without dozens of moving parts. One container, one CLI, done.
 
 ## Table of Contents
 
@@ -106,7 +106,7 @@ The installer will:
 1. Install Docker if not already present
 2. Prompt for your domain and an email address for Let's Encrypt
 3. Generate an API token
-4. Start Zero
+4. Start zero
 
 After installation, the output shows your API URL and token:
 
@@ -265,15 +265,15 @@ zero deploy mystack
 | `--port`     | Internal port the entry service listens on          |
 | `--host-port`| Expose entry service directly on a host port        |
 
-The Compose file is uploaded to the server. On deploy, Zero runs `docker compose pull` and `docker compose up -d`, then health-checks the entry service before routing traffic.
+The Compose file is uploaded to the server. On deploy, zero runs `docker compose pull` and `docker compose up -d`, then health-checks the entry service before routing traffic.
 
 ### Health Checks
 
 Every deployment is health-checked before traffic is routed to it.
 
-**TCP check** (default): Zero opens a TCP connection to the container port. The container is considered healthy when it accepts connections.
+**TCP check** (default): zero opens a TCP connection to the container port. The container is considered healthy when it accepts connections.
 
-**HTTP check** (when `--health-path` is set): Zero sends `GET` requests to the specified path. The container is considered healthy when it responds with a status code below 500.
+**HTTP check** (when `--health-path` is set): zero sends `GET` requests to the specified path. The container is considered healthy when it responds with a status code below 500.
 
 Health checks run every 500ms with a 60-second timeout. If the container crashes or exits during the health check, the deployment fails immediately and traffic stays on the previous version.
 
@@ -371,7 +371,7 @@ Revert to the previous deployment:
 zero rollback myapp
 ```
 
-Zero starts a new container from the previous image and swaps traffic once it's healthy. Rollback is available for single-container apps. Compose stacks do not support rollback.
+zero starts a new container from the previous image and swaps traffic once it's healthy. Rollback is available for single-container apps. Compose stacks do not support rollback.
 
 ### Remove an App
 
@@ -383,7 +383,7 @@ Stops and removes all containers associated with the app. For Compose apps, runs
 
 ## Automatic Deployments via Webhooks
 
-Every app gets a unique webhook URL. When a registry sends a push notification, Zero automatically deploys the new image.
+Every app gets a unique webhook URL. When a registry sends a push notification, zero automatically deploys the new image.
 
 **Setup:**
 
@@ -395,9 +395,9 @@ Every app gets a unique webhook URL. When a registry sends a push notification, 
 
 2. Add the URL as a webhook in your registry (GitHub Container Registry or Docker Hub).
 
-3. Push an image — Zero deploys it automatically.
+3. Push an image — zero deploys it automatically.
 
-**Tag filtering:** By default, Zero deploys any pushed tag. If the app was added with a specific tag (e.g. `myapp:latest`), only pushes matching that tag trigger a deployment.
+**Tag filtering:** By default, zero deploys any pushed tag. If the app was added with a specific tag (e.g. `myapp:latest`), only pushes matching that tag trigger a deployment.
 
 **Webhook security:** Payloads are verified using HMAC-SHA256 signatures (`x-hub-signature-256` header) with timing-safe comparison.
 
@@ -409,7 +409,7 @@ zero webhook reset myapp
 
 ## TLS and HTTPS
 
-Zero automatically provisions and renews TLS certificates via Let's Encrypt when:
+zero automatically provisions and renews TLS certificates via Let's Encrypt when:
 
 1. An `EMAIL` is set in the server configuration
 2. The server has a real domain (not an IP address)
@@ -428,14 +428,14 @@ Deployments follow a four-phase process:
 
 1. **Pull** — the image is pulled from the registry (with credentials if configured)
 2. **Start** — a new container is started on a random ephemeral port bound to localhost
-3. **Health check** — Zero waits up to 60 seconds for the container to become healthy
+3. **Health check** — zero waits up to 60 seconds for the container to become healthy
 4. **Swap** — the reverse proxy route is atomically updated to point to the new container; old containers are removed
 
 If the health check fails, the new container is discarded and traffic continues flowing to the existing container. Nothing changes until the new version is verified.
 
 ### Reverse Proxy
 
-Zero includes a built-in reverse proxy that routes incoming requests to the correct container based on the `Host` header.
+zero includes a built-in reverse proxy that routes incoming requests to the correct container based on the `Host` header.
 
 - Domains are mapped to containers via their ephemeral localhost port
 - TLS termination with automatic certificate selection via SNI
