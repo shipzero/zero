@@ -43,8 +43,6 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
         path: opts.path,
         method: opts.method,
         headers,
-        // Allow self-signed certs in dev
-        rejectUnauthorized: false,
       },
       (res) => {
         const chunks: Buffer[] = []
@@ -102,7 +100,6 @@ function createClient() {
             path,
             method: 'GET',
             headers: { 'Authorization': `Bearer ${config.token}` },
-            rejectUnauthorized: false,
           },
           (res) => {
             if (res.statusCode !== 200) {
