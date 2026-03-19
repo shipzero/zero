@@ -1,0 +1,9 @@
+{
+  "name": "zero-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/main.ts",
+    "build": "bun build src/main.ts --compile --outfile ../dist/zero"
+  }
+}

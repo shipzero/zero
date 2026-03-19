@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ZERO_IMAGE="${ZERO_IMAGE:-ghcr.io/shipzero/zero:latest}"
+INSTALL_DIR="/opt/zero"
+
+log()  { echo -e "\033[1;34m[zero]\033[0m $1"; }
+err()  { echo -e "\033[1;31m[zero]\033[0m $1" >&2; exit 1; }
+
+if [ "$(id -u)" -ne 0 ]; then
+  err "this script must be run as root. use: sudo bash install.sh"
+fi
+
+IS_UPGRADE=false
+if [ -f "$INSTALL_DIR/.env" ]; then
+  IS_UPGRADE=true
+  log "existing installation found — upgrading"
+fi
+
+SERVER_IP=$(curl -4 -s https://ifconfig.me || hostname -I | awk '{print $1}')
+
+if [ "$IS_UPGRADE" = false ]; then
+  read -rp "domain for zero (leave empty to use IP $SERVER_IP): " DOMAIN < /dev/tty
+  DOMAIN="${DOMAIN:-$SERVER_IP}"
+
+  read -rp "email for Let's Encrypt certificates (required for HTTPS on app domains): " EMAIL < /dev/tty
+  if [ -z "$EMAIL" ]; then
+    log "no email — HTTPS will not work for app domains. you can set it later in $INSTALL_DIR/.env"
+  fi
+else
+  # Load existing config
+  source "$INSTALL_DIR/.env"
+  DOMAIN="${DOMAIN:-$SERVER_IP}"
+  EMAIL="${EMAIL:-}"
+fi
+
+if command -v docker &>/dev/null; then
+  log "docker already installed: $(docker --version)"
+else
+  log "installing docker..."
+
+  apt-get update -qq
+  apt-get install -y -qq ca-certificates curl gnupg
+
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  chmod a+r /etc/apt/keyrings/docker.gpg
+
+  . /etc/os-release
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" \
+    > /etc/apt/sources.list.d/docker.list
+
+  apt-get update -qq
+  apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+  log "docker installed: $(docker --version)"
+fi
+
+systemctl enable --now docker
+
+mkdir -p "$INSTALL_DIR" /data/state /data/certs /data/compose
+
+if [ "$IS_UPGRADE" = false ]; then
+  TOKEN=$(openssl rand -hex 32)
+
+  cat > "$INSTALL_DIR/.env" <<EOF
+TOKEN=${TOKEN}
+DOMAIN=${DOMAIN}
+EMAIL=${EMAIL}
+EOF
+  chmod 600 "$INSTALL_DIR/.env"
+fi
+
+# Compose file is always regenerated (picks up new volumes, settings etc.)
+cat > "$INSTALL_DIR/docker-compose.yml" <<EOF
+services:
+  zero:
+    container_name: zero
+    image: ${ZERO_IMAGE}
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/zero:/opt/zero:ro
+      - /data/state:/data/state
+      - /data/certs:/data/certs
+      - /data/compose:/data/compose
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+EOF
+
+log "pulling images..."
+docker compose -f "$INSTALL_DIR/docker-compose.yml" pull
+docker pull docker:cli -q
+
+log "starting zero..."
+docker compose -f "$INSTALL_DIR/docker-compose.yml" up -d
+
+IS_IP_ONLY=false
+if echo "$DOMAIN" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+  IS_IP_ONLY=true
+fi
+
+if [ -n "$EMAIL" ] && [ "$IS_IP_ONLY" = false ]; then
+  API_URL="https://${DOMAIN}"
+else
+  API_URL="http://${DOMAIN}"
+fi
+
+log "zero is running!"
+log "API:    ${API_URL}"
+if [ "$IS_UPGRADE" = false ]; then
+  log "TOKEN:  ${TOKEN}"
+  log "CLI:    zero login ${API_URL} ${TOKEN}"
+else
+  log "TOKEN:  (unchanged)"
+fi
+if [ -n "$EMAIL" ] && [ "$IS_IP_ONLY" = false ]; then
+  log "TLS:    enabled (Let's Encrypt via ${EMAIL})"
+elif [ "$IS_IP_ONLY" = true ]; then
+  log "TLS:    disabled (Let's Encrypt requires a domain, not an IP)"
+else
+  log "TLS:    disabled (set EMAIL in ${INSTALL_DIR}/.env to enable)"
+fi
+log "Config: ${INSTALL_DIR}/.env"
+log "Logs:   docker compose -f ${INSTALL_DIR}/docker-compose.yml logs -f"

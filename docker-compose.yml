@@ -1,0 +1,18 @@
+services:
+  zero:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "2020:2020"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /data/state:/data/state
+      - /data/certs:/data/certs
+      - /data/compose:/data/compose
+    environment:
+      - TOKEN=${TOKEN}
+      - EMAIL=${EMAIL}
+      - DOMAIN=${DOMAIN}
+      - NODE_ENV=production
