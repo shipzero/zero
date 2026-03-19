@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@500');</style>
+  </defs>
+  <rect width="100" height="100" fill="#000"/>
+  <text x="50" y="72" text-anchor="middle" font-family="'DM Mono', monospace" font-size="64" font-weight="500" fill="#fff">0</text>
+</svg>
