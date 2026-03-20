@@ -1,30 +1,11 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppSummary } from '../../../src/types.ts'
-import { bold, dim, green, red, logInfo, logError } from '../ui.ts'
-
-function formatStatus(status: AppSummary['status']): string {
-  switch (status) {
-    case 'running': return green('running')
-    case 'stopped': return red('stopped')
-    case 'no deployment': return dim('—')
-  }
-}
+import { bold, dim, logInfo, logError, timeAgo, formatStatus } from '../ui.ts'
 
 function formatUrl(app: AppSummary, serverUrl: URL): string {
   if (app.domain) return `${serverUrl.protocol}//${app.domain}`
   if (app.hostPort) return `http://${serverUrl.hostname}:${app.hostPort}`
   return '—'
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
 }
 
 export async function ls(): Promise<void> {

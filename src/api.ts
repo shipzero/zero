@@ -1,5 +1,7 @@
 import http from 'node:http'
 import crypto from 'node:crypto'
+import type { AppConfig } from './state.ts'
+import { getErrorMessage } from './errors.ts'
 import {
   getApps,
   getApp,
@@ -12,11 +14,14 @@ import {
   findAppBySecret,
   findRollbackTarget,
   isComposeApp,
+  buildPreviewDomain,
+  getPreview,
+  getPreviewsForApp,
   getRegistryAuths,
   setRegistryAuth,
   removeRegistryAuth
 } from './state.ts'
-import { deploy, rollback, deployEvents } from './deploy.ts'
+import { deploy, deployPreview, rollback, deployEvents } from './deploy.ts'
 import {
   docker,
   streamLogs,
@@ -29,7 +34,9 @@ import {
 } from './docker.ts'
 import { composeDir, composeDown, composeStop, composeStart, composeLogs, removeComposeDir } from './compose.ts'
 import { routeApp, unrouteApp } from './proxy.ts'
-import { isTLSEnabled } from './certs.ts'
+import { destroyPreview } from './preview.ts'
+import { isTLSEnabled, buildDomainUrl } from './url.ts'
+import { IS_DEV, TOKEN, DOMAIN, API_PORT, PREVIEW_TTL_HOURS } from './env.ts'
 import { VERSION } from './version.ts'
 import type {
   MessageResponse,
@@ -38,18 +45,16 @@ import type {
   AppDetail,
   AddAppResponse,
   StopResponse,
-  StartResponse
+  StartResponse,
+  PreviewDeployResponse,
+  PreviewSummary
 } from './types.ts'
 
-const TOKEN = process.env.TOKEN ?? ''
-const DOMAIN = process.env.DOMAIN ?? 'localhost'
-const DEFAULT_API_PORT = 2020
-const API_PORT = Number(process.env.API_PORT ?? DEFAULT_API_PORT)
-const API_PROTOCOL = isTLSEnabled() ? 'https' : 'http'
+const WEBHOOK_HOST = DOMAIN || 'localhost'
 const ZERO_CONTAINER = 'zero'
 
 function webhookUrl(secret: string): string {
-  return `${API_PROTOCOL}://${DOMAIN}/webhook/${secret}`
+  return `${buildDomainUrl(WEBHOOK_HOST)}/webhooks/${secret}`
 }
 
 function parseImageRef(ref: string): { image: string; tag: string } {
@@ -106,6 +111,31 @@ function json<T>(res: http.ServerResponse, status: number, body: T) {
   res.end(payload)
 }
 
+function startSSE(res: http.ServerResponse): void {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  })
+}
+
+function sendSSE(res: http.ServerResponse, data: string): boolean {
+  if (res.destroyed) return false
+  res.write(`data: ${data}\n\n`)
+  return true
+}
+
+async function pipeSSE(res: http.ServerResponse, source: AsyncIterable<string | object>): Promise<void> {
+  try {
+    for await (const item of source) {
+      const data = typeof item === 'string' ? item : JSON.stringify(item)
+      if (!sendSSE(res, data)) break
+    }
+  } catch {
+    /* stream ended */
+  }
+}
+
 function maskValues(env: Record<string, string>): Record<string, string> {
   const masked: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {
@@ -150,6 +180,15 @@ function authenticate(req: http.IncomingMessage): boolean {
   return crypto.timingSafeEqual(Buffer.from(header), Buffer.from(expected))
 }
 
+function requireApp(name: string, res: http.ServerResponse): AppConfig | null {
+  const app = getApp(name)
+  if (!app) {
+    json(res, 404, { error: 'not found' })
+    return null
+  }
+  return app
+}
+
 route('GET', '/version', async (_req, res) => {
   json<VersionResponse>(res, 200, { version: VERSION })
 })
@@ -161,7 +200,7 @@ route('GET', '/apps', async (_req, res) => {
       let status: AppSummary['status'] = 'no deployment'
       if (deployment) {
         if (isComposeApp(app)) {
-          status = 'running' // compose apps don't have a single container to check
+          status = 'running'
         } else {
           const state = await getContainerState(deployment.containerId)
           status = state.running ? 'running' : 'stopped'
@@ -269,11 +308,8 @@ route('POST', '/apps', async (req, res) => {
 })
 
 route('GET', '/apps/:name', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
 
   const deployment = getCurrentDeployment(app)
   json<AppDetail>(res, 200, {
@@ -292,11 +328,8 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
 })
 
 route('POST', '/apps/:name/deploy', async (req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
 
   let imageWithTag: string | undefined
   if (!isComposeApp(app)) {
@@ -311,11 +344,8 @@ route('POST', '/apps/:name/deploy', async (req, res, { name }) => {
 })
 
 route('GET', '/apps/:name/rollback-target', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
   if (isComposeApp(app)) {
     json(res, 400, { error: 'rollback is not supported for compose apps' })
     return
@@ -324,29 +354,23 @@ route('GET', '/apps/:name/rollback-target', async (_req, res, { name }) => {
     const target = findRollbackTarget(name)
     json(res, 200, { image: target.image, deployedAt: target.deployedAt })
   } catch (err) {
-    json(res, 400, { error: err instanceof Error ? err.message : String(err) })
+    json(res, 400, { error: getErrorMessage(err) })
   }
 })
 
 route('POST', '/apps/:name/rollback', async (_req, res, { name }) => {
-  if (!getApp(name)) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  if (!requireApp(name, res)) return
   try {
     const result = await rollback(name)
     json(res, 200, result)
   } catch (err) {
-    json(res, 400, { error: err instanceof Error ? err.message : String(err) })
+    json(res, 400, { error: getErrorMessage(err) })
   }
 })
 
 route('GET', '/apps/:name/deployments', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
   json(
     res,
     200,
@@ -358,11 +382,8 @@ route('GET', '/apps/:name/deployments', async (_req, res, { name }) => {
 })
 
 route('POST', '/apps/:name/stop', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
 
   const deployment = getCurrentDeployment(app)
   if (!deployment) {
@@ -380,11 +401,8 @@ route('POST', '/apps/:name/stop', async (_req, res, { name }) => {
 })
 
 route('POST', '/apps/:name/start', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
 
   const deployment = getCurrentDeployment(app)
   if (!deployment) {
@@ -402,15 +420,12 @@ route('POST', '/apps/:name/start', async (_req, res, { name }) => {
     routeApp(app, deployment.port)
     json<StartResponse>(res, 200, { message: `started ${name}`, port: deployment.port })
   } catch (err) {
-    json(res, 500, { error: err instanceof Error ? err.message : 'start failed' })
+    json(res, 500, { error: getErrorMessage(err) })
   }
 })
 
 route('PATCH', '/apps/:name/env', async (req, res, { name }) => {
-  if (!getApp(name)) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  if (!requireApp(name, res)) return
   const env = parseJSON<UpdateEnvRequest>((await readBody(req)).toString())
   if (!env || typeof env !== 'object') {
     json(res, 400, { error: 'invalid JSON' })
@@ -421,10 +436,7 @@ route('PATCH', '/apps/:name/env', async (req, res, { name }) => {
 })
 
 route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
-  if (!getApp(name)) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  if (!requireApp(name, res)) return
   const keys = new URLSearchParams(req.url?.split('?')[1] ?? '').getAll('key')
   if (keys.length === 0) {
     json(res, 400, { error: 'key query param required' })
@@ -434,18 +446,14 @@ route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
   json<MessageResponse>(res, 200, { message: 'env removed — redeploy to apply' })
 })
 
-route('POST', '/apps/:name/webhook/reset', async (_req, res, { name }) => {
-  if (!getApp(name)) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+route('POST', '/apps/:name/webhooks/reset', async (_req, res, { name }) => {
+  if (!requireApp(name, res)) return
   const secret = resetWebhookSecret(name)
   json(res, 200, { webhookSecret: secret, webhookUrl: webhookUrl(secret) })
 })
 
-/** Spawns a sidecar container that outlives this process to pull + recreate zero. */
 route('POST', '/upgrade', async (_req, res) => {
-  if (process.env.NODE_ENV !== 'production') {
+  if (IS_DEV) {
     json(res, 400, { error: 'upgrade is only available in production mode' })
     return
   }
@@ -467,77 +475,150 @@ route('POST', '/upgrade', async (_req, res) => {
     json<MessageResponse>(res, 200, { message: 'upgrade started — zero will restart' })
   } catch (err) {
     console.error('[upgrade] failed:', err)
-    json(res, 500, { error: err instanceof Error ? err.message : 'upgrade failed' })
+    json(res, 500, { error: getErrorMessage(err) })
   }
 })
 
-route('DELETE', '/apps/:name', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
+interface PreviewDeployRequest {
+  label?: string
+  tag?: string
+  ttlHours?: number
+}
+
+function previewExpiresAt(ttlHours: number): string {
+  return new Date(Date.now() + ttlHours * 60 * 60 * 1000).toISOString()
+}
+
+route('POST', '/apps/:name/previews', async (req, res, { name }) => {
+  const parent = requireApp(name, res)
+  if (!parent) return
+  if (!parent.domain) {
+    json(res, 400, { error: 'parent app must have a domain for preview subdomains' })
     return
+  }
+
+  const body = parseJSON<PreviewDeployRequest>((await readBody(req)).toString())
+  if (!body?.tag) {
+    json(res, 400, { error: 'tag required' })
+    return
+  }
+
+  const label = body.label ?? body.tag
+  const ttlHours = body.ttlHours ?? PREVIEW_TTL_HOURS
+  const previewDomain = buildPreviewDomain(parent.domain, label)
+
+  try {
+    await deployPreview(name, label, body.tag, previewDomain, previewExpiresAt(ttlHours))
+    json<PreviewDeployResponse>(res, 201, {
+      name,
+      label,
+      domain: previewDomain,
+      url: buildDomainUrl(previewDomain),
+      success: true
+    })
+  } catch (err) {
+    json<PreviewDeployResponse>(res, 500, {
+      name,
+      label,
+      domain: previewDomain,
+      url: buildDomainUrl(previewDomain),
+      success: false,
+      error: getErrorMessage(err)
+    })
+  }
+})
+
+route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
+  const parent = requireApp(name, res)
+  if (!parent) return
+
+  const previews: PreviewSummary[] = await Promise.all(
+    getPreviewsForApp(name).map(async (preview) => {
+      let status: PreviewSummary['status'] = 'no deployment'
+      const state = await getContainerState(preview.containerId)
+      status = state.running ? 'running' : 'stopped'
+      return {
+        name: parent.name,
+        label: preview.label,
+        domain: preview.domain,
+        status,
+        image: preview.image,
+        deployedAt: preview.deployedAt,
+        expiresAt: preview.expiresAt
+      }
+    })
+  )
+  json(res, 200, previews)
+})
+
+route('DELETE', '/apps/:name/previews/:label', async (_req, res, { name, label }) => {
+  const preview = getPreview(name, label)
+  if (!preview) {
+    json(res, 404, { error: 'preview not found' })
+    return
+  }
+
+  await destroyPreview(name, preview)
+  json<MessageResponse>(res, 200, { message: `preview ${label} removed` })
+})
+
+route('DELETE', '/apps/:name/previews', async (_req, res, { name }) => {
+  const app = requireApp(name, res)
+  if (!app) return
+
+  const previews = getPreviewsForApp(name)
+  for (const preview of previews) {
+    await destroyPreview(name, preview)
+  }
+  json<MessageResponse>(res, 200, { message: `removed ${previews.length} preview(s)` })
+})
+
+async function removeAppWithContainers(app: AppConfig): Promise<void> {
+  for (const preview of Object.values(app.previews)) {
+    await destroyPreview(app.name, preview)
   }
 
   unrouteApp(app)
 
   if (isComposeApp(app)) {
     try {
-      await composeDown(composeDir(name))
+      await composeDown(composeDir(app.name))
     } catch (err) {
-      console.error(`[api] compose down failed for ${name}:`, err)
+      console.error(`[api] compose down failed for ${app.name}:`, err)
     }
-    removeComposeDir(name)
+    removeComposeDir(app.name)
   } else {
     const containerIds = app.deployments.map((deployment) => deployment.containerId)
     await Promise.all(containerIds.map((containerId) => removeContainer(containerId)))
   }
 
-  removeApp(name)
+  removeApp(app.name)
+}
+
+route('DELETE', '/apps/:name', async (_req, res, { name }) => {
+  const app = requireApp(name, res)
+  if (!app) return
+
+  await removeAppWithContainers(app)
   json<MessageResponse>(res, 200, { message: 'removed' })
 })
 
 route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  })
+  startSSE(res)
 
-  const onDeployLog = (line: string) => {
-    if (!res.destroyed) res.write(`data: ${line}\n\n`)
-  }
+  const onDeployLog = (line: string) => sendSSE(res, line)
   deployEvents.on(`log:${name}`, onDeployLog)
-  res.on('close', () => {
-    deployEvents.removeListener(`log:${name}`, onDeployLog)
-  })
+  res.on('close', () => deployEvents.removeListener(`log:${name}`, onDeployLog))
 
-  // Stream container logs
   if (isComposeApp(app)) {
-    try {
-      for await (const line of composeLogs(composeDir(name))) {
-        if (res.destroyed) break
-        res.write(`data: ${line}\n\n`)
-      }
-    } catch {
-      /* stream ended */
-    }
+    await pipeSSE(res, composeLogs(composeDir(name)))
   } else {
     const deployment = getCurrentDeployment(app)
     if (deployment) {
-      try {
-        for await (const line of streamLogs(deployment.containerId)) {
-          if (res.destroyed) break
-          res.write(`data: ${line}\n\n`)
-        }
-      } catch {
-        /* stream ended */
-      }
+      await pipeSSE(res, streamLogs(deployment.containerId))
     }
   }
 })
@@ -557,20 +638,9 @@ route('GET', '/logs', async (_req, res) => {
     return
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  })
-
-  try {
-    for await (const line of streamLogs(ZERO_CONTAINER)) {
-      if (res.destroyed) break
-      res.write(`data: ${line}\n\n`)
-    }
-  } catch {
-    if (!res.destroyed) res.write('data: [log stream ended]\n\n')
-  }
+  startSSE(res)
+  await pipeSSE(res, streamLogs(ZERO_CONTAINER))
+  sendSSE(res, '[log stream ended]')
 })
 
 route('GET', '/metrics', async (_req, res) => {
@@ -579,28 +649,13 @@ route('GET', '/metrics', async (_req, res) => {
     return
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  })
-
-  try {
-    for await (const stats of streamStats(ZERO_CONTAINER)) {
-      if (res.destroyed) break
-      res.write(`data: ${JSON.stringify(stats)}\n\n`)
-    }
-  } catch {
-    /* stream ended */
-  }
+  startSSE(res)
+  await pipeSSE(res, streamStats(ZERO_CONTAINER))
 })
 
 route('GET', '/apps/:name/metrics', async (_req, res, { name }) => {
-  const app = getApp(name)
-  if (!app) {
-    json(res, 404, { error: 'not found' })
-    return
-  }
+  const app = requireApp(name, res)
+  if (!app) return
 
   const deployment = getCurrentDeployment(app)
   if (!deployment) {
@@ -617,29 +672,17 @@ route('GET', '/apps/:name/metrics', async (_req, res, { name }) => {
     return
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  })
-
-  try {
-    for await (const stats of streamStats(containerId)) {
-      if (res.destroyed) break
-      res.write(`data: ${JSON.stringify(stats)}\n\n`)
-    }
-  } catch {
-    /* stream ended */
-  }
+  startSSE(res)
+  await pipeSSE(res, streamStats(containerId))
 })
 
-route('GET', '/registry', async (_req, res) => {
+route('GET', '/registries', async (_req, res) => {
   const auths = getRegistryAuths()
   const servers = Object.keys(auths)
   json(res, 200, servers)
 })
 
-route('POST', '/registry', async (req, res) => {
+route('POST', '/registries', async (req, res) => {
   const body = parseJSON<{ server?: string; username?: string; password?: string }>((await readBody(req)).toString())
   if (!body?.server || !body.username || !body.password) {
     json(res, 400, { error: 'server, username, password required' })
@@ -649,7 +692,7 @@ route('POST', '/registry', async (req, res) => {
   json<MessageResponse>(res, 200, { message: `registry ${body.server} saved` })
 })
 
-route('DELETE', '/registry/:server', async (_req, res, { server }) => {
+route('DELETE', '/registries/:server', async (_req, res, { server }) => {
   if (!removeRegistryAuth(server)) {
     json(res, 404, { error: `no credentials for ${server}` })
     return
@@ -657,7 +700,7 @@ route('DELETE', '/registry/:server', async (_req, res, { server }) => {
   json<MessageResponse>(res, 200, { message: `registry ${server} removed` })
 })
 
-route('POST', '/webhook/:secret', async (req, res, { secret }) => {
+route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   const app = findAppBySecret(secret)
   if (!app) {
     json(res, 404, { error: 'unknown webhook' })
@@ -740,7 +783,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   const method = req.method ?? 'GET'
   const clientIp = req.socket.remoteAddress ?? ''
 
-  const isWebhook = url.startsWith('/webhook/')
+  const isWebhook = url.startsWith('/webhooks/')
   if (!isWebhook && !authenticate(req)) {
     recordAuthFailure(clientIp)
     console.warn(`[api] auth failure from ${clientIp} — ${method} ${url}`)
@@ -761,7 +804,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
 
   match.handler(req, res, match.params).catch((err) => {
     console.error('[api]', err)
-    json(res, 500, { error: err instanceof Error ? err.message : 'internal error' })
+    json(res, 500, { error: getErrorMessage(err) })
   })
 }
 

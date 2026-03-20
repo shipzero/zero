@@ -29,7 +29,7 @@ async function registryLogin(positionals: string[], flags: Record<string, string
   }
 
   const client = createClient()
-  unwrap(await client.post<MessageResponse>('/registry', { server, username, password }), logError)
+  unwrap(await client.post<MessageResponse>('/registries', { server, username, password }), logError)
   logSuccess(`logged in to ${server}`)
 }
 
@@ -41,13 +41,13 @@ async function registryLogout(positionals: string[]): Promise<void> {
   }
 
   const client = createClient()
-  unwrap(await client.del<MessageResponse>(`/registry/${encodeURIComponent(server)}`), logError)
+  unwrap(await client.del<MessageResponse>(`/registries/${encodeURIComponent(server)}`), logError)
   logSuccess(`logged out from ${server}`)
 }
 
 async function registryLs(): Promise<void> {
   const client = createClient()
-  const servers = unwrap(await client.get<string[]>('/registry'), logError)
+  const servers = unwrap(await client.get<string[]>('/registries'), logError)
 
   if (servers.length === 0) {
     logInfo('no registries configured')

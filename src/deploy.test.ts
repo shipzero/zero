@@ -101,7 +101,7 @@ describe('deploy', () => {
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('pull failed')
+      expect(result.error).toContain('registry timeout')
       expect(mockRunContainer).not.toHaveBeenCalled()
     })
 
@@ -112,7 +112,7 @@ describe('deploy', () => {
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('container start failed')
+      expect(result.error).toContain('port conflict')
     })
 
     it('removes container and returns failure when health check fails', async () => {

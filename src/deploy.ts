@@ -1,16 +1,23 @@
 import { EventEmitter } from 'node:events'
-import { getApp, addDeployment, findRollbackTarget, isComposeApp } from './state.ts'
-import { pullImage, runContainer, stopContainer, removeContainer, tailLogs, waitForHealthy, getFreePort } from './docker.ts'
+import { getApp, addDeployment, findRollbackTarget, isComposeApp, getPreview, setPreview } from './state.ts'
+import type { AppConfig, Preview } from './state.ts'
+import {
+  pullImage,
+  runContainer,
+  stopContainer,
+  removeContainer,
+  tailLogs,
+  waitForHealthy,
+  getFreePort
+} from './docker.ts'
 import { writeComposeFiles, composePull, composeUp } from './compose.ts'
-import { routeApp } from './proxy.ts'
-import { isTLSEnabled } from './certs.ts'
-
-const DOMAIN = process.env.DOMAIN ?? ''
+import { routeApp, updateProxyRoute } from './proxy.ts'
+import { buildDomainUrl } from './url.ts'
+import { DOMAIN } from './env.ts'
+import { getErrorMessage } from './errors.ts'
 
 function buildUrl(appDomain: string | undefined, port: number): string {
-  if (appDomain) {
-    return `${isTLSEnabled() ? 'https' : 'http'}://${appDomain}`
-  }
+  if (appDomain) return buildDomainUrl(appDomain)
   return DOMAIN ? `http://${DOMAIN}:${port}` : `:${port}`
 }
 
@@ -34,6 +41,64 @@ export function getDeployLogs(appName: string): string[] {
   return deployLogs.get(appName) ?? []
 }
 
+interface ContainerDeployOptions {
+  imageWithTag: string
+  containerName: string
+  internalPort: number
+  env: Record<string, string>
+  healthPath?: string
+  command?: string[]
+  volumes?: string[]
+  logKey: string
+}
+
+interface ContainerDeployResult {
+  containerId: string
+  port: number
+}
+
+async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerDeployResult> {
+  log(opts.logKey, `── deploy start: ${opts.imageWithTag}`)
+
+  log(opts.logKey, 'phase 1/3: pulling image')
+  await pullImage(opts.imageWithTag, (status) => log(opts.logKey, status))
+
+  log(opts.logKey, 'phase 2/3: starting container')
+  const port = await getFreePort()
+  const containerId = await runContainer({
+    image: opts.imageWithTag,
+    appName: opts.containerName,
+    internalPort: opts.internalPort,
+    hostPort: port,
+    env: opts.env,
+    command: opts.command,
+    volumes: opts.volumes
+  })
+  log(opts.logKey, `container ${containerId.slice(0, 12)} on port ${port}`)
+
+  const healthPath = opts.healthPath ?? '/'
+  log(opts.logKey, `phase 3/3: waiting for healthy on port ${port} (GET ${healthPath})`)
+  try {
+    await waitForHealthy(port, opts.healthPath, undefined, containerId)
+    log(opts.logKey, 'container is healthy')
+  } catch {
+    log(opts.logKey, `health check failed — container did not respond at http://127.0.0.1:${port}${healthPath}`)
+    log(opts.logKey, `make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`)
+    try {
+      await stopContainer(containerId)
+      log(opts.logKey, 'container logs:')
+      const lines = await tailLogs(containerId)
+      for (const line of lines) log(opts.logKey, `  ${line}`)
+    } catch {
+      /* container may already be gone */
+    }
+    await removeContainer(containerId)
+    throw new Error(`health check failed on port ${port}${healthPath}`)
+  }
+
+  return { containerId, port }
+}
+
 const locks = new Set<string>()
 
 export interface DeployResult {
@@ -41,6 +106,7 @@ export interface DeployResult {
   image: string
   port: number
   containerId: string
+  url?: string
   error?: string
 }
 
@@ -65,7 +131,7 @@ export async function deploy(appName: string, imageWithTag?: string): Promise<De
       result = await deploySingleContainer(appName, imageWithTag)
     }
   } catch (err) {
-    result = { success: false, image: imageWithTag ?? '', port: 0, containerId: '', error: err instanceof Error ? err.message : String(err) }
+    result = { success: false, image: imageWithTag ?? '', port: 0, containerId: '', error: getErrorMessage(err) }
   } finally {
     locks.delete(appName)
   }
@@ -75,66 +141,25 @@ export async function deploy(appName: string, imageWithTag?: string): Promise<De
 async function deploySingleContainer(appName: string, imageWithTag: string): Promise<DeployResult> {
   const app = getApp(appName)!
 
-  log(appName, `── deploy start: ${imageWithTag}`)
+  const { containerId, port } = await deployContainer({
+    imageWithTag,
+    containerName: appName,
+    internalPort: app.internalPort,
+    env: app.env,
+    healthPath: app.healthPath,
+    command: app.command,
+    volumes: app.volumes,
+    logKey: appName
+  })
 
-  log(appName, 'phase 1/4: pulling image')
-  try {
-    await pullImage(imageWithTag, (status) => log(appName, status))
-  } catch (err) {
-    const message = `pull failed: ${err instanceof Error ? err.message : err}`
-    log(appName, message)
-    return { success: false, image: imageWithTag, port: 0, containerId: '', error: message }
-  }
+  routeApp(app, port)
 
-  log(appName, 'phase 2/4: starting new container')
-  const containerPort = await getFreePort()
-  let containerId: string
-  try {
-    containerId = await runContainer({
-      image: imageWithTag,
-      appName,
-      internalPort: app.internalPort,
-      hostPort: containerPort,
-      env: app.env,
-      command: app.command,
-      volumes: app.volumes
-    })
-  } catch (err) {
-    const message = `container start failed: ${err instanceof Error ? err.message : err}`
-    log(appName, message)
-    return { success: false, image: imageWithTag, port: 0, containerId: '', error: message }
-  }
-  log(appName, `container ${containerId.slice(0, 12)} on port ${containerPort}`)
-
-  const healthPath = app.healthPath ?? '/'
-  log(appName, `phase 3/4: waiting for healthy on port ${containerPort} (GET ${healthPath})`)
-  try {
-    await waitForHealthy(containerPort, app.healthPath, undefined, containerId)
-    log(appName, 'container is healthy')
-  } catch (err) {
-    log(appName, `health check failed — container did not respond at http://127.0.0.1:${containerPort}${healthPath}`)
-    log(appName, `make sure your app listens on port ${app.internalPort} and responds to GET ${healthPath}`)
-    try {
-      await stopContainer(containerId)
-      log(appName, 'container logs:')
-      const lines = await tailLogs(containerId)
-      for (const line of lines) log(appName, `  ${line}`)
-    } catch { /* container may already be gone */ }
-    await removeContainer(containerId)
-    return { success: false, image: imageWithTag, port: containerPort, containerId, error: `health check failed on port ${containerPort}${healthPath}` }
-  }
-
-  log(appName, 'phase 4/4: swapping proxy route')
-  routeApp(app, containerPort)
-
-  const deployment = { image: imageWithTag, containerId, port: containerPort, deployedAt: new Date().toISOString() }
+  const deployment = { image: imageWithTag, containerId, port, deployedAt: new Date().toISOString() }
   const evicted = addDeployment(appName, deployment)
 
   const oldContainerIds = [
-    ...evicted.map((deployment) => deployment.containerId),
-    ...app.deployments
-      .filter((deployment) => deployment.containerId !== containerId)
-      .map((deployment) => deployment.containerId)
+    ...evicted.map((d) => d.containerId),
+    ...app.deployments.filter((d) => d.containerId !== containerId).map((d) => d.containerId)
   ]
 
   for (const oldContainerId of oldContainerIds) {
@@ -143,8 +168,9 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
     )
   }
 
-  log(appName, `deploy complete — ${buildUrl(app.domain, app.hostPort ?? containerPort)}`)
-  return { success: true, image: imageWithTag, port: containerPort, containerId }
+  const url = buildUrl(app.domain, app.hostPort ?? port)
+  log(appName, `deploy complete — ${url}`)
+  return { success: true, image: imageWithTag, port, containerId, url }
 }
 
 async function deployCompose(appName: string): Promise<DeployResult> {
@@ -159,7 +185,7 @@ async function deployCompose(appName: string): Promise<DeployResult> {
   try {
     await composePull(projectDir, (line) => log(appName, line))
   } catch (err) {
-    const message = `pull failed: ${err instanceof Error ? err.message : err}`
+    const message = `pull failed: ${getErrorMessage(err)}`
     log(appName, message)
     return { success: false, image: 'compose', port: 0, containerId: '', error: message }
   }
@@ -168,7 +194,7 @@ async function deployCompose(appName: string): Promise<DeployResult> {
   try {
     await composeUp(projectDir, (line) => log(appName, line))
   } catch (err) {
-    const message = `compose up failed: ${err instanceof Error ? err.message : err}`
+    const message = `compose up failed: ${getErrorMessage(err)}`
     log(appName, message)
     return { success: false, image: 'compose', port: containerPort, containerId: '', error: message }
   }
@@ -179,18 +205,83 @@ async function deployCompose(appName: string): Promise<DeployResult> {
     await waitForHealthy(containerPort, app.healthPath)
     log(appName, 'entry service is healthy')
   } catch {
-    log(appName, `health check failed — entry service did not respond at http://127.0.0.1:${containerPort}${composeHealthPath}`)
-    log(appName, `make sure service "${app.entryService}" listens on port ${app.internalPort} and responds to GET ${composeHealthPath}`)
-    return { success: false, image: 'compose', port: containerPort, containerId: '', error: `health check failed on port ${containerPort}${composeHealthPath}` }
+    log(
+      appName,
+      `health check failed — entry service did not respond at http://127.0.0.1:${containerPort}${composeHealthPath}`
+    )
+    log(
+      appName,
+      `make sure service "${app.entryService}" listens on port ${app.internalPort} and responds to GET ${composeHealthPath}`
+    )
+    return {
+      success: false,
+      image: 'compose',
+      port: containerPort,
+      containerId: '',
+      error: `health check failed on port ${containerPort}${composeHealthPath}`
+    }
   }
 
   routeApp(app, containerPort)
 
-  const deployment = { image: 'compose', containerId: 'compose', port: containerPort, deployedAt: new Date().toISOString() }
+  const deployment = {
+    image: 'compose',
+    containerId: 'compose',
+    port: containerPort,
+    deployedAt: new Date().toISOString()
+  }
   addDeployment(appName, deployment)
 
-  log(appName, `deploy complete — ${buildUrl(app.domain, app.hostPort ?? containerPort)}`)
-  return { success: true, image: 'compose', port: containerPort, containerId: 'compose' }
+  const url = buildUrl(app.domain, app.hostPort ?? containerPort)
+  log(appName, `deploy complete — ${url}`)
+  return { success: true, image: 'compose', port: containerPort, containerId: 'compose', url }
+}
+
+export async function deployPreview(
+  appName: string,
+  label: string,
+  tag: string,
+  domain: string,
+  expiresAt: string
+): Promise<Preview> {
+  const app = getApp(appName)
+  if (!app) throw new Error(`App "${appName}" not registered`)
+
+  const imageWithTag = `${app.image}:${tag}`
+  const logKey = `${appName}/preview/${label}`
+
+  const existing = getPreview(appName, label)
+  if (existing) {
+    log(logKey, `removing old container ${existing.containerId.slice(0, 12)}`)
+    await removeContainer(existing.containerId)
+  }
+
+  const { containerId, port } = await deployContainer({
+    imageWithTag,
+    containerName: `${appName}-preview-${label}`,
+    internalPort: app.internalPort,
+    env: app.env,
+    healthPath: app.healthPath,
+    command: app.command,
+    volumes: app.volumes,
+    logKey
+  })
+
+  updateProxyRoute(domain, port)
+
+  const preview: Preview = {
+    label,
+    domain,
+    image: imageWithTag,
+    containerId,
+    port,
+    deployedAt: new Date().toISOString(),
+    expiresAt
+  }
+  setPreview(appName, label, preview)
+
+  log(logKey, `deploy complete — ${buildDomainUrl(domain)}`)
+  return preview
 }
 
 /** Rollback = redeploy the most recent image that differs from the current one. */

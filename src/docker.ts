@@ -3,6 +3,7 @@ import http from 'node:http'
 import net from 'node:net'
 import { getRegistryAuth } from './state.ts'
 import type { ContainerStats } from './types.ts'
+import { getErrorMessage } from './errors.ts'
 
 export const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
 
@@ -105,7 +106,7 @@ export async function removeContainer(containerId: string, gracefulMs = 30_000):
   } catch (err: unknown) {
     const code = dockerStatusCode(err)
     if (code !== 304 && code !== 404) {
-      console.warn(`[docker] remove warning: ${err instanceof Error ? err.message : err}`)
+      console.warn(`[docker] remove warning: ${getErrorMessage(err)}`)
     }
   }
 }

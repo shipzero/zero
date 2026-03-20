@@ -2,9 +2,8 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getRegistryAuths } from './state.ts'
-
-const IS_DEV = process.env.NODE_ENV !== 'production'
-const COMPOSE_BASE_DIR = process.env.COMPOSE_DIR ?? (IS_DEV ? '.zero/compose' : '/data/compose')
+import { COMPOSE_BASE_DIR } from './env.ts'
+import { ensureDir } from './fs.ts'
 
 export function composeDir(appName: string): string {
   return path.join(COMPOSE_BASE_DIR, appName)
@@ -13,7 +12,7 @@ export function composeDir(appName: string): string {
 /** Writes the compose file and an override that binds the entry service to a host port. */
 export function writeComposeFiles(appName: string, composeContent: string, entryService: string, hostPort: number, internalPort: number): string {
   const projectDir = composeDir(appName)
-  fs.mkdirSync(projectDir, { recursive: true })
+  ensureDir(projectDir)
 
   fs.writeFileSync(path.join(projectDir, 'docker-compose.yml'), composeContent, 'utf8')
   const override = [
@@ -115,7 +114,7 @@ function writeDockerConfig(projectDir: string): string | undefined {
   if (Object.keys(auths).length === 0) return undefined
 
   const configDir = path.join(projectDir, '.docker')
-  fs.mkdirSync(configDir, { recursive: true })
+  ensureDir(configDir)
 
   const config: Record<string, Record<string, { auth: string }>> = { auths: {} }
   for (const [server, creds] of Object.entries(auths)) {

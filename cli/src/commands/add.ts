@@ -1,7 +1,33 @@
 import fs from 'node:fs'
 import { createClient, unwrap } from '../client.ts'
 import type { AddAppResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logHint, logError } from '../ui.ts'
+import dns from 'node:dns/promises'
+import { logSuccess, logInfo, logHint, logError, bold, dim } from '../ui.ts'
+
+async function resolveServerIp(serverHost: string): Promise<string> {
+  const hostname = new URL(serverHost).hostname
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return hostname
+  try {
+    const addresses = await dns.resolve4(hostname)
+    return addresses[0]
+  } catch {
+    return hostname
+  }
+}
+
+async function printDnsTable(domain: string, serverHost: string): Promise<void> {
+  const ip = await resolveServerIp(serverHost)
+  const typeWidth = 4
+  const nameWidth = Math.max(4, domain.length, `*.${domain}`.length)
+
+  console.log()
+  console.log(bold('  DNS records required:'))
+  console.log()
+  console.log(bold(`  ${'TYPE'.padEnd(typeWidth)}  ${'NAME'.padEnd(nameWidth)}  VALUE`))
+  console.log(`  ${'A'.padEnd(typeWidth)}  ${domain.padEnd(nameWidth)}  ${ip}`)
+  console.log(`  ${'A'.padEnd(typeWidth)}  ${`*.${domain}`.padEnd(nameWidth)}  ${ip}  ${dim('(for preview deployments)')}`)
+  console.log()
+}
 
 export async function add(flags: Record<string, string | true>): Promise<void> {
   const name = flags['name'] as string | undefined
@@ -59,7 +85,10 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
 
     logSuccess(`compose app "${data.name}" added`)
     logInfo(`entry service: ${service}, port: ${resolvedPort}`)
-    if (domain) logInfo(`domain: ${domain}`)
+    if (domain) {
+      logInfo(`domain: ${domain}`)
+      await printDnsTable(domain, client.config.host)
+    }
     logHint(`deploy with: zero deploy ${name}`)
     return
   }
@@ -80,5 +109,6 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
   logSuccess(`app "${data.name}" added`)
   logInfo(`image: ${image}, port: ${resolvedPort}${domain ? `, domain: ${domain}` : ''}`)
   logInfo(`webhook: ${data.webhookUrl}`)
+  if (domain) await printDnsTable(domain, client.config.host)
   logHint(`deploy with: zero deploy ${name}`)
 }

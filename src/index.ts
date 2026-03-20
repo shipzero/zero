@@ -1,14 +1,14 @@
 import { loadState, getApps } from './state.ts'
 import { startTLSProxy, startHTTPProxy, startDevProxy, restoreRoutes, updateProxyRoute, closeAllPortListeners } from './proxy.ts'
 import { startApi } from './api.ts'
-import { renewExpiringCerts, isTLSEnabled } from './certs.ts'
+import { renewExpiringCerts } from './certs.ts'
+import { isTLSEnabled } from './url.ts'
+import { IS_DEV, DOMAIN, TOKEN, API_PORT, CERT_RENEW_INTERVAL_MS } from './env.ts'
 import { VERSION } from './version.ts'
+import { startPreviewCleanupInterval, cleanupExpiredPreviews } from './preview.ts'
 
-const isDevelopment = process.env.NODE_ENV !== 'production'
-const CERT_RENEW_INTERVAL_MS = Number(process.env.CERT_RENEW_INTERVAL_MS ?? 12 * 60 * 60 * 1000)
-
-if (!process.env.TOKEN) {
-  if (isDevelopment) {
+if (!TOKEN) {
+  if (IS_DEV) {
     console.warn('[warn] TOKEN not set — API is unprotected')
   } else {
     console.error('[fatal] TOKEN must be set in production')
@@ -19,7 +19,7 @@ if (!process.env.TOKEN) {
 console.log('┌──────────┐')
 console.log('│   zero   │')
 console.log('└──────────┘')
-console.log(`[zero] ${isDevelopment ? 'dev' : `${VERSION} (production)`}`)
+console.log(`[zero] ${IS_DEV ? 'dev' : `${VERSION} (production)`}`)
 
 loadState()
 restoreRoutes(getApps())
@@ -37,7 +37,11 @@ const certRenewTimer = setInterval(() => {
 }, CERT_RENEW_INTERVAL_MS)
 certRenewTimer.unref()
 
-const servers = isDevelopment
+void cleanupExpiredPreviews()
+const previewCleanupTimer = startPreviewCleanupInterval()
+previewCleanupTimer.unref()
+
+const servers = IS_DEV
   ? [startDevProxy()]
   : isTLSEnabled()
     ? [startHTTPProxy(), startTLSProxy()]
@@ -46,9 +50,7 @@ const servers = isDevelopment
 const apiServer = await startApi()
 servers.push(apiServer)
 
-const DOMAIN = process.env.DOMAIN ?? ''
 if (DOMAIN) {
-  const API_PORT = Number(process.env.API_PORT ?? 2020)
   updateProxyRoute(DOMAIN, API_PORT)
 }
 

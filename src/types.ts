@@ -48,6 +48,7 @@ export interface DeployResult {
   image: string
   port: number
   containerId: string
+  url?: string
   error?: string
 }
 
@@ -80,6 +81,25 @@ export interface ContainerStats {
   memoryLimit: number
   networkRx: number
   networkTx: number
+}
+
+export interface PreviewDeployResponse {
+  name: string
+  label: string
+  domain: string
+  url: string
+  success: boolean
+  error?: string
+}
+
+export interface PreviewSummary {
+  name: string
+  label: string
+  domain: string
+  status: 'running' | 'stopped' | 'no deployment'
+  image?: string
+  deployedAt?: string
+  expiresAt?: string
 }
 
 export interface DeploymentInfo {
