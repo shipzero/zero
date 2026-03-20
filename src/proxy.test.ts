@@ -16,7 +16,7 @@ vi.mock('./certs.ts', () => ({
   isTLSEnabled: vi.fn().mockReturnValue(false)
 }))
 
-const { updateProxyRoute, removeProxyRoute, startDevProxy } = await import('./proxy.ts')
+const { updateProxyRoute, removeProxyRoute, startDevProxy, restoreRoutes } = await import('./proxy.ts')
 
 function makeRequest(port: number, host: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
@@ -78,6 +78,13 @@ describe('proxy route management', () => {
     expect(res.body).toContain('Bad gateway')
 
     proxy.close()
+  })
+
+  it('restoreRoutes handles apps without previews field', () => {
+    const apps = [
+      { domain: 'old.local', deployments: [{ port: 3000 }], previews: undefined as any }
+    ]
+    expect(() => restoreRoutes(apps)).not.toThrow()
   })
 
   it('removeProxyRoute stops forwarding', async () => {

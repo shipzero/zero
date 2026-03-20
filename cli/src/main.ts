@@ -15,6 +15,7 @@ import { status } from './commands/status.ts'
 import { registry } from './commands/registry.ts'
 import { upgrade } from './commands/upgrade.ts'
 import { webhook } from './commands/webhook.ts'
+import { preview } from './commands/preview.ts'
 import { VERSION } from './version.ts'
 import { bold, cyan, dim, logInfo, logError } from './ui.ts'
 
@@ -49,7 +50,7 @@ function parseArgs(argv: string[]): ParsedArgs {
           flags[arg.slice(2)] = true
         }
       }
-    } else if (isFirstPositional && (command === 'env' || command === 'registry' || command === 'webhook')) {
+    } else if (isFirstPositional && (command === 'env' || command === 'registry' || command === 'webhook' || command === 'preview')) {
       subcommand = arg
       isFirstPositional = false
     } else {
@@ -73,6 +74,10 @@ function formatHelp(): string {
     ['logs <app> | --server', 'Stream app or server logs'],
     ['ls', 'List all apps'],
     ['metrics <app> | --server', 'Show live resource usage'],
+    ['preview deploy <app> --tag <tag> [--label] [--ttl]', 'Deploy a preview'],
+    ['preview ls <app>', 'List previews for an app'],
+    ['preview rm <app> <label> [--force]', 'Remove a preview'],
+    ['preview rm <app> --all [--force]', 'Remove all previews'],
     ['registry login <server> --user --password', 'Add registry credentials'],
     ['registry logout <server>', 'Remove registry credentials'],
     ['registry ls', 'List configured registries'],
@@ -132,6 +137,9 @@ async function main() {
         break
       case 'metrics':
         await metrics(parsed.positionals, parsed.flags)
+        break
+      case 'preview':
+        await preview(parsed.subcommand, parsed.positionals, parsed.flags)
         break
       case 'registry':
         await registry(parsed.subcommand, parsed.positionals, parsed.flags)

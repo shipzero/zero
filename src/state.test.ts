@@ -56,6 +56,26 @@ describe('state', () => {
       state.loadState()
       expect(state.getRegistryAuths()).toEqual({})
     })
+
+    it('backfills previews for apps missing the field', () => {
+      const oldState = {
+        apps: {
+          legacy: {
+            name: 'legacy',
+            image: 'nginx',
+            trackTag: 'latest',
+            internalPort: 80,
+            webhookSecret: 'sec',
+            env: {},
+            deployments: []
+          }
+        },
+        registryAuths: {}
+      }
+      fs.writeFileSync(process.env.STATE_PATH!, JSON.stringify(oldState))
+      state.loadState()
+      expect(state.getApp('legacy')!.previews).toEqual({})
+    })
   })
 
   describe('addApp / getApp / getApps', () => {
@@ -245,6 +265,82 @@ describe('state', () => {
 
     it('returns false when removing non-existent registry', () => {
       expect(state.removeRegistryAuth('nope')).toBe(false)
+    })
+  })
+
+  describe('preview helpers', () => {
+    it('buildPreviewDomain builds correct subdomain', () => {
+      expect(state.buildPreviewDomain('myapp.example.com', 'pr-42')).toBe('pr-42.myapp.example.com')
+    })
+
+    it('setPreview and getPreview work correctly', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      const preview = {
+        label: 'pr-1',
+        domain: 'pr-1.app.example.com',
+        image: 'nginx:pr-1',
+        containerId: 'c1',
+        port: 4000,
+        deployedAt: '2024-01-01T00:00:00Z',
+        expiresAt: '2024-01-08T00:00:00Z'
+      }
+      state.setPreview('app', 'pr-1', preview)
+      expect(state.getPreview('app', 'pr-1')).toEqual(preview)
+    })
+
+    it('getPreview returns undefined for non-existent preview', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      expect(state.getPreview('app', 'nope')).toBeUndefined()
+    })
+
+    it('removePreview removes a preview', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      state.setPreview('app', 'pr-1', {
+        label: 'pr-1', domain: 'pr-1.app.com', image: 'nginx:pr-1',
+        containerId: 'c1', port: 4000, deployedAt: '2024-01-01T00:00:00Z', expiresAt: '2024-01-08T00:00:00Z'
+      })
+      state.removePreview('app', 'pr-1')
+      expect(state.getPreview('app', 'pr-1')).toBeUndefined()
+    })
+
+    it('getPreviewsForApp returns all previews', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      state.setPreview('app', 'pr-1', {
+        label: 'pr-1', domain: 'pr-1.app.com', image: 'nginx:pr-1',
+        containerId: 'c1', port: 4000, deployedAt: '2024-01-01T00:00:00Z', expiresAt: '2024-01-08T00:00:00Z'
+      })
+      state.setPreview('app', 'pr-2', {
+        label: 'pr-2', domain: 'pr-2.app.com', image: 'nginx:pr-2',
+        containerId: 'c2', port: 4001, deployedAt: '2024-01-01T00:00:00Z', expiresAt: '2024-01-08T00:00:00Z'
+      })
+      const previews = state.getPreviewsForApp('app')
+      expect(previews).toHaveLength(2)
+      expect(previews.map((p) => p.label).sort()).toEqual(['pr-1', 'pr-2'])
+    })
+
+    it('getAllExpiredPreviews returns only expired previews', () => {
+      const past = new Date(Date.now() - 1000).toISOString()
+      const future = new Date(Date.now() + 86_400_000).toISOString()
+
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      state.setPreview('app', 'old', {
+        label: 'old', domain: 'old.app.com', image: 'nginx:old',
+        containerId: 'c1', port: 4000, deployedAt: '2024-01-01T00:00:00Z', expiresAt: past
+      })
+      state.setPreview('app', 'new', {
+        label: 'new', domain: 'new.app.com', image: 'nginx:new',
+        containerId: 'c2', port: 4001, deployedAt: '2024-01-01T00:00:00Z', expiresAt: future
+      })
+
+      const expired = state.getAllExpiredPreviews()
+      expect(expired).toHaveLength(1)
+      expect(expired[0].label).toBe('old')
+      expect(expired[0].appName).toBe('app')
+    })
+
+    it('addApp initializes previews as empty object', () => {
+      const app = state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      expect(app.previews).toEqual({})
     })
   })
 })

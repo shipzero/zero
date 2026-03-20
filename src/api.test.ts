@@ -24,7 +24,9 @@ vi.mock('./docker.ts', () => ({
   startContainer: vi.fn().mockResolvedValue(undefined),
   waitForHealthy: vi.fn().mockResolvedValue(undefined),
   getFreePort: vi.fn().mockResolvedValue(9999),
-  streamLogs: vi.fn().mockReturnValue((async function* () {})())
+  streamLogs: vi.fn().mockReturnValue((async function* () {})()),
+  streamStats: vi.fn().mockReturnValue((async function* () {})()),
+  getContainerState: vi.fn().mockResolvedValue({ running: true, restartCount: 0 })
 }))
 
 vi.mock('./compose.ts', () => ({
@@ -41,7 +43,9 @@ vi.mock('./compose.ts', () => ({
 
 vi.mock('./proxy.ts', () => ({
   routeApp: vi.fn(),
-  unrouteApp: vi.fn()
+  unrouteApp: vi.fn(),
+  updateProxyRoute: vi.fn(),
+  removeProxyRoute: vi.fn()
 }))
 
 // Now import after mocks are set up
@@ -453,41 +457,41 @@ describe('API', () => {
 
   describe('registry endpoints', () => {
     it('POST /registry saves credentials', async () => {
-      const res = await request('POST', '/registry', { server: 'ghcr.io', username: 'u', password: 'p' })
+      const res = await request('POST', '/registries', { server: 'ghcr.io', username: 'u', password: 'p' })
       expect(res.status).toBe(200)
       expect(state.getRegistryAuth('ghcr.io')).toEqual({ username: 'u', password: 'p' })
     })
 
     it('POST /registry rejects incomplete body', async () => {
-      const res = await request('POST', '/registry', { server: 'ghcr.io' })
+      const res = await request('POST', '/registries', { server: 'ghcr.io' })
       expect(res.status).toBe(400)
     })
 
     it('GET /registry lists servers', async () => {
       state.setRegistryAuth('ghcr.io', { username: 'u', password: 'p' })
-      const res = await request('GET', '/registry')
+      const res = await request('GET', '/registries')
       expect(res.status).toBe(200)
       expect(res.body).toEqual(['ghcr.io'])
     })
 
     it('DELETE /registry/:server removes credentials', async () => {
       state.setRegistryAuth('ghcr.io', { username: 'u', password: 'p' })
-      const res = await request('DELETE', '/registry/ghcr.io')
+      const res = await request('DELETE', '/registries/ghcr.io')
       expect(res.status).toBe(200)
     })
 
     it('DELETE /registry/:server returns 404 for unknown', async () => {
-      const res = await request('DELETE', '/registry/nope.io')
+      const res = await request('DELETE', '/registries/nope.io')
       expect(res.status).toBe(404)
     })
   })
 
-  describe('POST /apps/:name/webhook/reset', () => {
+  describe('POST /apps/:name/webhooks/reset', () => {
     it('resets webhook secret and returns new URL', async () => {
       await request('POST', '/apps', { name: 'hookapp', image: 'nginx:latest' })
       const oldSecret = state.getApp('hookapp')!.webhookSecret
 
-      const res = await request('POST', '/apps/hookapp/webhook/reset')
+      const res = await request('POST', '/apps/hookapp/webhooks/reset')
       expect(res.status).toBe(200)
 
       const body = res.body as { webhookSecret: string; webhookUrl: string }
@@ -497,7 +501,7 @@ describe('API', () => {
     })
 
     it('returns 404 for unknown app', async () => {
-      const res = await request('POST', '/apps/nope/webhook/reset')
+      const res = await request('POST', '/apps/nope/webhooks/reset')
       expect(res.status).toBe(404)
     })
   })
@@ -530,27 +534,27 @@ describe('API', () => {
 
     it('skips auth for webhook endpoints', async () => {
       const app = state.addApp({ name: 'hook', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhook/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(202)
     })
 
     it('returns 404 for unknown webhook secret', async () => {
-      const res = await request('POST', '/webhook/unknown-secret', { push_data: { tag: 'latest' } }, '')
+      const res = await request('POST', '/webhooks/unknown-secret', { push_data: { tag: 'latest' } }, '')
       expect(res.status).toBe(404)
     })
 
     it('rejects webhook without signature', async () => {
       const app = state.addApp({ name: 'hook-nosig', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      const res = await request('POST', `/webhook/${app.webhookSecret}`, { push_data: { tag: 'latest' } }, '')
+      const res = await request('POST', `/webhooks/${app.webhookSecret}`, { push_data: { tag: 'latest' } }, '')
       expect(res.status).toBe(401)
       expect((res.body as { error: string }).error).toBe('missing signature')
     })
 
     it('rejects webhook with invalid signature', async () => {
       const app = state.addApp({ name: 'hook-badsig', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest('wrong-secret', `/webhook/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest('wrong-secret', `/webhooks/${app.webhookSecret}`, {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(401)
@@ -559,7 +563,7 @@ describe('API', () => {
 
     it('ignores when tag does not match tracked tag', async () => {
       const app = state.addApp({ name: 'hook2', image: 'nginx', trackTag: 'stable', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhook/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(200)
@@ -568,7 +572,7 @@ describe('API', () => {
 
     it('deploys when trackTag is "any"', async () => {
       const app = state.addApp({ name: 'hook3', image: 'nginx', trackTag: 'any', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhook/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
         push_data: { tag: 'v5' }
       })
       expect(res.status).toBe(202)
@@ -576,7 +580,7 @@ describe('API', () => {
 
     it('extracts tag from GHCR payload', async () => {
       const app = state.addApp({ name: 'ghcr', image: 'ghcr.io/user/app', trackTag: 'v3', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhook/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
         action: 'published',
         package: {
           package_version: {
@@ -587,6 +591,133 @@ describe('API', () => {
         }
       })
       expect(res.status).toBe(202)
+    })
+  })
+
+  describe('POST /apps/:name/previews', () => {
+    it('creates a preview deployment', async () => {
+      await request('POST', '/apps', { name: 'prev', image: 'nginx:latest', domain: 'prev.example.com' })
+      const res = await request('POST', '/apps/prev/previews', { label: 'pr-1', tag: 'pr-1' })
+      expect(res.status).toBe(201)
+      const body = res.body as { name: string; label: string; domain: string; url: string; success: boolean }
+      expect(body.name).toBe('prev')
+      expect(body.label).toBe('pr-1')
+      expect(body.domain).toBe('pr-1.prev.example.com')
+      expect(body.success).toBe(true)
+      const preview = state.getApp('prev')?.previews['pr-1']
+      expect(preview).toBeDefined()
+      expect(preview!.domain).toBe('pr-1.prev.example.com')
+    })
+
+    it('redeploys existing preview', async () => {
+      await request('POST', '/apps', { name: 'prev2', image: 'nginx:latest', domain: 'prev2.example.com' })
+      await request('POST', '/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2' })
+      const res = await request('POST', '/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2-updated' })
+      expect(res.status).toBe(201)
+      expect((res.body as { success: boolean }).success).toBe(true)
+      const preview = state.getApp('prev2')?.previews['pr-2']
+      expect(preview!.image).toBe('nginx:pr-2-updated')
+    })
+
+    it('rejects preview without domain on parent', async () => {
+      await request('POST', '/apps', { name: 'nodom', image: 'nginx:latest' })
+      const res = await request('POST', '/apps/nodom/previews', { label: 'pr-1', tag: 'pr-1' })
+      expect(res.status).toBe(400)
+      expect((res.body as { error: string }).error).toContain('domain')
+    })
+
+    it('rejects missing tag', async () => {
+      await request('POST', '/apps', { name: 'prev4', image: 'nginx:latest', domain: 'prev4.example.com' })
+      const res = await request('POST', '/apps/prev4/previews', { label: 'pr-4' })
+      expect(res.status).toBe(400)
+      expect((res.body as { error: string }).error).toContain('tag')
+    })
+
+    it('sets TTL on preview', async () => {
+      await request('POST', '/apps', { name: 'prev6', image: 'nginx:latest', domain: 'prev6.example.com' })
+      await request('POST', '/apps/prev6/previews', { label: 'pr-6', tag: 'pr-6', ttlHours: 24 })
+      const preview = state.getApp('prev6')?.previews['pr-6']
+      expect(preview?.expiresAt).toBeDefined()
+      const expiresAt = new Date(preview!.expiresAt).getTime()
+      const expectedMin = Date.now() + 23 * 60 * 60 * 1000
+      expect(expiresAt).toBeGreaterThan(expectedMin)
+    })
+  })
+
+  describe('GET /apps/:name/previews', () => {
+    it('lists previews for an app', async () => {
+      await request('POST', '/apps', { name: 'pls', image: 'nginx:latest', domain: 'pls.example.com' })
+      await request('POST', '/apps/pls/previews', { label: 'pr-1', tag: 'pr-1' })
+      await request('POST', '/apps/pls/previews', { label: 'pr-2', tag: 'pr-2' })
+
+      const res = await request('GET', '/apps/pls/previews')
+      expect(res.status).toBe(200)
+      const previews = res.body as Array<{ label: string; domain: string }>
+      expect(previews).toHaveLength(2)
+      expect(previews.map((p) => p.label).sort()).toEqual(['pr-1', 'pr-2'])
+    })
+
+    it('returns empty array when no previews', async () => {
+      await request('POST', '/apps', { name: 'pls2', image: 'nginx:latest', domain: 'pls2.example.com' })
+      const res = await request('GET', '/apps/pls2/previews')
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual([])
+    })
+
+    it('returns 404 for unknown parent', async () => {
+      const res = await request('GET', '/apps/nope/previews')
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe('DELETE /apps/:name/previews/:label', () => {
+    it('removes a specific preview', async () => {
+      await request('POST', '/apps', { name: 'pdel', image: 'nginx:latest', domain: 'pdel.example.com' })
+      await request('POST', '/apps/pdel/previews', { label: 'pr-1', tag: 'pr-1' })
+
+      const res = await request('DELETE', '/apps/pdel/previews/pr-1')
+      expect(res.status).toBe(200)
+      expect(state.getApp('pdel')?.previews['pr-1']).toBeUndefined()
+    })
+
+    it('returns 404 for unknown preview', async () => {
+      await request('POST', '/apps', { name: 'pdel2', image: 'nginx:latest', domain: 'pdel2.example.com' })
+      const res = await request('DELETE', '/apps/pdel2/previews/nope')
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe('DELETE /apps/:name/previews', () => {
+    it('removes all previews for an app', async () => {
+      await request('POST', '/apps', { name: 'pdelall', image: 'nginx:latest', domain: 'pdelall.example.com' })
+      await request('POST', '/apps/pdelall/previews', { label: 'pr-1', tag: 'pr-1' })
+      await request('POST', '/apps/pdelall/previews', { label: 'pr-2', tag: 'pr-2' })
+
+      const res = await request('DELETE', '/apps/pdelall/previews')
+      expect(res.status).toBe(200)
+      expect((res.body as { message: string }).message).toContain('2')
+      expect(state.getApp('pdelall')?.previews).toEqual({})
+    })
+
+    it('deleting parent also removes previews', async () => {
+      await request('POST', '/apps', { name: 'pparent', image: 'nginx:latest', domain: 'pparent.example.com' })
+      await request('POST', '/apps/pparent/previews', { label: 'pr-1', tag: 'pr-1' })
+
+      await request('DELETE', '/apps/pparent')
+      expect(state.getApp('pparent')).toBeUndefined()
+    })
+  })
+
+  describe('GET /apps does not include previews', () => {
+    it('previews do not appear as separate apps', async () => {
+      await request('POST', '/apps', { name: 'pvis', image: 'nginx:latest', domain: 'pvis.example.com' })
+      await request('POST', '/apps/pvis/previews', { label: 'pr-1', tag: 'pr-1' })
+
+      const res = await request('GET', '/apps')
+      expect(res.status).toBe(200)
+      const apps = res.body as Array<{ name: string }>
+      expect(apps).toHaveLength(1)
+      expect(apps[0].name).toBe('pvis')
     })
   })
 

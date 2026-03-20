@@ -1,6 +1,8 @@
 import tls from 'node:tls'
 import http from 'node:http'
-import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge, isTLSEnabled } from './certs.ts'
+import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge } from './certs.ts'
+import { isTLSEnabled } from './url.ts'
+import { DEV_PORT } from './env.ts'
 
 const REQUEST_TIMEOUT_MS = 30_000
 const HEADERS_TIMEOUT_MS = 10_000
@@ -227,8 +229,6 @@ export function startHTTPProxy() {
 }
 
 export function startDevProxy() {
-  const DEV_PORT = Number(process.env.DEV_PORT ?? 8080)
-
   const server = http.createServer((req, res) => proxyRequest(req, res))
   applyTimeouts(server)
 
@@ -237,7 +237,7 @@ export function startDevProxy() {
 }
 
 export function restoreRoutes(
-  apps: Array<{ domain?: string; hostPort?: number; deployments: Array<{ port: number }> }>
+  apps: Array<{ domain?: string; hostPort?: number; deployments: Array<{ port: number }>; previews: Record<string, { domain: string; port: number }> }>
 ) {
   for (const app of apps) {
     const deployment = app.deployments[0]
@@ -248,6 +248,11 @@ export function restoreRoutes(
       loadCachedCert(app.domain)
     } else if (app.hostPort) {
       updatePortRoute(app.hostPort, deployment.port)
+    }
+
+    for (const preview of Object.values(app.previews ?? {})) {
+      updateProxyRoute(preview.domain, preview.port)
+      loadCachedCert(preview.domain)
     }
   }
 }

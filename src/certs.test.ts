@@ -5,8 +5,9 @@ import path from 'node:path'
 import tls from 'node:tls'
 
 const tmpDir = path.join(os.tmpdir(), `zero-test-certs-${process.pid}`)
-process.env.NODE_ENV = 'test'
+process.env.NODE_ENV = 'production'
 process.env.EMAIL = 'test@example.com'
+process.env.DOMAIN = 'example.com'
 process.env.CERTS_PATH = tmpDir
 process.env.CERT_RENEW_BEFORE_DAYS = '30'
 

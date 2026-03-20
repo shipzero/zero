@@ -1,0 +1,12 @@
+export const IS_DEV = process.env.NODE_ENV !== 'production'
+export const DOMAIN = process.env.DOMAIN ?? ''
+export const EMAIL = process.env.EMAIL ?? ''
+export const TOKEN = process.env.TOKEN ?? ''
+export const API_PORT = Number(process.env.API_PORT ?? 2020)
+export const DEV_PORT = Number(process.env.DEV_PORT ?? 8080)
+export const STATE_PATH = process.env.STATE_PATH ?? (IS_DEV ? '.zero/state.json' : '/data/state/state.json')
+export const CERTS_DIR = process.env.CERTS_PATH ?? (IS_DEV ? '.zero/certs' : '/data/certs')
+export const CERT_RENEW_BEFORE_DAYS = Number(process.env.CERT_RENEW_BEFORE_DAYS ?? 30)
+export const CERT_RENEW_INTERVAL_MS = Number(process.env.CERT_RENEW_INTERVAL_MS ?? 12 * 60 * 60 * 1000)
+export const COMPOSE_BASE_DIR = process.env.COMPOSE_DIR ?? (IS_DEV ? '.zero/compose' : '/data/compose')
+export const PREVIEW_TTL_HOURS = Number(process.env.PREVIEW_TTL_HOURS ?? 168) // 7 days

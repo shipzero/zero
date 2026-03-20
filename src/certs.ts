@@ -3,12 +3,10 @@ import { X509Certificate } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import * as acme from 'acme-client'
-
-const IS_DEV = process.env.NODE_ENV !== 'production'
-const CERTS_DIR = process.env.CERTS_PATH ?? (IS_DEV ? '.zero/certs' : '/data/certs')
-const EMAIL = process.env.EMAIL ?? ''
-const DOMAIN = process.env.DOMAIN ?? ''
-const CERT_RENEW_BEFORE_DAYS = Number(process.env.CERT_RENEW_BEFORE_DAYS ?? 30)
+import { IS_DEV, EMAIL, CERTS_DIR, CERT_RENEW_BEFORE_DAYS } from './env.ts'
+import { getErrorMessage } from './errors.ts'
+import { ensureDir, writeFileAtomic } from './fs.ts'
+import { isTLSEnabled } from './url.ts'
 
 const certCache = new Map<string, tls.SecureContext>()
 const certInFlight = new Map<string, Promise<tls.SecureContext>>()
@@ -17,7 +15,7 @@ const challengeTokens = new Map<string, string>()
 const ACCOUNT_KEY_FILE = 'account.pem'
 
 async function getOrCreateAccountKey(): Promise<Buffer> {
-  fs.mkdirSync(CERTS_DIR, { recursive: true })
+  ensureDir(CERTS_DIR)
   const keyPath = path.join(CERTS_DIR, ACCOUNT_KEY_FILE)
   if (fs.existsSync(keyPath)) {
     return fs.readFileSync(keyPath)
@@ -59,7 +57,7 @@ function getCertExpiry(domain: string): Date | null {
     const pem = fs.readFileSync(cert, 'utf8')
     return new Date(new X509Certificate(pem).validTo)
   } catch (err) {
-    console.warn(`[acme] failed to inspect cert for ${domain}:`, err instanceof Error ? err.message : err)
+    console.warn(`[acme] failed to inspect cert for ${domain}:`, getErrorMessage(err))
     return null
   }
 }
@@ -77,7 +75,7 @@ export async function renewExpiringCerts(
   renew: (domain: string) => Promise<tls.SecureContext> = obtainCert,
   now = Date.now()
 ): Promise<string[]> {
-  if (!isAcmeConfigured()) return []
+  if (!isTLSEnabled()) return []
 
   const uniqueDomains = [...new Set(domains.filter(Boolean))]
   const renewed: string[] = []
@@ -90,7 +88,7 @@ export async function renewExpiringCerts(
       await renew(domain)
       renewed.push(domain)
     } catch (err) {
-      console.error(`[acme] failed to renew cert for ${domain}:`, err instanceof Error ? err.message : err)
+      console.error(`[acme] failed to renew cert for ${domain}:`, getErrorMessage(err))
     }
   }
 
@@ -101,7 +99,7 @@ export function obtainCert(domain: string): Promise<tls.SecureContext> {
   if (certInFlight.has(domain)) return certInFlight.get(domain)!
 
   const promise = _doObtainCert(domain).catch((err) => {
-    console.error(`[acme] failed to obtain cert for ${domain}:`, err instanceof Error ? err.message : err)
+    console.error(`[acme] failed to obtain cert for ${domain}:`, getErrorMessage(err))
     throw err
   })
   certInFlight.set(domain, promise)
@@ -132,15 +130,9 @@ async function getOrCreateClient(): Promise<acme.Client> {
   return _acmeClient
 }
 
-function writeFileAtomic(filePath: string, data: string | Buffer): void {
-  const tmpPath = filePath + '.tmp'
-  fs.writeFileSync(tmpPath, data)
-  fs.renameSync(tmpPath, filePath)
-}
-
 async function _doObtainCert(domain: string): Promise<tls.SecureContext> {
   console.log(`[acme] obtaining cert for ${domain}`)
-  fs.mkdirSync(CERTS_DIR, { recursive: true })
+  ensureDir(CERTS_DIR)
 
   const client = await getOrCreateClient()
   const [serverKey, serverCsr] = await acme.crypto.createCsr({ commonName: domain })
@@ -183,14 +175,4 @@ export function handleAcmeChallenge(url: string, res: import('node:http').Server
   return true
 }
 
-export function isAcmeConfigured(): boolean {
-  return EMAIL !== ''
-}
 
-function isDomain(value: string): boolean {
-  return value !== '' && !/^\d+\.\d+\.\d+\.\d+$/.test(value)
-}
-
-export function isTLSEnabled(): boolean {
-  return !IS_DEV && EMAIL !== '' && isDomain(DOMAIN)
-}

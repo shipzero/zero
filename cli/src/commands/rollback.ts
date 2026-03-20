@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, RollbackResponse, RollbackTargetResponse } from '../../../src/types.ts'
-import { logSuccess, logError, logHint, confirm, bold, dim } from '../ui.ts'
+import { logSuccess, logError, logHint, confirm, bold, dim, timeAgo } from '../ui.ts'
 
 export async function rollback(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const appName = positionals[0]
@@ -36,15 +36,4 @@ export async function rollback(positionals: string[], flags: Record<string, stri
 
   logSuccess(`rolled back ${appName} to ${data.image}`)
   logHint(`view logs: zero logs ${appName}`)
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
 }
