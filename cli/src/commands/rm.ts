@@ -11,9 +11,7 @@ export async function rm(positionals: string[], flags: Record<string, string | t
 
   const client = createClient()
 
-  unwrap(await client.get<AppDetail>(
-    `/apps/${encodeURIComponent(appName)}`
-  ), logError)
+  unwrap(await client.get<AppDetail>(`/apps/${encodeURIComponent(appName)}`), logError)
 
   if (!flags['force']) {
     const ok = await confirm(`remove app ${bold(appName)} and all its containers?`)
@@ -22,9 +20,7 @@ export async function rm(positionals: string[], flags: Record<string, string | t
     }
   }
 
-  unwrap(await client.del<MessageResponse>(
-    `/apps/${encodeURIComponent(appName)}`
-  ), logError)
+  unwrap(await client.del<MessageResponse>(`/apps/${encodeURIComponent(appName)}`), logError)
 
   logSuccess(`removed ${appName}`)
 }

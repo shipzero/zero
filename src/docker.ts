@@ -16,10 +16,7 @@ function registryFromImage(image: string): string {
   return 'docker.io'
 }
 
-export async function pullImage(
-  image: string,
-  onProgress?: (status: string) => void
-): Promise<void> {
+export async function pullImage(image: string, onProgress?: (status: string) => void): Promise<void> {
   console.log(`[docker] pulling ${image}`)
 
   const auth = getRegistryAuth(registryFromImage(image))
@@ -113,13 +110,16 @@ export async function removeContainer(containerId: string, gracefulMs = 30_000):
 
 export async function tailLogs(containerId: string, tail = 50): Promise<string[]> {
   const container = docker.getContainer(containerId)
-  const buffer = await container.logs({ follow: false, stdout: true, stderr: true, tail, timestamps: true }) as Buffer
+  const buffer = (await container.logs({ follow: false, stdout: true, stderr: true, tail, timestamps: true })) as Buffer
   const lines: string[] = []
   let offset = 0
   while (offset < buffer.length) {
     if (buffer.length - offset < 8) break
     const size = buffer.readUInt32BE(offset + 4)
-    const line = buffer.subarray(offset + 8, offset + 8 + size).toString('utf8').trimEnd()
+    const line = buffer
+      .subarray(offset + 8, offset + 8 + size)
+      .toString('utf8')
+      .trimEnd()
     if (line) lines.push(line)
     offset += 8 + size
   }
@@ -206,7 +206,12 @@ export async function* streamStats(containerId: string): AsyncGenerator<Containe
   }
 }
 
-export async function waitForHealthy(port: number, healthPath?: string, timeoutMs = 60_000, containerId?: string): Promise<void> {
+export async function waitForHealthy(
+  port: number,
+  healthPath?: string,
+  timeoutMs = 60_000,
+  containerId?: string
+): Promise<void> {
   const deadline = Date.now() + timeoutMs
   const check = healthPath ? () => httpCheck(port, healthPath) : () => tcpCheck(port)
   const initialRestartCount = containerId ? await getRestartCount(containerId) : 0
@@ -258,7 +263,10 @@ function httpCheck(port: number, path: string): Promise<boolean> {
       resolve(res.statusCode !== undefined && res.statusCode < 500)
     })
     req.on('error', () => resolve(false))
-    req.on('timeout', () => { req.destroy(); resolve(false) })
+    req.on('timeout', () => {
+      req.destroy()
+      resolve(false)
+    })
     req.end()
   })
 }

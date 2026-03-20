@@ -2,7 +2,11 @@ import { createClient, unwrap } from '../client.ts'
 import type { MessageResponse } from '../../../src/types.ts'
 import { logSuccess, logInfo, logError, dim } from '../ui.ts'
 
-export async function registry(subcommand: string | null, positionals: string[], flags: Record<string, string | true>): Promise<void> {
+export async function registry(
+  subcommand: string | null,
+  positionals: string[],
+  flags: Record<string, string | true>
+): Promise<void> {
   switch (subcommand) {
     case 'login':
       return registryLogin(positionals, flags)

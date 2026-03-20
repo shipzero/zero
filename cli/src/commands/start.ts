@@ -10,9 +10,7 @@ export async function start(positionals: string[]): Promise<void> {
   }
 
   const client = createClient()
-  unwrap(await client.post<StartResponse>(
-    `/apps/${encodeURIComponent(appName)}/start`
-  ), logError)
+  unwrap(await client.post<StartResponse>(`/apps/${encodeURIComponent(appName)}/start`), logError)
 
   logSuccess(`started ${appName}`)
 }

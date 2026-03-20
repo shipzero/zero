@@ -30,7 +30,7 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
     const transport = isHttps ? https : http
 
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${config.token}`,
+      Authorization: `Bearer ${config.token}`
     }
     if (opts.body !== undefined) {
       headers['Content-Type'] = 'application/json'
@@ -42,7 +42,7 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
         port: url.port || (isHttps ? 443 : 80),
         path: opts.path,
         method: opts.method,
-        headers,
+        headers
       },
       (res) => {
         const chunks: Buffer[] = []
@@ -52,7 +52,7 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
           const data = raw ? JSON.parse(raw) : null
           resolve({ status: res.statusCode ?? 0, data: data as T })
         })
-      },
+      }
     )
 
     req.on('error', reject)
@@ -99,7 +99,7 @@ function createClient() {
             port: url.port || (isHttps ? 443 : 80),
             path,
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${config.token}` },
+            headers: { Authorization: `Bearer ${config.token}` }
           },
           (res) => {
             if (res.statusCode !== 200) {
@@ -129,17 +129,20 @@ function createClient() {
               }
             })
             res.on('end', () => resolve())
-          },
+          }
         )
 
         req.on('error', (err) => {
           if (signal?.aborted) resolve()
           else reject(err)
         })
-        signal?.addEventListener('abort', () => { req.destroy(); resolve() })
+        signal?.addEventListener('abort', () => {
+          req.destroy()
+          resolve()
+        })
         req.end()
       })
-    },
+    }
   }
 }
 

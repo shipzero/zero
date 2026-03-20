@@ -57,12 +57,14 @@ describe('deploy', () => {
       expect(result.containerId).toBe('new-container-id')
       expect(result.port).toBe(4444)
       expect(mockPullImage).toHaveBeenCalledWith('nginx:latest', expect.any(Function))
-      expect(mockRunContainer).toHaveBeenCalledWith(expect.objectContaining({
-        image: 'nginx:latest',
-        appName: 'web',
-        internalPort: 80,
-        hostPort: 4444
-      }))
+      expect(mockRunContainer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          image: 'nginx:latest',
+          appName: 'web',
+          internalPort: 80,
+          hostPort: 4444
+        })
+      )
       expect(mockWaitForHealthy).toHaveBeenCalledWith(4444, undefined, undefined, 'new-container-id')
       expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domain: 'web.com' }), 4444)
     })
@@ -128,7 +130,12 @@ describe('deploy', () => {
 
     it('cleans up old containers after successful deploy', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      state.addDeployment('web', { image: 'nginx:old', containerId: 'old-container', port: 3000, deployedAt: '2024-01-01' })
+      state.addDeployment('web', {
+        image: 'nginx:old',
+        containerId: 'old-container',
+        port: 3000,
+        deployedAt: '2024-01-01'
+      })
 
       await deploy('web', 'nginx:new')
 
@@ -171,8 +178,14 @@ describe('deploy', () => {
   describe('deploy() — compose', () => {
     it('runs compose flow and returns success', async () => {
       state.addApp({
-        name: 'stack', image: '', trackTag: '', internalPort: 80, domain: 'stack.com', env: {},
-        composeFile: 'version: "3"', entryService: 'web'
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        domain: 'stack.com',
+        env: {},
+        composeFile: 'version: "3"',
+        entryService: 'web'
       })
 
       const result = await deploy('stack')
@@ -189,8 +202,13 @@ describe('deploy', () => {
 
     it('returns failure when compose pull fails', async () => {
       state.addApp({
-        name: 'stack', image: '', trackTag: '', internalPort: 80, env: {},
-        composeFile: 'version: "3"', entryService: 'web'
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        env: {},
+        composeFile: 'version: "3"',
+        entryService: 'web'
       })
       mockComposePull.mockRejectedValueOnce(new Error('pull error'))
 
@@ -202,8 +220,13 @@ describe('deploy', () => {
 
     it('returns failure when compose up fails', async () => {
       state.addApp({
-        name: 'stack', image: '', trackTag: '', internalPort: 80, env: {},
-        composeFile: 'version: "3"', entryService: 'web'
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        env: {},
+        composeFile: 'version: "3"',
+        entryService: 'web'
       })
       mockComposeUp.mockRejectedValueOnce(new Error('up error'))
 
@@ -276,8 +299,13 @@ describe('deploy', () => {
 
     it('throws for compose apps', async () => {
       state.addApp({
-        name: 'stack', image: '', trackTag: '', internalPort: 80, env: {},
-        composeFile: 'version: "3"', entryService: 'web'
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        env: {},
+        composeFile: 'version: "3"',
+        entryService: 'web'
       })
 
       await expect(rollback('stack')).rejects.toThrow('not supported for compose')

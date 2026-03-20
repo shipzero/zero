@@ -115,9 +115,7 @@ let _acmeClient: acme.Client | null = null
 async function getOrCreateClient(): Promise<acme.Client> {
   if (_acmeClient) return _acmeClient
 
-  const directoryUrl = IS_DEV
-    ? acme.directory.letsencrypt.staging
-    : acme.directory.letsencrypt.production
+  const directoryUrl = IS_DEV ? acme.directory.letsencrypt.staging : acme.directory.letsencrypt.production
 
   const accountKey = await getOrCreateAccountKey()
 
@@ -174,5 +172,3 @@ export function handleAcmeChallenge(url: string, res: import('node:http').Server
   }
   return true
 }
-
-

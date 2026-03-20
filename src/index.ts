@@ -1,5 +1,12 @@
 import { loadState, getApps } from './state.ts'
-import { startTLSProxy, startHTTPProxy, startDevProxy, restoreRoutes, updateProxyRoute, closeAllPortListeners } from './proxy.ts'
+import {
+  startTLSProxy,
+  startHTTPProxy,
+  startDevProxy,
+  restoreRoutes,
+  updateProxyRoute,
+  closeAllPortListeners
+} from './proxy.ts'
 import { startApi } from './api.ts'
 import { renewExpiringCerts } from './certs.ts'
 import { isTLSEnabled } from './url.ts'
@@ -41,11 +48,7 @@ void cleanupExpiredPreviews()
 const previewCleanupTimer = startPreviewCleanupInterval()
 previewCleanupTimer.unref()
 
-const servers = IS_DEV
-  ? [startDevProxy()]
-  : isTLSEnabled()
-    ? [startHTTPProxy(), startTLSProxy()]
-    : [startHTTPProxy()]
+const servers = IS_DEV ? [startDevProxy()] : isTLSEnabled() ? [startHTTPProxy(), startTLSProxy()] : [startHTTPProxy()]
 
 const apiServer = await startApi()
 servers.push(apiServer)

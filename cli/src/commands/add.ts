@@ -25,7 +25,9 @@ async function printDnsTable(domain: string, serverHost: string): Promise<void> 
   console.log()
   console.log(bold(`  ${'TYPE'.padEnd(typeWidth)}  ${'NAME'.padEnd(nameWidth)}  VALUE`))
   console.log(`  ${'A'.padEnd(typeWidth)}  ${domain.padEnd(nameWidth)}  ${ip}`)
-  console.log(`  ${'A'.padEnd(typeWidth)}  ${`*.${domain}`.padEnd(nameWidth)}  ${ip}  ${dim('(for preview deployments)')}`)
+  console.log(
+    `  ${'A'.padEnd(typeWidth)}  ${`*.${domain}`.padEnd(nameWidth)}  ${ip}  ${dim('(for preview deployments)')}`
+  )
   console.log()
 }
 
@@ -42,8 +44,12 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
   const service = flags['service'] as string | undefined
 
   if (!name) {
-    logError('usage: zero add --name <n> --image <img> [--domain <d>] [--port <p>] [--host-port <p>] [--command <cmd>] [--volume <v>] [--health-path <path>]')
-    logError('       zero add --name <n> --compose <file> --service <svc> [--domain <d>] [--port <p>] [--host-port <p>]')
+    logError(
+      'usage: zero add --name <n> --image <img> [--domain <d>] [--port <p>] [--host-port <p>] [--command <cmd>] [--volume <v>] [--health-path <path>]'
+    )
+    logError(
+      '       zero add --name <n> --compose <file> --service <svc> [--domain <d>] [--port <p>] [--host-port <p>]'
+    )
     process.exit(1)
   }
 
@@ -73,15 +79,18 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
     const composeFile = fs.readFileSync(composePath, 'utf8')
     const resolvedPort = port ?? 80
 
-    const data = unwrap(await client.post<AddAppResponse>('/apps', {
-      name,
-      domain,
-      internalPort: resolvedPort,
-      hostPort: !domain ? (hostPort ?? resolvedPort) : undefined,
-      composeFile,
-      entryService: service,
-      healthPath
-    }), logError)
+    const data = unwrap(
+      await client.post<AddAppResponse>('/apps', {
+        name,
+        domain,
+        internalPort: resolvedPort,
+        hostPort: !domain ? (hostPort ?? resolvedPort) : undefined,
+        composeFile,
+        entryService: service,
+        healthPath
+      }),
+      logError
+    )
 
     logSuccess(`compose app "${data.name}" added`)
     logInfo(`entry service: ${service}, port: ${resolvedPort}`)
@@ -95,16 +104,19 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
 
   const resolvedPort = port ?? 3000
 
-  const data = unwrap(await client.post<AddAppResponse>('/apps', {
-    name,
-    image,
-    domain,
-    internalPort: resolvedPort,
-    hostPort: !domain ? (hostPort ?? resolvedPort) : undefined,
-    command: command ? command.split(' ') : undefined,
-    volumes: volume ? volume.split(',') : undefined,
-    healthPath
-  }), logError)
+  const data = unwrap(
+    await client.post<AddAppResponse>('/apps', {
+      name,
+      image,
+      domain,
+      internalPort: resolvedPort,
+      hostPort: !domain ? (hostPort ?? resolvedPort) : undefined,
+      command: command ? command.split(' ') : undefined,
+      volumes: volume ? volume.split(',') : undefined,
+      healthPath
+    }),
+    logError
+  )
 
   logSuccess(`app "${data.name}" added`)
   logInfo(`image: ${image}, port: ${resolvedPort}${domain ? `, domain: ${domain}` : ''}`)

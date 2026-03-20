@@ -10,17 +10,20 @@ export function composeDir(appName: string): string {
 }
 
 /** Writes the compose file and an override that binds the entry service to a host port. */
-export function writeComposeFiles(appName: string, composeContent: string, entryService: string, hostPort: number, internalPort: number): string {
+export function writeComposeFiles(
+  appName: string,
+  composeContent: string,
+  entryService: string,
+  hostPort: number,
+  internalPort: number
+): string {
   const projectDir = composeDir(appName)
   ensureDir(projectDir)
 
   fs.writeFileSync(path.join(projectDir, 'docker-compose.yml'), composeContent, 'utf8')
-  const override = [
-    'services:',
-    `  ${entryService}:`,
-    '    ports:',
-    `      - "127.0.0.1:${hostPort}:${internalPort}"`
-  ].join('\n') + '\n'
+  const override =
+    ['services:', `  ${entryService}:`, '    ports:', `      - "127.0.0.1:${hostPort}:${internalPort}"`].join('\n') +
+    '\n'
 
   fs.writeFileSync(path.join(projectDir, 'docker-compose.override.yml'), override, 'utf8')
 
@@ -97,7 +100,9 @@ export async function* composeLogs(projectDir: string): AsyncGenerator<string> {
       yield queue.shift()!
     }
     if (done) break
-    await new Promise<void>((r) => { resolve = r })
+    await new Promise<void>((r) => {
+      resolve = r
+    })
     resolve = null
   }
 }
@@ -128,9 +133,7 @@ function writeDockerConfig(projectDir: string): string | undefined {
 function runCompose(projectDir: string, args: string[], onProgress?: (line: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const dockerConfigDir = writeDockerConfig(projectDir)
-    const env = dockerConfigDir
-      ? { ...process.env, DOCKER_CONFIG: dockerConfigDir }
-      : process.env
+    const env = dockerConfigDir ? { ...process.env, DOCKER_CONFIG: dockerConfigDir } : process.env
 
     const proc = execFile('docker', ['compose', ...args], { cwd: projectDir, env })
 

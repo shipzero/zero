@@ -54,12 +54,21 @@ export async function deploy(positionals: string[], flags: Record<string, string
   const abort = new AbortController()
 
   // Stream logs in the background, deploy blocks until done
-  client.streamSSE(`/apps/${encodeURIComponent(appName)}/logs`, (line) => {
-    const formatted = formatDeployLog(line)
-    if (formatted) console.log(formatted)
-  }, abort.signal).catch(() => {})
+  client
+    .streamSSE(
+      `/apps/${encodeURIComponent(appName)}/logs`,
+      (line) => {
+        const formatted = formatDeployLog(line)
+        if (formatted) console.log(formatted)
+      },
+      abort.signal
+    )
+    .catch(() => {})
 
-  const { data } = await client.post<DeployResult>(`/apps/${encodeURIComponent(appName)}/deploy`, tag ? { tag } : undefined)
+  const { data } = await client.post<DeployResult>(
+    `/apps/${encodeURIComponent(appName)}/deploy`,
+    tag ? { tag } : undefined
+  )
   const result = data as DeployResult
 
   abort.abort()

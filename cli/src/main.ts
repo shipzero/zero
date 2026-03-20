@@ -50,7 +50,10 @@ function parseArgs(argv: string[]): ParsedArgs {
           flags[arg.slice(2)] = true
         }
       }
-    } else if (isFirstPositional && (command === 'env' || command === 'registry' || command === 'webhook' || command === 'preview')) {
+    } else if (
+      isFirstPositional &&
+      (command === 'env' || command === 'registry' || command === 'webhook' || command === 'preview')
+    ) {
       subcommand = arg
       isFirstPositional = false
     } else {

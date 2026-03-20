@@ -36,7 +36,7 @@ function renderStats(appName: string, stats: ContainerStats, isFirst: boolean): 
     `  ${cyan('net ↓')}   ${bold(formatBytes(stats.networkRx) + '/s')}`,
     `  ${cyan('net ↑')}   ${bold(formatBytes(stats.networkTx) + '/s')}`,
     '',
-    dim('  ctrl+c to stop'),
+    dim('  ctrl+c to stop')
   ]
 
   if (!isFirst) {

@@ -37,9 +37,9 @@ async function verifyConnection(host: string, token: string): Promise<boolean> {
         port: url.port || (url.protocol === 'https:' ? 443 : 80),
         path: '/version',
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
         rejectUnauthorized: false,
-        timeout: 30_000,
+        timeout: 30_000
       },
       (res) => {
         res.resume()
@@ -51,9 +51,12 @@ async function verifyConnection(host: string, token: string): Promise<boolean> {
         } else {
           resolve(false)
         }
-      },
+      }
     )
-    req.on('timeout', () => { req.destroy(); resolve(false) })
+    req.on('timeout', () => {
+      req.destroy()
+      resolve(false)
+    })
     req.on('error', () => resolve(false))
     req.end()
   })

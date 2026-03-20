@@ -20,12 +20,18 @@ export async function ls(): Promise<void> {
   const serverUrl = new URL(client.config.host)
   const urls = data.map((app) => formatUrl(app, serverUrl))
   const nameWidth = Math.max(4, ...data.map((app) => app.name.length))
-  const statusWidth = 7 // "running" is longest
+  const statusWidth = 7 // "running" is the longest
   const urlWidth = Math.max(3, ...urls.map((u) => u.length))
   const imageWidth = Math.max(5, ...data.map((app) => (app.currentImage ?? '—').length))
 
   const header = bold(
-    ['NAME'.padEnd(nameWidth), 'STATUS'.padEnd(statusWidth), 'URL'.padEnd(urlWidth), 'IMAGE'.padEnd(imageWidth), 'DEPLOYED'].join('  ')
+    [
+      'NAME'.padEnd(nameWidth),
+      'STATUS'.padEnd(statusWidth),
+      'URL'.padEnd(urlWidth),
+      'IMAGE'.padEnd(imageWidth),
+      'DEPLOYED'
+    ].join('  ')
   )
   console.log(header)
 

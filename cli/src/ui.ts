@@ -83,9 +83,12 @@ export function timeUntil(iso: string): string {
 
 export function formatStatus(status: 'running' | 'stopped' | 'no deployment'): string {
   switch (status) {
-    case 'running': return green('running')
-    case 'stopped': return red('stopped')
-    case 'no deployment': return dim('—')
+    case 'running':
+      return green('running')
+    case 'stopped':
+      return red('stopped')
+    case 'no deployment':
+      return dim('—')
   }
 }
 

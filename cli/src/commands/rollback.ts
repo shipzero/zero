@@ -13,15 +13,14 @@ export async function rollback(positionals: string[], flags: Record<string, stri
 
   if (flags['force']) {
     // Still check app exists before attempting rollback
-    unwrap(await client.get<AppDetail>(
-      `/apps/${encodeURIComponent(appName)}`
-    ), logError)
+    unwrap(await client.get<AppDetail>(`/apps/${encodeURIComponent(appName)}`), logError)
   }
 
   if (!flags['force']) {
-    const target = unwrap(await client.get<RollbackTargetResponse>(
-      `/apps/${encodeURIComponent(appName)}/rollback-target`
-    ), logError)
+    const target = unwrap(
+      await client.get<RollbackTargetResponse>(`/apps/${encodeURIComponent(appName)}/rollback-target`),
+      logError
+    )
 
     const ago = timeAgo(target.deployedAt)
     const ok = await confirm(`roll back ${bold(appName)} to ${bold(target.image)} ${dim(`(deployed ${ago})`)}?`)
@@ -30,9 +29,7 @@ export async function rollback(positionals: string[], flags: Record<string, stri
     }
   }
 
-  const data = unwrap(await client.post<RollbackResponse>(
-    `/apps/${encodeURIComponent(appName)}/rollback`
-  ), logError)
+  const data = unwrap(await client.post<RollbackResponse>(`/apps/${encodeURIComponent(appName)}/rollback`), logError)
 
   logSuccess(`rolled back ${appName} to ${data.image}`)
   logHint(`view logs: zero logs ${appName}`)

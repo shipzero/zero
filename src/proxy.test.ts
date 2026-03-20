@@ -81,9 +81,7 @@ describe('proxy route management', () => {
   })
 
   it('restoreRoutes handles apps without previews field', () => {
-    const apps = [
-      { domain: 'old.local', deployments: [{ port: 3000 }], previews: undefined as any }
-    ]
+    const apps = [{ domain: 'old.local', deployments: [{ port: 3000 }], previews: undefined as any }]
     expect(() => restoreRoutes(apps)).not.toThrow()
   })
 

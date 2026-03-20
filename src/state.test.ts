@@ -296,8 +296,13 @@ describe('state', () => {
     it('removePreview removes a preview', () => {
       state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
       state.setPreview('app', 'pr-1', {
-        label: 'pr-1', domain: 'pr-1.app.com', image: 'nginx:pr-1',
-        containerId: 'c1', port: 4000, deployedAt: '2024-01-01T00:00:00Z', expiresAt: '2024-01-08T00:00:00Z'
+        label: 'pr-1',
+        domain: 'pr-1.app.com',
+        image: 'nginx:pr-1',
+        containerId: 'c1',
+        port: 4000,
+        deployedAt: '2024-01-01T00:00:00Z',
+        expiresAt: '2024-01-08T00:00:00Z'
       })
       state.removePreview('app', 'pr-1')
       expect(state.getPreview('app', 'pr-1')).toBeUndefined()
@@ -306,12 +311,22 @@ describe('state', () => {
     it('getPreviewsForApp returns all previews', () => {
       state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
       state.setPreview('app', 'pr-1', {
-        label: 'pr-1', domain: 'pr-1.app.com', image: 'nginx:pr-1',
-        containerId: 'c1', port: 4000, deployedAt: '2024-01-01T00:00:00Z', expiresAt: '2024-01-08T00:00:00Z'
+        label: 'pr-1',
+        domain: 'pr-1.app.com',
+        image: 'nginx:pr-1',
+        containerId: 'c1',
+        port: 4000,
+        deployedAt: '2024-01-01T00:00:00Z',
+        expiresAt: '2024-01-08T00:00:00Z'
       })
       state.setPreview('app', 'pr-2', {
-        label: 'pr-2', domain: 'pr-2.app.com', image: 'nginx:pr-2',
-        containerId: 'c2', port: 4001, deployedAt: '2024-01-01T00:00:00Z', expiresAt: '2024-01-08T00:00:00Z'
+        label: 'pr-2',
+        domain: 'pr-2.app.com',
+        image: 'nginx:pr-2',
+        containerId: 'c2',
+        port: 4001,
+        deployedAt: '2024-01-01T00:00:00Z',
+        expiresAt: '2024-01-08T00:00:00Z'
       })
       const previews = state.getPreviewsForApp('app')
       expect(previews).toHaveLength(2)
@@ -324,12 +339,22 @@ describe('state', () => {
 
       state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
       state.setPreview('app', 'old', {
-        label: 'old', domain: 'old.app.com', image: 'nginx:old',
-        containerId: 'c1', port: 4000, deployedAt: '2024-01-01T00:00:00Z', expiresAt: past
+        label: 'old',
+        domain: 'old.app.com',
+        image: 'nginx:old',
+        containerId: 'c1',
+        port: 4000,
+        deployedAt: '2024-01-01T00:00:00Z',
+        expiresAt: past
       })
       state.setPreview('app', 'new', {
-        label: 'new', domain: 'new.app.com', image: 'nginx:new',
-        containerId: 'c2', port: 4001, deployedAt: '2024-01-01T00:00:00Z', expiresAt: future
+        label: 'new',
+        domain: 'new.app.com',
+        image: 'nginx:new',
+        containerId: 'c2',
+        port: 4001,
+        deployedAt: '2024-01-01T00:00:00Z',
+        expiresAt: future
       })
 
       const expired = state.getAllExpiredPreviews()

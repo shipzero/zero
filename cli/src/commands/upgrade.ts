@@ -26,10 +26,7 @@ export async function upgrade(flags: Record<string, string | true>): Promise<voi
 async function upgradeCli(isForce: boolean): Promise<void> {
   const platform = process.platform === 'darwin' ? 'zero-macos' : 'zero-linux'
 
-  const latestJson = execSync(
-    `curl -fsSL https://api.github.com/repos/${REPO}/releases/latest`,
-    { encoding: 'utf8' }
-  )
+  const latestJson = execSync(`curl -fsSL https://api.github.com/repos/${REPO}/releases/latest`, { encoding: 'utf8' })
   const latest = JSON.parse(latestJson)
   const tag = latest.tag_name as string
 
@@ -38,12 +35,19 @@ async function upgradeCli(isForce: boolean): Promise<void> {
     return
   }
 
-  logInfo(tag === baseVersion(VERSION) ? `reinstalling cli ${baseVersion(VERSION)}...` : `upgrading cli ${baseVersion(VERSION)} → ${tag}...`)
+  logInfo(
+    tag === baseVersion(VERSION)
+      ? `reinstalling cli ${baseVersion(VERSION)}...`
+      : `upgrading cli ${baseVersion(VERSION)} → ${tag}...`
+  )
 
   const downloadUrl = `https://github.com/${REPO}/releases/download/${tag}/${platform}`
   const installDir = `${process.env.HOME}/.zero/bin`
 
-  execSync(`mkdir -p "${installDir}" && curl -fsSL "${downloadUrl}" -o /tmp/zero && chmod +x /tmp/zero && mv /tmp/zero "${installDir}/zero"`, { stdio: 'inherit' })
+  execSync(
+    `mkdir -p "${installDir}" && curl -fsSL "${downloadUrl}" -o /tmp/zero && chmod +x /tmp/zero && mv /tmp/zero "${installDir}/zero"`,
+    { stdio: 'inherit' }
+  )
 
   logSuccess(`cli upgraded to ${tag}`)
 }

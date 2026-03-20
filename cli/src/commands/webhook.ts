@@ -23,7 +23,10 @@ async function webhookReset(positionals: string[]): Promise<void> {
   }
 
   const client = createClient()
-  const data = unwrap(await client.post<WebhookResetResponse>(`/apps/${encodeURIComponent(appName)}/webhooks/reset`), logError)
+  const data = unwrap(
+    await client.post<WebhookResetResponse>(`/apps/${encodeURIComponent(appName)}/webhooks/reset`),
+    logError
+  )
 
   logSuccess(`webhook secret reset for ${appName}`)
   console.log(`  url: ${data.webhookUrl}`)

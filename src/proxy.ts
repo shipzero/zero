@@ -70,7 +70,14 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
   headers['x-forwarded-proto'] = isEncrypted ? 'https' : 'http'
 
   const upstream = http.request(
-    { hostname: '127.0.0.1', port: targetPort, path: req.url, method: req.method, headers, timeout: REQUEST_TIMEOUT_MS },
+    {
+      hostname: '127.0.0.1',
+      port: targetPort,
+      path: req.url,
+      method: req.method,
+      headers,
+      timeout: REQUEST_TIMEOUT_MS
+    },
     (proxyRes) => {
       const status = proxyRes.statusCode ?? 502
       console.log(`[proxy] ${clientIp} ${req.method} ${req.headers.host}${req.url} → ${status}`)
@@ -237,7 +244,12 @@ export function startDevProxy() {
 }
 
 export function restoreRoutes(
-  apps: Array<{ domain?: string; hostPort?: number; deployments: Array<{ port: number }>; previews: Record<string, { domain: string; port: number }> }>
+  apps: Array<{
+    domain?: string
+    hostPort?: number
+    deployments: Array<{ port: number }>
+    previews: Record<string, { domain: string; port: number }>
+  }>
 ) {
   for (const app of apps) {
     const deployment = app.deployments[0]

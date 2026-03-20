@@ -408,7 +408,12 @@ describe('API', () => {
         composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
         entryService: 'web'
       })
-      state.addDeployment('compstop', { image: 'compose', containerId: 'compose', port: 9999, deployedAt: '2024-01-01' })
+      state.addDeployment('compstop', {
+        image: 'compose',
+        containerId: 'compose',
+        port: 9999,
+        deployedAt: '2024-01-01'
+      })
 
       const res = await request('POST', '/apps/compstop/stop')
       expect(res.status).toBe(200)
@@ -431,7 +436,12 @@ describe('API', () => {
 
     it('starts a stopped container', async () => {
       await request('POST', '/apps', { name: 'startok', image: 'nginx:latest', domain: 'start.com' })
-      state.addDeployment('startok', { image: 'nginx:v1', containerId: 'start-c1', port: 6000, deployedAt: '2024-01-01' })
+      state.addDeployment('startok', {
+        image: 'nginx:v1',
+        containerId: 'start-c1',
+        port: 6000,
+        deployedAt: '2024-01-01'
+      })
 
       const res = await request('POST', '/apps/startok/start')
       expect(res.status).toBe(200)
@@ -446,7 +456,12 @@ describe('API', () => {
         composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
         entryService: 'web'
       })
-      state.addDeployment('compstart', { image: 'compose', containerId: 'compose', port: 9999, deployedAt: '2024-01-01' })
+      state.addDeployment('compstart', {
+        image: 'compose',
+        containerId: 'compose',
+        port: 9999,
+        deployedAt: '2024-01-01'
+      })
 
       const res = await request('POST', '/apps/compstart/start')
       expect(res.status).toBe(200)
@@ -512,20 +527,24 @@ describe('API', () => {
       const signature = 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex')
       return new Promise<{ status: number; body: unknown }>((resolve, reject) => {
         const url = new URL(path, baseUrl)
-        const req = http.request(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-hub-signature-256': signature }
-        }, (res) => {
-          let data = ''
-          res.on('data', (chunk) => (data += chunk))
-          res.on('end', () => {
-            try {
-              resolve({ status: res.statusCode!, body: JSON.parse(data) })
-            } catch {
-              resolve({ status: res.statusCode!, body: data })
-            }
-          })
-        })
+        const req = http.request(
+          url,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-hub-signature-256': signature }
+          },
+          (res) => {
+            let data = ''
+            res.on('data', (chunk) => (data += chunk))
+            res.on('end', () => {
+              try {
+                resolve({ status: res.statusCode!, body: JSON.parse(data) })
+              } catch {
+                resolve({ status: res.statusCode!, body: data })
+              }
+            })
+          }
+        )
         req.on('error', reject)
         req.write(body)
         req.end()

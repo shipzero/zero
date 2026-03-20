@@ -10,9 +10,7 @@ export async function deployments(positionals: string[]): Promise<void> {
   }
 
   const client = createClient()
-  const data = unwrap(await client.get<DeploymentInfo[]>(
-    `/apps/${encodeURIComponent(appName)}/deployments`
-  ), logError)
+  const data = unwrap(await client.get<DeploymentInfo[]>(`/apps/${encodeURIComponent(appName)}/deployments`), logError)
 
   if (data.length === 0) {
     logInfo('no deployments')

@@ -2,7 +2,11 @@ import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
 import { logSuccess, logInfo, logWarn, logError, logHint, bold } from '../ui.ts'
 
-export async function env(subcommand: string | null, positionals: string[], _flags: Record<string, string | true>): Promise<void> {
+export async function env(
+  subcommand: string | null,
+  positionals: string[],
+  _flags: Record<string, string | true>
+): Promise<void> {
   if (subcommand === 'set') {
     await envSet(positionals)
   } else if (subcommand === 'ls') {

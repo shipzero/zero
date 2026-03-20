@@ -1,6 +1,18 @@
 import { createClient, unwrap } from '../client.ts'
 import type { PreviewDeployResponse, PreviewSummary, MessageResponse } from '../../../src/types.ts'
-import { logInfo, logSuccess, logError, logHint, bold, dim, cyan, confirm, timeAgo, timeUntil, formatStatus } from '../ui.ts'
+import {
+  logInfo,
+  logSuccess,
+  logError,
+  logHint,
+  bold,
+  dim,
+  cyan,
+  confirm,
+  timeAgo,
+  timeUntil,
+  formatStatus
+} from '../ui.ts'
 
 async function previewDeploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const appName = positionals[0]
@@ -22,10 +34,11 @@ async function previewDeploy(positionals: string[], flags: Record<string, string
     process.exit(0)
   })
 
-  const { data } = await client.post<PreviewDeployResponse>(
-    `/apps/${encodeURIComponent(appName)}/previews`,
-    { label, tag, ...(ttlHours !== undefined ? { ttlHours } : {}) }
-  )
+  const { data } = await client.post<PreviewDeployResponse>(`/apps/${encodeURIComponent(appName)}/previews`, {
+    label,
+    tag,
+    ...(ttlHours !== undefined ? { ttlHours } : {})
+  })
 
   const result = data as PreviewDeployResponse
   if (result.success) {
@@ -45,9 +58,7 @@ async function previewLs(positionals: string[]): Promise<void> {
   }
 
   const client = createClient()
-  const data = unwrap(await client.get<PreviewSummary[]>(
-    `/apps/${encodeURIComponent(appName)}/previews`
-  ), logError)
+  const data = unwrap(await client.get<PreviewSummary[]>(`/apps/${encodeURIComponent(appName)}/previews`), logError)
 
   if (data.length === 0) {
     logInfo(`no previews for ${appName}`)
@@ -104,19 +115,22 @@ async function previewRm(positionals: string[], flags: Record<string, string | t
   }
 
   if (isAll) {
-    const data = unwrap(await client.del<MessageResponse>(
-      `/apps/${encodeURIComponent(appName)}/previews`
-    ), logError)
+    const data = unwrap(await client.del<MessageResponse>(`/apps/${encodeURIComponent(appName)}/previews`), logError)
     logSuccess(data.message)
   } else {
-    const data = unwrap(await client.del<MessageResponse>(
-      `/apps/${encodeURIComponent(appName)}/previews/${encodeURIComponent(label)}`
-    ), logError)
+    const data = unwrap(
+      await client.del<MessageResponse>(`/apps/${encodeURIComponent(appName)}/previews/${encodeURIComponent(label)}`),
+      logError
+    )
     logSuccess(data.message)
   }
 }
 
-export async function preview(subcommand: string | null, positionals: string[], flags: Record<string, string | true>): Promise<void> {
+export async function preview(
+  subcommand: string | null,
+  positionals: string[],
+  flags: Record<string, string | true>
+): Promise<void> {
   switch (subcommand) {
     case 'deploy':
       await previewDeploy(positionals, flags)
