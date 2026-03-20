@@ -12,7 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "acme": "^3.0.0",
+    "acme-client": "^5.4.0",
     "dockerode": "^4.0.2"
   },
   "devDependencies": {
