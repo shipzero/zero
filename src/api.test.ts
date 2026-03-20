@@ -33,6 +33,8 @@ vi.mock('./compose.ts', () => ({
   composePull: vi.fn().mockResolvedValue(undefined),
   composeUp: vi.fn().mockResolvedValue(undefined),
   composeDown: vi.fn().mockResolvedValue(undefined),
+  composeStop: vi.fn().mockResolvedValue(undefined),
+  composeStart: vi.fn().mockResolvedValue(undefined),
   composeLogs: vi.fn().mockReturnValue((async function* () {})()),
   removeComposeDir: vi.fn()
 }))
@@ -44,6 +46,8 @@ vi.mock('./proxy.ts', () => ({
 
 // Now import after mocks are set up
 const state = await import('./state.ts')
+const dockerMock = await import('./docker.ts')
+const composeMock = await import('./compose.ts')
 
 // We need to dynamically import api after mocks
 const { startApi } = await import('./api.ts')
@@ -103,9 +107,9 @@ describe('API', () => {
   })
 
   beforeEach(() => {
-    // Reset state between tests
     fs.writeFileSync(process.env.STATE_PATH!, JSON.stringify({ apps: {}, registryAuths: {} }))
     state.loadState()
+    vi.clearAllMocks()
   })
 
   describe('authentication', () => {
@@ -391,6 +395,21 @@ describe('API', () => {
       expect(res.status).toBe(200)
       const body = res.body as { containerId: string }
       expect(body.containerId).toBe('stop-c1')
+      expect(dockerMock.stopContainer).toHaveBeenCalledWith('stop-c1')
+    })
+
+    it('uses docker compose stop for compose apps', async () => {
+      await request('POST', '/apps', {
+        name: 'compstop',
+        composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
+        entryService: 'web'
+      })
+      state.addDeployment('compstop', { image: 'compose', containerId: 'compose', port: 9999, deployedAt: '2024-01-01' })
+
+      const res = await request('POST', '/apps/compstop/stop')
+      expect(res.status).toBe(200)
+      expect(composeMock.composeStop).toHaveBeenCalled()
+      expect(dockerMock.stopContainer).not.toHaveBeenCalledWith('compose')
     })
   })
 
@@ -414,6 +433,21 @@ describe('API', () => {
       expect(res.status).toBe(200)
       const body = res.body as { port: number }
       expect(body.port).toBe(6000)
+      expect(dockerMock.startContainer).toHaveBeenCalledWith('start-c1')
+    })
+
+    it('uses docker compose start for compose apps', async () => {
+      await request('POST', '/apps', {
+        name: 'compstart',
+        composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
+        entryService: 'web'
+      })
+      state.addDeployment('compstart', { image: 'compose', containerId: 'compose', port: 9999, deployedAt: '2024-01-01' })
+
+      const res = await request('POST', '/apps/compstart/start')
+      expect(res.status).toBe(200)
+      expect(composeMock.composeStart).toHaveBeenCalled()
+      expect(dockerMock.startContainer).not.toHaveBeenCalledWith('compose')
     })
   })
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.svg" alt="zero" width="320" />
+  <img src="logo.png" alt="zero" width="320" />
 </p>
 
 <p align="center">
@@ -514,6 +514,16 @@ upgrade [--server] [--all] [--force]    Upgrade CLI and/or server
 version                                 Show CLI and server version
 webhook reset <app>                     Reset webhook secret
 ```
+
+## Sponsors
+
+<a href="https://codebeam.com">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="sponsors/codebeam_white.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="sponsors/codebeam_black.svg" />
+    <img src="sponsors/codebeam_black.svg" alt="codebeam" height="30" />
+  </picture>
+</a>
 
 ## License
 

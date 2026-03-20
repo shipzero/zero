@@ -38,6 +38,16 @@ export function composeUp(projectDir: string, onProgress?: (line: string) => voi
   return runCompose(projectDir, ['up', '-d', '--remove-orphans'], onProgress)
 }
 
+/** Runs `docker compose stop` in the project directory. */
+export function composeStop(projectDir: string): Promise<void> {
+  return runCompose(projectDir, ['stop'])
+}
+
+/** Runs `docker compose start` in the project directory. */
+export function composeStart(projectDir: string): Promise<void> {
+  return runCompose(projectDir, ['start'])
+}
+
 /** Runs `docker compose down --remove-orphans` in the project directory. */
 export function composeDown(projectDir: string): Promise<void> {
   return runCompose(projectDir, ['down', '--remove-orphans'])
