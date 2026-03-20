@@ -509,6 +509,10 @@ function previewExpiresAt(ttlHours: number): string {
 route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   const parent = requireApp(name, res)
   if (!parent) return
+  if (isComposeApp(parent)) {
+    json(res, 400, { error: 'previews are not supported for compose apps' })
+    return
+  }
   if (!parent.domain) {
     json(res, 400, { error: 'parent app must have a domain for preview subdomains' })
     return
