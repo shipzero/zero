@@ -727,16 +727,26 @@ describe('API', () => {
     })
   })
 
-  describe('GET /apps does not include previews', () => {
+  describe('GET /apps includes previews inline', () => {
     it('previews do not appear as separate apps', async () => {
       await request('POST', '/apps', { name: 'pvis', image: 'nginx:latest', domain: 'pvis.example.com' })
       await request('POST', '/apps/pvis/previews', { label: 'pr-1', tag: 'pr-1' })
 
       const res = await request('GET', '/apps')
       expect(res.status).toBe(200)
-      const apps = res.body as Array<{ name: string }>
+      const apps = res.body as Array<{ name: string; previews: Array<{ label: string }> }>
       expect(apps).toHaveLength(1)
       expect(apps[0].name).toBe('pvis')
+      expect(apps[0].previews).toHaveLength(1)
+      expect(apps[0].previews[0].label).toBe('pr-1')
+    })
+
+    it('returns empty previews array when app has no previews', async () => {
+      await request('POST', '/apps', { name: 'noprev', image: 'nginx:latest' })
+      const res = await request('GET', '/apps')
+      const apps = res.body as Array<{ name: string; previews: unknown[] }>
+      const app = apps.find((a) => a.name === 'noprev')
+      expect(app?.previews).toEqual([])
     })
   })
 

@@ -55,7 +55,14 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
       }
     )
 
-    req.on('error', reject)
+    req.on('error', (err) => {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ECONNRESET') {
+        reject(new Error('server unreachable'))
+      } else {
+        reject(err)
+      }
+    })
 
     if (opts.body !== undefined) {
       req.write(JSON.stringify(opts.body))

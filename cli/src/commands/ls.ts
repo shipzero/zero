@@ -29,7 +29,7 @@ function collectRows(apps: AppSummary[], serverUrl: URL): Row[] {
       image: app.currentImage ?? '—',
       deployed: app.deployedAt ? timeAgo(app.deployedAt) : '—'
     })
-    for (const p of app.previews) {
+    for (const p of app.previews ?? []) {
       rows.push({
         name: ` └ ${p.label}`,
         status: formatStatus(p.status),
@@ -61,13 +61,14 @@ export async function ls(): Promise<void> {
   const statusWidth = 7
   const urlWidth = Math.max(3, ...rows.map((r) => r.url.length))
   const imageWidth = Math.max(5, ...rows.map((r) => r.image.length))
+  const deployedWidth = Math.max(8, ...rows.map((r) => r.deployed.length))
 
   const columns = [
     'NAME'.padEnd(nameWidth),
     'STATUS'.padEnd(statusWidth),
     'URL'.padEnd(urlWidth),
     'IMAGE'.padEnd(imageWidth),
-    'DEPLOYED'
+    'DEPLOYED'.padEnd(deployedWidth)
   ]
   if (hasExpires) columns.push('EXPIRES')
   console.log(bold(columns.join('  ')))
@@ -81,7 +82,7 @@ export async function ls(): Promise<void> {
       row.status + statusPad,
       row.url.padEnd(urlWidth),
       row.image.padEnd(imageWidth),
-      dim(row.deployed)
+      dim(row.deployed.padEnd(deployedWidth))
     ]
     if (hasExpires) cols.push(row.expires ? dim(row.expires) : '')
     console.log(cols.join('  '))
