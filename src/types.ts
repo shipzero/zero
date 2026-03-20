@@ -74,9 +74,12 @@ export interface StartResponse {
   port: number
 }
 
-export interface RemoveResponse {
-  message: string
-  containersRemoved: number
+export interface ContainerStats {
+  cpu: number
+  memory: number
+  memoryLimit: number
+  networkRx: number
+  networkTx: number
 }
 
 export interface DeploymentInfo {

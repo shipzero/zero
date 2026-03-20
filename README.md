@@ -36,6 +36,7 @@ zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one i
 - **Docker Compose support** — deploy multi-service stacks with a single command
 - **Webhooks** — auto-deploy on push from GitHub Container Registry or Docker Hub
 - **Rollback** — instantly revert to the previous deployment
+- **Live metrics** — CPU, memory, and network usage in the terminal
 - **Single binary CLI** — available for Linux, macOS, and Windows
 - **Minimal footprint** — two dependencies (dockerode, acme), runs in a single container
 
@@ -79,6 +80,7 @@ There are excellent self-hosting tools out there. Here's how zero fits in:
 - [Managing Apps](#managing-apps)
   - [List Apps](#list-apps)
   - [View Logs](#view-logs)
+  - [Live Metrics](#live-metrics)
   - [Deployment History](#deployment-history)
   - [Start and Stop](#start-and-stop)
   - [Rollback](#rollback)
@@ -352,7 +354,26 @@ zero logs myapp
 zero logs --server
 ```
 
-Logs are streamed in real time. Press `Ctrl+C` to stop.
+Logs are streamed in real time. Press `ctrl+c` to stop.
+
+### Live Metrics
+
+```bash
+zero metrics myapp
+```
+
+Shows live CPU, memory, and network usage directly in the terminal. The display updates automatically and progress bars change color based on utilization (green → yellow → red).
+
+```
+myapp
+
+  cpu     ██████░░░░░░░░░░░░░░  28.3%
+  memory  ████████████░░░░░░░░  312 MB / 512 MB (60.9%)
+  net ↓   1.2 MB/s
+  net ↑   340 KB/s
+
+  ctrl+c to stop
+```
 
 ### Deployment History
 
@@ -479,6 +500,7 @@ env rm <app> KEY [KEY ...]              Remove environment variables
 login <host> <token>                    Save server credentials
 logs <app> | --server                   Stream app or server logs
 ls                                      List all apps
+metrics <app> | --server                Show live resource usage
 registry login <server> --user --password
                                         Add registry credentials
 registry logout <server>                Remove registry credentials

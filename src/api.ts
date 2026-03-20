@@ -20,6 +20,7 @@ import { deploy, rollback, deployEvents } from './deploy.ts'
 import {
   docker,
   streamLogs,
+  streamStats,
   stopContainer,
   startContainer,
   waitForHealthy,
@@ -541,7 +542,21 @@ route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
   }
 })
 
+async function isZeroContainerRunning(): Promise<boolean> {
+  try {
+    const info = await docker.getContainer(ZERO_CONTAINER).inspect()
+    return info.State.Running
+  } catch {
+    return false
+  }
+}
+
 route('GET', '/logs', async (_req, res) => {
+  if (!(await isZeroContainerRunning())) {
+    json(res, 400, { error: 'server logs are only available in production (zero container not found)' })
+    return
+  }
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -555,6 +570,66 @@ route('GET', '/logs', async (_req, res) => {
     }
   } catch {
     if (!res.destroyed) res.write('data: [log stream ended]\n\n')
+  }
+})
+
+route('GET', '/metrics', async (_req, res) => {
+  if (!(await isZeroContainerRunning())) {
+    json(res, 400, { error: 'server metrics are only available in production (zero container not found)' })
+    return
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  })
+
+  try {
+    for await (const stats of streamStats(ZERO_CONTAINER)) {
+      if (res.destroyed) break
+      res.write(`data: ${JSON.stringify(stats)}\n\n`)
+    }
+  } catch {
+    /* stream ended */
+  }
+})
+
+route('GET', '/apps/:name/metrics', async (_req, res, { name }) => {
+  const app = getApp(name)
+  if (!app) {
+    json(res, 404, { error: 'not found' })
+    return
+  }
+
+  const deployment = getCurrentDeployment(app)
+  if (!deployment) {
+    json(res, 400, { error: 'no active deployment' })
+    return
+  }
+
+  const containerId = isComposeApp(app)
+    ? (await docker.listContainers({ filters: { label: [`com.docker.compose.service=${app.entryService}`] } }))[0]?.Id
+    : deployment.containerId
+
+  if (!containerId) {
+    json(res, 400, { error: 'container not found' })
+    return
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  })
+
+  try {
+    for await (const stats of streamStats(containerId)) {
+      if (res.destroyed) break
+      res.write(`data: ${JSON.stringify(stats)}\n\n`)
+    }
+  } catch {
+    /* stream ended */
   }
 })
 
