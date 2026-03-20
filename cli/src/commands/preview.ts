@@ -71,6 +71,8 @@ async function previewLs(positionals: string[]): Promise<void> {
   const statusWidth = 7
   const urlWidth = Math.max(3, ...urls.map((u) => u.length))
   const imageWidth = Math.max(5, ...data.map((p) => (p.image ?? '—').length))
+  const deployedValues = data.map((p) => (p.deployedAt ? timeAgo(p.deployedAt) : '—'))
+  const deployedWidth = Math.max(8, ...deployedValues.map((v) => v.length))
 
   console.log(
     bold(
@@ -79,7 +81,7 @@ async function previewLs(positionals: string[]): Promise<void> {
         'STATUS'.padEnd(statusWidth),
         'URL'.padEnd(urlWidth),
         'IMAGE'.padEnd(imageWidth),
-        'DEPLOYED',
+        'DEPLOYED'.padEnd(deployedWidth),
         'EXPIRES'
       ].join('  ')
     )
@@ -94,7 +96,7 @@ async function previewLs(positionals: string[]): Promise<void> {
       statusText + statusPad,
       urls[i].padEnd(urlWidth),
       (p.image ?? '—').padEnd(imageWidth),
-      dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
+      dim(deployedValues[i].padEnd(deployedWidth)),
       dim(p.expiresAt ? timeUntil(p.expiresAt) : '—')
     ].join('  ')
     console.log(row)
