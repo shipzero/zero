@@ -1,17 +1,10 @@
 import tls from 'node:tls'
+import { X509Certificate } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { X509Certificate } from 'node:crypto'
-// @ts-expect-error — no bundled types
-import acme from 'acme'
-// @ts-expect-error — no bundled types
-import keypairs from '@root/keypairs'
-// @ts-expect-error — no bundled types
-import csr from '@root/csr'
+import * as acme from 'acme-client'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
-const ACME_DIRECTORY_STAGING = 'https://acme-staging-v02.api.letsencrypt.org/directory'
-const ACME_DIRECTORY_PRODUCTION = 'https://acme-v02.api.letsencrypt.org/directory'
 const CERTS_DIR = process.env.CERTS_PATH ?? (IS_DEV ? '.zero/certs' : '/data/certs')
 const EMAIL = process.env.EMAIL ?? ''
 const DOMAIN = process.env.DOMAIN ?? ''
@@ -21,17 +14,17 @@ const certCache = new Map<string, tls.SecureContext>()
 const certInFlight = new Map<string, Promise<tls.SecureContext>>()
 const challengeTokens = new Map<string, string>()
 
-const ACCOUNT_KEY_FILE = 'account.jwk'
+const ACCOUNT_KEY_FILE = 'account.pem'
 
-async function getOrCreateAccountKey(): Promise<object> {
+async function getOrCreateAccountKey(): Promise<Buffer> {
   fs.mkdirSync(CERTS_DIR, { recursive: true })
   const keyPath = path.join(CERTS_DIR, ACCOUNT_KEY_FILE)
   if (fs.existsSync(keyPath)) {
-    return JSON.parse(fs.readFileSync(keyPath, 'utf8')) as object
+    return fs.readFileSync(keyPath)
   }
-  const keypair = await keypairs.generate({ kty: 'EC', namedCurve: 'P-256' })
-  fs.writeFileSync(keyPath, JSON.stringify(keypair.private), { mode: 0o600 })
-  return keypair.private as object
+  const key = await acme.crypto.createPrivateEcdsaKey()
+  fs.writeFileSync(keyPath, key, { mode: 0o600 })
+  return key
 }
 
 export function certPath(domain: string) {
@@ -119,60 +112,56 @@ export function obtainCert(domain: string): Promise<tls.SecureContext> {
   return promise
 }
 
+let _acmeClient: acme.Client | null = null
+
+async function getOrCreateClient(): Promise<acme.Client> {
+  if (_acmeClient) return _acmeClient
+
+  const directoryUrl = IS_DEV
+    ? acme.directory.letsencrypt.staging
+    : acme.directory.letsencrypt.production
+
+  const accountKey = await getOrCreateAccountKey()
+
+  _acmeClient = new acme.Client({ directoryUrl, accountKey })
+  await _acmeClient.createAccount({
+    termsOfServiceAgreed: true,
+    contact: [`mailto:${EMAIL}`]
+  })
+
+  return _acmeClient
+}
+
+function writeFileAtomic(filePath: string, data: string | Buffer): void {
+  const tmpPath = filePath + '.tmp'
+  fs.writeFileSync(tmpPath, data)
+  fs.renameSync(tmpPath, filePath)
+}
+
 async function _doObtainCert(domain: string): Promise<tls.SecureContext> {
   console.log(`[acme] obtaining cert for ${domain}`)
   fs.mkdirSync(CERTS_DIR, { recursive: true })
 
-  const directoryUrl = IS_DEV ? ACME_DIRECTORY_STAGING : ACME_DIRECTORY_PRODUCTION
+  const client = await getOrCreateClient()
+  const [serverKey, serverCsr] = await acme.crypto.createCsr({ commonName: domain })
 
-  const client = acme.create({
-    maintainerEmail: EMAIL,
-    packageAgent: 'zero/1.0'
-  })
-  await client.init(directoryUrl)
-
-  const accountKey = await getOrCreateAccountKey()
-  const account = await client.accounts.create({
-    subscriberEmail: EMAIL,
-    agreeToTerms: true,
-    accountKey
-  })
-
-  const serverKeypair = await keypairs.generate({ kty: 'RSA', modulusLength: 2048 })
-  const csrDer = await csr.create({
-    jwk: serverKeypair.private,
-    domains: [domain]
-  })
-
-  const pems = await client.certificates.create({
-    account,
-    accountKey,
-    csr: csrDer,
-    domains: [domain],
-    challenges: {
-      'http-01': {
-        init: async () => {},
-        set: async (data: { challenge: { token: string; keyAuthorization: string } }) => {
-          challengeTokens.set(data.challenge.token, data.challenge.keyAuthorization)
-        },
-        get: async (data: { challenge: { token: string } }) => {
-          return { keyAuthorization: challengeTokens.get(data.challenge.token) }
-        },
-        remove: async (data: { challenge: { token: string } }) => {
-          challengeTokens.delete(data.challenge.token)
-        }
-      }
+  const cert = await client.auto({
+    csr: serverCsr,
+    termsOfServiceAgreed: true,
+    challengeCreateFn: async (_authz, _challenge, keyAuthorization) => {
+      challengeTokens.set(_challenge.token, keyAuthorization)
+    },
+    challengeRemoveFn: async (_authz, _challenge) => {
+      challengeTokens.delete(_challenge.token)
     }
   })
 
   const { cert: certFile, key: keyFile } = certPath(domain)
-  const pemKey = await keypairs.export({ jwk: serverKeypair.private })
-  const fullChain = pems.cert + '\n' + (pems.chain ?? '')
-  fs.writeFileSync(certFile, fullChain)
-  fs.writeFileSync(keyFile, pemKey)
+  writeFileAtomic(keyFile, serverKey)
+  writeFileAtomic(certFile, cert)
   console.log(`[acme] cert saved for ${domain}`)
 
-  const ctx = tls.createSecureContext({ cert: fullChain, key: pemKey })
+  const ctx = tls.createSecureContext({ cert, key: serverKey })
   certCache.set(domain, ctx)
   return ctx
 }
@@ -194,7 +183,6 @@ export function handleAcmeChallenge(url: string, res: import('node:http').Server
   return true
 }
 
-/** Whether ACME cert management is configured (EMAIL set). */
 export function isAcmeConfigured(): boolean {
   return EMAIL !== ''
 }
@@ -203,7 +191,6 @@ function isDomain(value: string): boolean {
   return value !== '' && !/^\d+\.\d+\.\d+\.\d+$/.test(value)
 }
 
-/** Whether TLS is fully active (production + EMAIL + real domain set). */
 export function isTLSEnabled(): boolean {
   return !IS_DEV && EMAIL !== '' && isDomain(DOMAIN)
 }
