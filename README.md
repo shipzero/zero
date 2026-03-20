@@ -354,7 +354,7 @@ zero logs myapp
 zero logs --server
 ```
 
-Logs are streamed in real time. Press `Ctrl+C` to stop.
+Logs are streamed in real time. Press `ctrl+c` to stop.
 
 ### Live Metrics
 
@@ -367,12 +367,12 @@ Shows live CPU, memory, and network usage directly in the terminal. The display 
 ```
 myapp
 
-  CPU     ██████░░░░░░░░░░░░░░  28.3%
-  Memory  ████████████░░░░░░░░  312 MB / 512 MB (60.9%)
-  Net ↓   1.2 MB/s
-  Net ↑   340 KB/s
+  cpu     ██████░░░░░░░░░░░░░░  28.3%
+  memory  ████████████░░░░░░░░  312 MB / 512 MB (60.9%)
+  net ↓   1.2 MB/s
+  net ↑   340 KB/s
 
-  Ctrl+C to stop
+  ctrl+c to stop
 ```
 
 ### Deployment History

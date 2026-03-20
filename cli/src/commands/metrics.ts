@@ -31,12 +31,12 @@ function renderStats(appName: string, stats: ContainerStats, isFirst: boolean): 
   const lines = [
     bold(appName),
     '',
-    `  ${cyan('CPU')}     ${progressBar(cpuRatio)}  ${bold(stats.cpu.toFixed(1) + '%')}`,
-    `  ${cyan('Memory')}  ${progressBar(memRatio)}  ${bold(formatBytes(stats.memory))} ${dim('/')} ${formatBytes(stats.memoryLimit)} ${dim(`(${(memRatio * 100).toFixed(1)}%)`)}`,
-    `  ${cyan('Net ↓')}   ${bold(formatBytes(stats.networkRx) + '/s')}`,
-    `  ${cyan('Net ↑')}   ${bold(formatBytes(stats.networkTx) + '/s')}`,
+    `  ${cyan('cpu')}     ${progressBar(cpuRatio)}  ${bold(stats.cpu.toFixed(1) + '%')}`,
+    `  ${cyan('memory')}  ${progressBar(memRatio)}  ${bold(formatBytes(stats.memory))} ${dim('/')} ${formatBytes(stats.memoryLimit)} ${dim(`(${(memRatio * 100).toFixed(1)}%)`)}`,
+    `  ${cyan('net ↓')}   ${bold(formatBytes(stats.networkRx) + '/s')}`,
+    `  ${cyan('net ↑')}   ${bold(formatBytes(stats.networkTx) + '/s')}`,
     '',
-    dim('  Ctrl+C to stop'),
+    dim('  ctrl+c to stop'),
   ]
 
   if (!isFirst) {

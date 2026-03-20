@@ -44,7 +44,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
   const client = createClient()
 
   logInfo(`deploying ${appName}...`)
-  logHint('Ctrl+C to disconnect (deploy will continue in background)')
+  logHint('ctrl+c to disconnect (deploy will continue in background)')
 
   process.on('SIGINT', () => {
     console.log(dim('\n[disconnected — deploy continues on the server]'))
