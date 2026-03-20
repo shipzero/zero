@@ -103,6 +103,9 @@ export function loadState(): void {
     const raw = fs.readFileSync(STATE_PATH, 'utf8')
     _state = JSON.parse(raw) as State
     _state.registryAuths ??= {}
+    for (const app of Object.values(_state.apps)) {
+      app.previews ??= {}
+    }
     console.log(`[state] loaded ${Object.keys(_state.apps).length} app(s)`)
   } else {
     saveState()

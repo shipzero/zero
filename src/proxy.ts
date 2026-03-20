@@ -250,7 +250,7 @@ export function restoreRoutes(
       updatePortRoute(app.hostPort, deployment.port)
     }
 
-    for (const preview of Object.values(app.previews)) {
+    for (const preview of Object.values(app.previews ?? {})) {
       updateProxyRoute(preview.domain, preview.port)
       loadCachedCert(preview.domain)
     }

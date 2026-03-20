@@ -56,6 +56,26 @@ describe('state', () => {
       state.loadState()
       expect(state.getRegistryAuths()).toEqual({})
     })
+
+    it('backfills previews for apps missing the field', () => {
+      const oldState = {
+        apps: {
+          legacy: {
+            name: 'legacy',
+            image: 'nginx',
+            trackTag: 'latest',
+            internalPort: 80,
+            webhookSecret: 'sec',
+            env: {},
+            deployments: []
+          }
+        },
+        registryAuths: {}
+      }
+      fs.writeFileSync(process.env.STATE_PATH!, JSON.stringify(oldState))
+      state.loadState()
+      expect(state.getApp('legacy')!.previews).toEqual({})
+    })
   })
 
   describe('addApp / getApp / getApps', () => {
