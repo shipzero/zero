@@ -1,5 +1,5 @@
 import tls from 'node:tls'
-import crypto, { X509Certificate } from 'node:crypto'
+import { X509Certificate } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import * as acme from 'acme-client'
@@ -112,9 +112,10 @@ export function obtainCert(domain: string): Promise<tls.SecureContext> {
   return promise
 }
 
-async function _doObtainCert(domain: string): Promise<tls.SecureContext> {
-  console.log(`[acme] obtaining cert for ${domain}`)
-  fs.mkdirSync(CERTS_DIR, { recursive: true })
+let _acmeClient: acme.Client | null = null
+
+async function getOrCreateClient(): Promise<acme.Client> {
+  if (_acmeClient) return _acmeClient
 
   const directoryUrl = IS_DEV
     ? acme.directory.letsencrypt.staging
@@ -122,24 +123,33 @@ async function _doObtainCert(domain: string): Promise<tls.SecureContext> {
 
   const accountKey = await getOrCreateAccountKey()
 
-  const client = new acme.Client({
-    directoryUrl,
-    accountKey
-  })
-
-  await client.createAccount({
+  _acmeClient = new acme.Client({ directoryUrl, accountKey })
+  await _acmeClient.createAccount({
     termsOfServiceAgreed: true,
     contact: [`mailto:${EMAIL}`]
   })
 
+  return _acmeClient
+}
+
+function writeFileAtomic(filePath: string, data: string | Buffer): void {
+  const tmpPath = filePath + '.tmp'
+  fs.writeFileSync(tmpPath, data)
+  fs.renameSync(tmpPath, filePath)
+}
+
+async function _doObtainCert(domain: string): Promise<tls.SecureContext> {
+  console.log(`[acme] obtaining cert for ${domain}`)
+  fs.mkdirSync(CERTS_DIR, { recursive: true })
+
+  const client = await getOrCreateClient()
   const [serverKey, serverCsr] = await acme.crypto.createCsr({ commonName: domain })
 
   const cert = await client.auto({
     csr: serverCsr,
     termsOfServiceAgreed: true,
     challengeCreateFn: async (_authz, _challenge, keyAuthorization) => {
-      const token = _challenge.token
-      challengeTokens.set(token, keyAuthorization)
+      challengeTokens.set(_challenge.token, keyAuthorization)
     },
     challengeRemoveFn: async (_authz, _challenge) => {
       challengeTokens.delete(_challenge.token)
@@ -147,8 +157,8 @@ async function _doObtainCert(domain: string): Promise<tls.SecureContext> {
   })
 
   const { cert: certFile, key: keyFile } = certPath(domain)
-  fs.writeFileSync(certFile, cert)
-  fs.writeFileSync(keyFile, serverKey)
+  writeFileAtomic(keyFile, serverKey)
+  writeFileAtomic(certFile, cert)
   console.log(`[acme] cert saved for ${domain}`)
 
   const ctx = tls.createSecureContext({ cert, key: serverKey })
@@ -173,7 +183,6 @@ export function handleAcmeChallenge(url: string, res: import('node:http').Server
   return true
 }
 
-/** Whether ACME cert management is configured (EMAIL set). */
 export function isAcmeConfigured(): boolean {
   return EMAIL !== ''
 }
@@ -182,7 +191,6 @@ function isDomain(value: string): boolean {
   return value !== '' && !/^\d+\.\d+\.\d+\.\d+$/.test(value)
 }
 
-/** Whether TLS is fully active (production + EMAIL + real domain set). */
 export function isTLSEnabled(): boolean {
   return !IS_DEV && EMAIL !== '' && isDomain(DOMAIN)
 }
