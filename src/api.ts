@@ -26,7 +26,7 @@ import {
   removeContainer,
   getContainerState
 } from './docker.ts'
-import { composeDir, composeDown, composeLogs, removeComposeDir } from './compose.ts'
+import { composeDir, composeDown, composeStop, composeStart, composeLogs, removeComposeDir } from './compose.ts'
 import { routeApp, unrouteApp } from './proxy.ts'
 import { isTLSEnabled } from './certs.ts'
 import { VERSION } from './version.ts'
@@ -370,7 +370,11 @@ route('POST', '/apps/:name/stop', async (_req, res, { name }) => {
   }
 
   unrouteApp(app)
-  await stopContainer(deployment.containerId)
+  if (isComposeApp(app)) {
+    await composeStop(composeDir(app.name))
+  } else {
+    await stopContainer(deployment.containerId)
+  }
   json<StopResponse>(res, 200, { message: `stopped ${name}`, containerId: deployment.containerId })
 })
 
@@ -388,7 +392,11 @@ route('POST', '/apps/:name/start', async (_req, res, { name }) => {
   }
 
   try {
-    await startContainer(deployment.containerId)
+    if (isComposeApp(app)) {
+      await composeStart(composeDir(app.name))
+    } else {
+      await startContainer(deployment.containerId)
+    }
     await waitForHealthy(deployment.port, app.healthPath)
     routeApp(app, deployment.port)
     json<StartResponse>(res, 200, { message: `started ${name}`, port: deployment.port })
