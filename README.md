@@ -24,9 +24,13 @@ zero deploy myapp
 
 ## Motivation
 
-Platforms like Vercel and Railway are great — until the bill arrives or you hit the limits of their walled garden. Self-hosting gives you full control, but setting up Docker, TLS certificates, reverse proxies, and zero-downtime deployments by hand is tedious and error-prone.
+Platforms like Vercel and Railway are great — until the bill arrives or you hit the limits of their walled garden.
+Self-hosting gives you full control, but setting up Docker, TLS certificates, reverse proxies, and zero-downtime
+deployments by hand is tedious and error-prone.
 
-zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one install command, and you have a deployment platform that handles everything. Deploy any Dockerized app with a single CLI command — no YAML pipelines, no vendor lock-in, no surprise invoices.
+zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one install command, and you have a
+deployment platform that handles everything. Deploy any Dockerized app with a single CLI command — no YAML pipelines, no
+vendor lock-in, no surprise invoices.
 
 ## Why zero
 
@@ -34,6 +38,7 @@ zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one i
 - **Automatic TLS** — Let's Encrypt certificates provisioned and renewed automatically
 - **Reverse proxy built in** — route domains to containers, no Nginx or Traefik needed
 - **Docker Compose support** — deploy multi-service stacks with a single command
+- **Preview deployments** — deploy branches as temporary preview environments with automatic expiry
 - **Webhooks** — auto-deploy on push from GitHub Container Registry or Docker Hub
 - **Rollback** — instantly revert to the previous deployment
 - **Live metrics** — CPU, memory, and network usage in the terminal
@@ -44,18 +49,19 @@ zero bridges that gap. Rent a server (Hetzner, DigitalOcean, any VPS), run one i
 
 There are excellent self-hosting tools out there. Here's how zero fits in:
 
-| | zero | Coolify | CapRover | Dokku | Kamal |
-|---|---|---|---|---|---|
-| Interface | CLI only | Web UI | Web UI | CLI | CLI |
-| Deploy model | Docker images | Git/Docker | Git/Docker | Git push (Buildpacks) | Docker images |
-| Reverse proxy | Built in | Traefik | Nginx | Nginx | Traefik |
-| Orchestration | Docker | Docker | Docker Swarm | Docker | SSH to host |
-| Server footprint | 1 container | Multiple services + DB | Multiple services | System packages | No agent |
-| Dependencies | 2 (dockerode, acme) | Many | Many | Many | Ruby |
-| Compose support | Yes | Yes | No | No | Yes (accessories) |
-| Setup | One command | One command | One command | `apt install` | Gem install + config |
+|                  | zero                | Coolify                | CapRover          | Dokku                 | Kamal                |
+|------------------|---------------------|------------------------|-------------------|-----------------------|----------------------|
+| Interface        | CLI only            | Web UI                 | Web UI            | CLI                   | CLI                  |
+| Deploy model     | Docker images       | Git/Docker             | Git/Docker        | Git push (Buildpacks) | Docker images        |
+| Reverse proxy    | Built in            | Traefik                | Nginx             | Nginx                 | Traefik              |
+| Orchestration    | Docker              | Docker                 | Docker Swarm      | Docker                | SSH to host          |
+| Server footprint | 1 container         | Multiple services + DB | Multiple services | System packages       | No agent             |
+| Dependencies     | 2 (dockerode, acme) | Many                   | Many              | Many                  | Ruby                 |
+| Compose support  | Yes                 | Yes                    | No                | No                    | Yes (accessories)    |
+| Setup            | One command         | One command            | One command       | `apt install`         | Gem install + config |
 
-**zero is for you if** you want the simplest possible path from "I have a server" to "my app is live with HTTPS" — without a web UI, without a database, without dozens of moving parts. One container, one CLI, done.
+**zero is for you if** you want the simplest possible path from "I have a server" to "my app is live with HTTPS" —
+without a web UI, without a database, without dozens of moving parts. One container, one CLI, done.
 
 ## Table of Contents
 
@@ -77,6 +83,7 @@ There are excellent self-hosting tools out there. Here's how zero fits in:
   - [Environment Variables](#environment-variables)
   - [Volumes](#volumes)
   - [Registry Credentials](#registry-credentials)
+- [Preview Deployments](#preview-deployments)
 - [Managing Apps](#managing-apps)
   - [List Apps](#list-apps)
   - [View Logs](#view-logs)
@@ -146,13 +153,14 @@ zero upgrade --server
 
 Configuration is stored in `/opt/zero/.env`:
 
-| Variable                 | Description                                    | Default      |
-| ------------------------ | ---------------------------------------------- | ------------ |
-| `TOKEN`                  | API authentication token                       | *(generated)* |
-| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)  | *(server IP)* |
-| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)    | —            |
-| `API_PORT`               | API server port                                | `2020`       |
-| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`         |
+| Variable                 | Description                                     | Default        |
+|--------------------------|-------------------------------------------------|----------------|
+| `TOKEN`                  | API authentication token                        | *(generated)*  |
+| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)   | *(server IP)*  |
+| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —              |
+| `API_PORT`               | API server port                                 | `2020`         |
+| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`           |
+| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments    | `168` (7 days) |
 
 View server logs:
 
@@ -235,16 +243,16 @@ zero deploy myapp --tag v1.2.3
 
 Available options for `zero add`:
 
-| Flag             | Description                                           | Default |
-| ---------------- | ----------------------------------------------------- | ------- |
-| `--name`         | App name (required)                                   | —       |
-| `--image`        | Docker image reference (required)                     | —       |
-| `--domain`       | Domain for reverse proxy routing                      | —       |
-| `--port`         | Internal container port                               | `3000`  |
-| `--host-port`    | Expose directly on a host port (when no domain is set) | —       |
-| `--command`      | Container startup command                             | —       |
-| `--volume`       | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | — |
-| `--health-path`  | HTTP health check endpoint                            | —       |
+| Flag            | Description                                                       | Default |
+|-----------------|-------------------------------------------------------------------|---------|
+| `--name`        | App name (required)                                               | —       |
+| `--image`       | Docker image reference (required)                                 | —       |
+| `--domain`      | Domain for reverse proxy routing                                  | —       |
+| `--port`        | Internal container port                                           | `3000`  |
+| `--host-port`   | Expose directly on a host port (when no domain is set)            | —       |
+| `--command`     | Container startup command                                         | —       |
+| `--volume`      | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —       |
+| `--health-path` | HTTP health check endpoint                                        | —       |
 
 Examples:
 
@@ -268,25 +276,29 @@ zero add --name mystack --compose docker-compose.yml --service web --domain myst
 zero deploy mystack
 ```
 
-| Flag         | Description                                         |
-| ------------ | --------------------------------------------------- |
-| `--compose`  | Path to a `docker-compose.yml` file (required)      |
-| `--service`  | The entry service that receives traffic (required)   |
-| `--domain`   | Domain for reverse proxy routing                    |
-| `--port`     | Internal port the entry service listens on          |
-| `--host-port`| Expose entry service directly on a host port        |
+| Flag          | Description                                        |
+|---------------|----------------------------------------------------|
+| `--compose`   | Path to a `docker-compose.yml` file (required)     |
+| `--service`   | The entry service that receives traffic (required) |
+| `--domain`    | Domain for reverse proxy routing                   |
+| `--port`      | Internal port the entry service listens on         |
+| `--host-port` | Expose entry service directly on a host port       |
 
-The Compose file is uploaded to the server. On deploy, zero runs `docker compose pull` and `docker compose up -d`, then health-checks the entry service before routing traffic.
+The Compose file is uploaded to the server. On deploy, zero runs `docker compose pull` and `docker compose up -d`, then
+health-checks the entry service before routing traffic.
 
 ### Health Checks
 
 Every deployment is health-checked before traffic is routed to it.
 
-**TCP check** (default): zero opens a TCP connection to the container port. The container is considered healthy when it accepts connections.
+**TCP check** (default): zero opens a TCP connection to the container port. The container is considered healthy when it
+accepts connections.
 
-**HTTP check** (when `--health-path` is set): zero sends `GET` requests to the specified path. The container is considered healthy when it responds with a status code below 500.
+**HTTP check** (when `--health-path` is set): zero sends `GET` requests to the specified path. The container is
+considered healthy when it responds with a status code below 500.
 
-Health checks run every 500ms with a 60-second timeout. If the container crashes or exits during the health check, the deployment fails immediately and traffic stays on the previous version.
+Health checks run every 500ms with a 60-second timeout. If the container crashes or exits during the health check, the
+deployment fails immediately and traffic stays on the previous version.
 
 ### Environment Variables
 
@@ -332,7 +344,54 @@ zero registry ls
 zero registry logout ghcr.io
 ```
 
-Credentials are stored on the server and used automatically when pulling images. Supports Docker Hub, GitHub Container Registry, and any OCI-compatible registry.
+Credentials are stored on the server and used automatically when pulling images. Supports Docker Hub, GitHub Container
+Registry, and any OCI-compatible registry.
+
+### Preview Deployments
+
+Deploy temporary preview environments from any image tag. Previews run as sub-deployments of an existing app and get
+their own subdomain automatically.
+
+```bash
+# Deploy a preview
+zero preview deploy myapp --tag pr-42
+
+# Deploy with a custom label and TTL
+zero preview deploy myapp --tag feature-branch --label feat-1 --ttl 24
+```
+
+| Flag      | Description                       | Default         |
+|-----------|-----------------------------------|-----------------|
+| `--tag`   | Image tag to deploy (required)    | —               |
+| `--label` | Preview label (used in subdomain) | same as `--tag` |
+| `--ttl`   | Time to live in hours             | `168` (7 days)  |
+
+The preview is deployed at `<label>.<app-domain>`. For example, if the app domain is `myapp.example.com` and the label
+is `pr-42`, the preview URL is `https://pr-42.myapp.example.com`.
+
+> **DNS:** Preview subdomains require a wildcard DNS record (`*.myapp.example.com`) pointing to your server. The
+`zero add` command shows the required DNS records.
+
+**List previews:**
+
+```bash
+zero preview ls myapp
+```
+
+Previews are also shown under their parent app in `zero ls`.
+
+**Remove previews:**
+
+```bash
+# Remove a single preview
+zero preview rm myapp pr-42
+
+# Remove all previews for an app
+zero preview rm myapp --all
+```
+
+Previews expire automatically after their TTL. Expired previews are cleaned up hourly. Removing an app also removes all
+its previews.
 
 ## Managing Apps
 
@@ -342,7 +401,8 @@ Credentials are stored on the server and used automatically when pulling images.
 zero ls
 ```
 
-Shows all registered apps with their status, URL, image, and last deployment time.
+Shows all registered apps with their status, URL, image, and last deployment time. Preview deployments are listed under
+their parent app.
 
 ### View Logs
 
@@ -362,7 +422,8 @@ Logs are streamed in real time. Press `ctrl+c` to stop.
 zero metrics myapp
 ```
 
-Shows live CPU, memory, and network usage directly in the terminal. The display updates automatically and progress bars change color based on utilization (green → yellow → red).
+Shows live CPU, memory, and network usage directly in the terminal. The display updates automatically and progress bars
+change color based on utilization (green → yellow → red).
 
 ```
 myapp
@@ -401,7 +462,8 @@ Revert to the previous deployment:
 zero rollback myapp
 ```
 
-zero starts a new container from the previous image and swaps traffic once it's healthy. Rollback is available for single-container apps. Compose stacks do not support rollback.
+zero starts a new container from the previous image and swaps traffic once it's healthy. Rollback is available for
+single-container apps. Compose stacks do not support rollback.
 
 ### Remove an App
 
@@ -409,11 +471,13 @@ zero starts a new container from the previous image and swaps traffic once it's 
 zero rm myapp
 ```
 
-Stops and removes all containers associated with the app. For Compose apps, runs `docker compose down --remove-orphans`.
+Stops and removes all containers associated with the app, including any preview deployments. For Compose apps, runs
+`docker compose down --remove-orphans`.
 
 ## Automatic Deployments via Webhooks
 
-Every app gets a unique webhook URL. When a registry sends a push notification, zero automatically deploys the new image.
+Every app gets a unique webhook URL. When a registry sends a push notification, zero automatically deploys the new
+image.
 
 **Setup:**
 
@@ -427,9 +491,11 @@ Every app gets a unique webhook URL. When a registry sends a push notification, 
 
 3. Push an image — zero deploys it automatically.
 
-**Tag filtering:** By default, zero deploys any pushed tag. If the app was added with a specific tag (e.g. `myapp:latest`), only pushes matching that tag trigger a deployment.
+**Tag filtering:** By default, zero deploys any pushed tag. If the app was added with a specific tag (e.g.
+`myapp:latest`), only pushes matching that tag trigger a deployment.
 
-**Webhook security:** Payloads are verified using HMAC-SHA256 signatures (`x-hub-signature-256` header) with timing-safe comparison.
+**Webhook security:** Payloads are verified using HMAC-SHA256 signatures (`x-hub-signature-256` header) with timing-safe
+comparison.
 
 To rotate the webhook secret:
 
@@ -444,7 +510,8 @@ zero automatically provisions and renews TLS certificates via Let's Encrypt when
 1. An `EMAIL` is set in the server configuration
 2. The server has a real domain (not an IP address)
 
-Certificates are provisioned on demand when an app with a domain is first deployed. Renewal happens automatically when a certificate is within 30 days of expiry (configurable via `CERT_RENEW_BEFORE_DAYS`).
+Certificates are provisioned on demand when an app with a domain is first deployed. Renewal happens automatically when a
+certificate is within 30 days of expiry (configurable via `CERT_RENEW_BEFORE_DAYS`).
 
 When TLS is enabled, HTTP requests are automatically redirected to HTTPS (301).
 
@@ -461,11 +528,13 @@ Deployments follow a four-phase process:
 3. **Health check** — zero waits up to 60 seconds for the container to become healthy
 4. **Swap** — the reverse proxy route is atomically updated to point to the new container; old containers are removed
 
-If the health check fails, the new container is discarded and traffic continues flowing to the existing container. Nothing changes until the new version is verified.
+If the health check fails, the new container is discarded and traffic continues flowing to the existing container.
+Nothing changes until the new version is verified.
 
 ### Reverse Proxy
 
-zero includes a built-in reverse proxy that routes incoming requests to the correct container based on the `Host` header.
+zero includes a built-in reverse proxy that routes incoming requests to the correct container based on the `Host`
+header.
 
 - Domains are mapped to containers via their ephemeral localhost port
 - TLS termination with automatic certificate selection via SNI
@@ -499,8 +568,13 @@ env set <app> KEY=val [KEY=val ...]     Set environment variables
 env rm <app> KEY [KEY ...]              Remove environment variables
 login <host> <token>                    Save server credentials
 logs <app> | --server                   Stream app or server logs
-ls                                      List all apps
+ls                                      List all apps (including previews)
 metrics <app> | --server                Show live resource usage
+preview deploy <app> --tag <tag> [--label] [--ttl]
+                                        Deploy a preview environment
+preview ls <app>                        List previews for an app
+preview rm <app> <label> [--force]      Remove a preview
+preview rm <app> --all [--force]        Remove all previews
 registry login <server> --user --password
                                         Add registry credentials
 registry logout <server>                Remove registry credentials

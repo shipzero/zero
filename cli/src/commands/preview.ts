@@ -66,25 +66,36 @@ async function previewLs(positionals: string[]): Promise<void> {
   }
 
   const serverUrl = new URL(client.config.host)
+  const urls = data.map((p) => `${serverUrl.protocol}//${p.domain}`)
   const labelWidth = Math.max(5, ...data.map((p) => p.label.length))
   const statusWidth = 7
-  const urlWidth = Math.max(3, ...data.map((p) => `${serverUrl.protocol}//${p.domain}`.length))
+  const urlWidth = Math.max(3, ...urls.map((u) => u.length))
+  const imageWidth = Math.max(5, ...data.map((p) => (p.image ?? '—').length))
 
-  const header = bold(
-    ['LABEL'.padEnd(labelWidth), 'STATUS'.padEnd(statusWidth), 'URL'.padEnd(urlWidth), 'DEPLOYED', 'EXPIRES'].join('  ')
+  console.log(
+    bold(
+      [
+        'LABEL'.padEnd(labelWidth),
+        'STATUS'.padEnd(statusWidth),
+        'URL'.padEnd(urlWidth),
+        'IMAGE'.padEnd(imageWidth),
+        'DEPLOYED',
+        'EXPIRES'
+      ].join('  ')
+    )
   )
-  console.log(header)
 
-  for (const p of data) {
-    const url = `${serverUrl.protocol}//${p.domain}`
+  for (let i = 0; i < data.length; i++) {
+    const p = data[i]
     const statusText = formatStatus(p.status)
     const statusPad = ' '.repeat(Math.max(0, statusWidth - (p.status === 'no deployment' ? 1 : p.status.length)))
     const row = [
       p.label.padEnd(labelWidth),
       statusText + statusPad,
-      url.padEnd(urlWidth),
-      p.deployedAt ? dim(timeAgo(p.deployedAt)) : dim('—'),
-      p.expiresAt ? dim(timeUntil(p.expiresAt)) : dim('—')
+      urls[i].padEnd(urlWidth),
+      (p.image ?? '—').padEnd(imageWidth),
+      dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
+      dim(p.expiresAt ? timeUntil(p.expiresAt) : '—')
     ].join('  ')
     console.log(row)
   }

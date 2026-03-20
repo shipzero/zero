@@ -5,7 +5,6 @@ import { removeProxyRoute } from './proxy.ts'
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
-/** Removes a single preview: unroutes, stops container, deletes from state. */
 export async function destroyPreview(appName: string, preview: Preview): Promise<void> {
   removeProxyRoute(preview.domain)
   await removeContainer(preview.containerId)

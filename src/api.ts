@@ -206,6 +206,22 @@ route('GET', '/apps', async (_req, res) => {
           status = state.running ? 'running' : 'stopped'
         }
       }
+
+      const previews: PreviewSummary[] = await Promise.all(
+        getPreviewsForApp(app.name).map(async (preview) => {
+          const previewState = await getContainerState(preview.containerId)
+          return {
+            name: app.name,
+            label: preview.label,
+            domain: preview.domain,
+            status: previewState.running ? ('running' as const) : ('stopped' as const),
+            image: preview.image,
+            deployedAt: preview.deployedAt,
+            expiresAt: preview.expiresAt
+          }
+        })
+      )
+
       return {
         name: app.name,
         image: app.image,
@@ -216,7 +232,8 @@ route('GET', '/apps', async (_req, res) => {
         port: deployment?.port,
         deployedAt: deployment?.deployedAt,
         status,
-        webhookUrl: webhookUrl(app.webhookSecret)
+        webhookUrl: webhookUrl(app.webhookSecret),
+        previews
       }
     })
   )

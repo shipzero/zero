@@ -21,6 +21,7 @@ export interface AppSummary {
   deployedAt?: string
   status: 'running' | 'stopped' | 'no deployment'
   webhookUrl: string
+  previews: PreviewSummary[]
 }
 
 export interface AppDetail {
