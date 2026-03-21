@@ -5,7 +5,7 @@ import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge } from '
 import { isTLSEnabled } from './url.ts'
 import { DEV_PORT, API_PORT } from './env.ts'
 
-const REQUEST_TIMEOUT_MS = 60_000 // 60 seonds
+const REQUEST_TIMEOUT_MS = 60_000 // 60 seconds
 const HEADERS_TIMEOUT_MS = 10_000 // 10 seconds
 const MAX_BODY_BYTES = 100 * 1024 * 1024 // 100 MB
 const MAX_CONNECTIONS = 1024
