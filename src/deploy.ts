@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { parseDuration } from './duration.ts'
 import { getApp, addDeployment, findRollbackTarget, isComposeApp, getPreview, setPreview, AppConfig } from './state.ts'
 import type { Preview } from './state.ts'
 import {
@@ -61,7 +62,7 @@ interface ContainerDeployOptions {
   internalPort: number
   env: Record<string, string>
   healthPath?: string
-  healthTimeout?: number
+  healthTimeout?: string
   command?: string[]
   volumes?: string[]
   appName: string
@@ -97,7 +98,12 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
   const healthPath = opts.healthPath ?? '/'
   log(appName, `phase 3/3: waiting for healthy on port ${port} (GET ${healthPath})`, label)
   try {
-    await waitForHealthy(port, opts.healthPath, opts.healthTimeout, containerId)
+    await waitForHealthy(
+      port,
+      opts.healthPath,
+      opts.healthTimeout ? parseDuration(opts.healthTimeout) : undefined,
+      containerId
+    )
     log(appName, 'container is healthy', label)
   } catch {
     log(appName, `health check failed — container did not respond at http://127.0.0.1:${port}${healthPath}`, label)
@@ -248,7 +254,11 @@ async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: numb
   const healthPath = app.healthPath ?? '/'
   log(appName, `phase 3/3: waiting for healthy on port ${containerPort} (GET ${healthPath})`, label)
   try {
-    await waitForHealthy(containerPort, app.healthPath, app.healthTimeout)
+    await waitForHealthy(
+      containerPort,
+      app.healthPath,
+      app.healthTimeout ? parseDuration(app.healthTimeout) : undefined
+    )
     log(appName, 'entry service is healthy', label)
   } catch {
     log(

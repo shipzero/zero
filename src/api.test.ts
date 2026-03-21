@@ -738,7 +738,7 @@ describe('API', () => {
 
     it('sets TTL on preview', async () => {
       await request('POST', '/apps', { name: 'prev6', image: 'nginx:latest', domain: 'prev6.example.com' })
-      await request('POST', '/apps/prev6/previews', { label: 'pr-6', tag: 'pr-6', ttlHours: 24 })
+      await request('POST', '/apps/prev6/previews', { label: 'pr-6', tag: 'pr-6', ttl: '24h' })
       const preview = state.getApp('prev6')?.previews['pr-6']
       expect(preview?.expiresAt).toBeDefined()
       const expiresAt = new Date(preview!.expiresAt).getTime()

@@ -2,6 +2,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import type { AppConfig, Preview } from './state.ts'
 import { getErrorMessage } from './errors.ts'
+import { parseDuration } from './duration.ts'
 import {
   getApps,
   getApp,
@@ -36,7 +37,7 @@ import { composeDir, composeDown, composeStop, composeStart, composeLogs, remove
 import { routeApp, unrouteApp } from './proxy.ts'
 import { destroyPreview } from './preview.ts'
 import { isTLSEnabled, buildDomainUrl } from './url.ts'
-import { IS_DEV, TOKEN, JWT_SECRET, DOMAIN, API_PORT, PREVIEW_TTL_HOURS } from './env.ts'
+import { IS_DEV, TOKEN, JWT_SECRET, DOMAIN, API_PORT, PREVIEW_TTL_MS } from './env.ts'
 import { signJwt, verifyJwt } from './jwt.ts'
 import { VERSION } from './version.ts'
 import type {
@@ -276,7 +277,7 @@ interface AddAppRequest {
   command?: string[]
   volumes?: string[]
   healthPath?: string
-  healthTimeout?: number
+  healthTimeout?: string
   env?: Record<string, string>
   composeFile?: string
   entryService?: string
@@ -315,6 +316,15 @@ route('POST', '/apps', async (req, res) => {
   if (!name) {
     json(res, 400, { error: 'name required' })
     return
+  }
+
+  if (healthTimeout) {
+    try {
+      parseDuration(healthTimeout)
+    } catch {
+      json(res, 400, { error: `invalid healthTimeout "${healthTimeout}" — use e.g. 30s, 3m` })
+      return
+    }
   }
 
   const isCompose = !!composeFile
@@ -465,7 +475,11 @@ route('POST', '/apps/:name/start', async (_req, res, { name }) => {
     } else {
       await startContainer(deployment.containerId)
     }
-    await waitForHealthy(deployment.port, app.healthPath, app.healthTimeout)
+    await waitForHealthy(
+      deployment.port,
+      app.healthPath,
+      app.healthTimeout ? parseDuration(app.healthTimeout) : undefined
+    )
     routeApp(app, deployment.port)
     json<StartResponse>(res, 200, { message: `started ${name}`, port: deployment.port })
   } catch (err) {
@@ -543,11 +557,11 @@ route('POST', '/upgrade', async (req, res) => {
 interface PreviewDeployRequest {
   label?: string
   tag?: string
-  ttlHours?: number
+  ttl?: string
 }
 
-function previewExpiresAt(ttlHours: number): string {
-  return new Date(Date.now() + ttlHours * 60 * 60 * 1000).toISOString()
+function previewExpiresAt(ttlMs: number): string {
+  return new Date(Date.now() + ttlMs).toISOString()
 }
 
 route('POST', '/apps/:name/previews', async (req, res, { name }) => {
@@ -567,9 +581,15 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   }
 
   const label = body?.label ?? body?.tag ?? 'preview'
-  const ttlHours = body?.ttlHours ?? PREVIEW_TTL_HOURS
+  let ttlMs: number
+  try {
+    ttlMs = body?.ttl ? parseDuration(body.ttl) : PREVIEW_TTL_MS
+  } catch {
+    json(res, 400, { error: `invalid ttl "${body?.ttl}" — use e.g. 24h, 7d` })
+    return
+  }
   const previewDomain = buildPreviewDomain(parent.domain, label)
-  const expiresAt = previewExpiresAt(ttlHours)
+  const expiresAt = previewExpiresAt(ttlMs)
 
   try {
     if (isCompose) {
@@ -877,7 +897,7 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
       return
     }
     const previewDomain = buildPreviewDomain(app.domain!, tag)
-    const expiresAt = previewExpiresAt(PREVIEW_TTL_HOURS)
+    const expiresAt = previewExpiresAt(PREVIEW_TTL_MS)
     json(res, 202, { message: 'preview deploy triggered', tag })
     if (isCompose) {
       deployComposePreview(app.name, tag, previewDomain, expiresAt, tag).catch((err) =>

@@ -40,7 +40,7 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
   const command = flags['command'] as string | undefined
   const volume = flags['volume'] as string | undefined
   const healthPath = flags['health-path'] as string | undefined
-  const healthTimeout = flags['health-timeout'] ? Number(flags['health-timeout']) * 1000 : undefined
+  const healthTimeout = flags['health-timeout'] as string | undefined
   const composePath = flags['compose'] as string | undefined
   const service = flags['service'] as string | undefined
   const repo = flags['repo'] as string | undefined
