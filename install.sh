@@ -61,7 +61,7 @@ fi
 
 systemctl enable --now docker
 
-mkdir -p "$INSTALL_DIR" /data/state /data/certs /data/compose
+mkdir -p "$INSTALL_DIR" /var/lib/zero/certs /var/lib/zero/compose
 
 if [ "$IS_UPGRADE" = false ]; then
   TOKEN=$(openssl rand -hex 32)
@@ -94,9 +94,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/zero:/opt/zero:ro
-      - /data/state:/data/state
-      - /data/certs:/data/certs
-      - /data/compose:/data/compose
+      - /var/lib/zero:/var/lib/zero
     env_file:
       - .env
     environment:

@@ -8,9 +8,7 @@ services:
       - "2020:2020"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /data/state:/data/state
-      - /data/certs:/data/certs
-      - /data/compose:/data/compose
+      - /var/lib/zero:/var/lib/zero
     environment:
       - TOKEN=${TOKEN}
       - EMAIL=${EMAIL}

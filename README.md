@@ -172,7 +172,7 @@ docker compose -f /opt/zero/docker-compose.yml logs -f
 
 ```bash
 docker compose -f /opt/zero/docker-compose.yml down
-rm -rf /opt/zero /data/state /data/certs /data/compose
+rm -rf /opt/zero /var/lib/zero
 docker rmi ghcr.io/shipzero/zero:latest docker:cli
 ```
 
@@ -582,7 +582,7 @@ header.
 ### Certificate Management
 
 - Certificates are generated using the ACME HTTP-01 challenge
-- Stored on disk at `/data/certs/` (persisted across restarts)
+- Stored on disk at `/var/lib/zero/certs/` (persisted across restarts)
 - RSA 2048 server keys, P-256 EC account key
 - Automatic renewal within the configured renewal window
 
