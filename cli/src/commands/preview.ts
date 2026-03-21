@@ -5,6 +5,7 @@ import {
   logSuccess,
   logError,
   logHint,
+  bold,
   dim,
   cyan,
   confirm,
