@@ -88,49 +88,6 @@ async function previewLs(positionals: string[]): Promise<void> {
   )
 }
 
-async function previewLogs(positionals: string[]): Promise<void> {
-  const appName = positionals[0]
-  const label = positionals[1]
-  if (!appName || !label) {
-    logError('usage: zero preview logs <app> <label>')
-    process.exit(1)
-  }
-
-  const client = createClient()
-
-  process.on('SIGINT', () => {
-    console.log(dim('\n[disconnected]'))
-    process.exit(0)
-  })
-
-  let isFirst = true
-  await client.streamSSE(
-    `/apps/${encodeURIComponent(appName)}/previews/${encodeURIComponent(label)}/logs`,
-    (line) => {
-      if (isFirst) {
-        console.log(dim('ctrl+c to stop\n'))
-        isFirst = false
-      }
-      console.log(line)
-    }
-  )
-}
-
-async function previewMetrics(positionals: string[]): Promise<void> {
-  const appName = positionals[0]
-  const label = positionals[1]
-  if (!appName || !label) {
-    logError('usage: zero preview metrics <app> <label>')
-    process.exit(1)
-  }
-
-  const { streamMetrics } = await import('./metrics.ts')
-  await streamMetrics(
-    `/apps/${encodeURIComponent(appName)}/previews/${encodeURIComponent(label)}/metrics`,
-    `${appName}/${label}`
-  )
-}
-
 async function previewRm(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const appName = positionals[0]
   if (!appName) {
@@ -179,17 +136,11 @@ export async function preview(
     case 'ls':
       await previewLs(positionals)
       break
-    case 'logs':
-      await previewLogs(positionals)
-      break
-    case 'metrics':
-      await previewMetrics(positionals)
-      break
     case 'rm':
       await previewRm(positionals, flags)
       break
     default:
-      logError('usage: zero preview <deploy|ls|logs|metrics|rm> ...')
+      logError('usage: zero preview <deploy|ls|rm> ...')
       process.exit(1)
   }
 }

@@ -77,7 +77,7 @@ export function timeUntil(iso: string): string {
   const diff = date.getTime() - Date.now()
   if (diff <= 0) return 'expired'
   const hours = Math.floor(diff / 3_600_000)
-  const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const formatted = date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   if (hours < 24) return `${hours}h (${formatted})`
   const days = Math.floor(hours / 24)
   return `${days}d (${formatted})`

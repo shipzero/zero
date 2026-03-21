@@ -24,12 +24,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }
 
-function renderStats(appName: string, stats: ContainerStats, isFirst: boolean): void {
+function renderStats(label: string, stats: ContainerStats, isFirst: boolean): void {
   const cpuRatio = Math.min(stats.cpu / 100, 1)
   const memRatio = stats.memoryLimit > 0 ? stats.memory / stats.memoryLimit : 0
 
   const lines = [
-    bold(appName),
+    bold(label),
     '',
     `  ${cyan('cpu')}     ${progressBar(cpuRatio)}  ${bold(stats.cpu.toFixed(1) + '%')}`,
     `  ${cyan('memory')}  ${progressBar(memRatio)}  ${bold(formatBytes(stats.memory))} ${dim('/')} ${formatBytes(stats.memoryLimit)} ${dim(`(${(memRatio * 100).toFixed(1)}%)`)}`,
@@ -48,7 +48,35 @@ function renderStats(appName: string, stats: ContainerStats, isFirst: boolean): 
   }
 }
 
-export async function streamMetrics(path: string, label: string): Promise<void> {
+function buildPath(
+  positionals: string[],
+  flags: Record<string, string | true>
+): { path: string; label: string } | null {
+  const isServer = flags['server'] === true
+  const appName = positionals[0]
+  const previewLabel = flags['preview'] as string | undefined
+
+  if (isServer) return { path: '/metrics', label: 'zero' }
+
+  if (!appName) {
+    logError('usage: zero metrics <app> [--preview <label>]')
+    logError('       zero metrics --server')
+    process.exit(1)
+  }
+
+  const encodedApp = encodeURIComponent(appName)
+  if (previewLabel) {
+    const encodedLabel = encodeURIComponent(previewLabel)
+    return { path: `/apps/${encodedApp}/previews/${encodedLabel}/metrics`, label: `${appName}/${previewLabel}` }
+  }
+
+  return { path: `/apps/${encodedApp}/metrics`, label: appName }
+}
+
+export async function metrics(positionals: string[], flags: Record<string, string | true>): Promise<void> {
+  const target = buildPath(positionals, flags)
+  if (!target) return
+
   const client = createClient()
 
   process.on('SIGINT', () => {
@@ -57,24 +85,9 @@ export async function streamMetrics(path: string, label: string): Promise<void> 
   })
 
   let isFirst = true
-  await client.streamSSE(path, (line) => {
+  await client.streamSSE(target.path, (line) => {
     const stats: ContainerStats = JSON.parse(line)
-    renderStats(label, stats, isFirst)
+    renderStats(target.label, stats, isFirst)
     isFirst = false
   })
-}
-
-export async function metrics(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const isServer = flags['server'] === true
-  const appName = positionals[0]
-
-  if (!isServer && !appName) {
-    logError('usage: zero metrics <app>')
-    logError('       zero metrics --server')
-    process.exit(1)
-  }
-
-  const label = isServer ? 'zero' : appName
-  const path = isServer ? '/metrics' : `/apps/${encodeURIComponent(appName)}/metrics`
-  await streamMetrics(path, label)
 }

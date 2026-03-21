@@ -384,10 +384,10 @@ Previews are also shown under their parent app in `zero ls`.
 
 ```bash
 # Stream preview container logs
-zero preview logs myapp pr-42
+zero logs myapp --preview pr-42
 
 # Show live resource usage
-zero preview metrics myapp pr-42
+zero metrics myapp --preview pr-42
 ```
 
 **Remove previews:**
@@ -400,8 +400,7 @@ zero preview rm myapp pr-42
 zero preview rm myapp --all
 ```
 
-Previews expire automatically after their TTL. Expired previews are cleaned up hourly. Removing an app also removes all
-its previews.
+Previews expire automatically after their TTL. The expiry is shown as relative time with the exact date and time, e.g. `6d (Mar 27, 2:30 PM)`. Expired previews are cleaned up hourly. Removing an app also removes all its previews.
 
 ## Managing Apps
 
@@ -577,14 +576,14 @@ env ls <app>                            List environment variables
 env set <app> KEY=val [KEY=val ...]     Set environment variables
 env rm <app> KEY [KEY ...]              Remove environment variables
 login <host> <token>                    Save server credentials
-logs <app> | --server                   Stream app or server logs
+logs <app> [--preview <label>] | --server
+                                        Stream app or preview logs
 ls                                      List all apps (including previews)
-metrics <app> | --server                Show live resource usage
+metrics <app> [--preview <label>] | --server
+                                        Show live resource usage
 preview deploy <app> --tag <tag> [--label] [--ttl]
                                         Deploy a preview environment
-preview logs <app> <label>              Stream preview logs
 preview ls <app>                        List previews for an app
-preview metrics <app> <label>           Show live preview resource usage
 preview rm <app> <label> [--force]      Remove a preview
 preview rm <app> --all [--force]        Remove all previews
 registry login <server> --user --password
