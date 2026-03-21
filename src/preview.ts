@@ -11,7 +11,7 @@ export async function destroyPreview(appName: string, preview: Preview): Promise
   if (preview.isCompose) {
     const projectName = preview.containerId
     try {
-      await composeDown(composeDir(projectName))
+      await composeDown(composeDir(projectName), true)
     } catch {
       /* project may already be gone */
     }

@@ -10,7 +10,15 @@ import {
   waitForHealthy,
   getFreePort
 } from './docker.ts'
-import { writeComposeFiles, composePull, composeUp, composeDown, composeDir, removeComposeDir } from './compose.ts'
+import {
+  writeComposeFiles,
+  composePull,
+  composeUp,
+  composeDown,
+  composeDir,
+  removeComposeDir,
+  substituteImageTags
+} from './compose.ts'
 import { routeApp, updateProxyRoute } from './proxy.ts'
 import { buildDomainUrl } from './url.ts'
 import { DOMAIN } from './env.ts'
@@ -124,7 +132,7 @@ export async function deploy(appName: string, imageWithTag?: string): Promise<De
     deployLogs.delete(appName)
 
     if (isComposeApp(app)) {
-      result = await deployCompose(appName)
+      result = await deployCompose(appName, imageWithTag)
     } else if (!imageWithTag) {
       throw new Error('image is required for single-container deploys')
     } else {
@@ -173,13 +181,18 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
   return { success: true, image: imageWithTag, port, containerId, url }
 }
 
-async function deployCompose(appName: string): Promise<DeployResult> {
+async function deployCompose(appName: string, tag?: string): Promise<DeployResult> {
   const app = getApp(appName)!
 
-  log(appName, '── deploy start: compose')
+  log(appName, `── deploy start: compose${tag ? ` (tag: ${tag})` : ''}`)
+
+  let composeContent = app.composeFile!
+  if (tag && app.repo) {
+    composeContent = substituteImageTags(composeContent, app.repo, tag)
+  }
 
   const containerPort = await getFreePort()
-  const projectDir = writeComposeFiles(appName, app.composeFile!, app.entryService!, containerPort, app.internalPort)
+  const projectDir = writeComposeFiles(appName, composeContent, app.entryService!, containerPort, app.internalPort)
 
   log(appName, 'phase 1/3: pulling images')
   try {
@@ -298,7 +311,8 @@ export async function deployComposePreview(
   appName: string,
   label: string,
   domain: string,
-  expiresAt: string
+  expiresAt: string,
+  tag?: string
 ): Promise<Preview> {
   const app = getApp(appName)
   if (!app) throw new Error(`App "${appName}" not registered`)
@@ -324,12 +338,17 @@ export async function deployComposePreview(
       removeComposeDir(previewProjectName)
     }
 
-    log(logKey, '── deploy start: compose preview')
+    log(logKey, `── deploy start: compose preview${tag ? ` (tag: ${tag})` : ''}`)
+
+    let composeContent = app.composeFile!
+    if (tag && app.repo) {
+      composeContent = substituteImageTags(composeContent, app.repo, tag)
+    }
 
     const containerPort = await getFreePort()
     const projectDir = writeComposeFiles(
       previewProjectName,
-      app.composeFile!,
+      composeContent,
       app.entryService!,
       containerPort,
       app.internalPort

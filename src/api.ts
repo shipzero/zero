@@ -285,6 +285,7 @@ interface AddAppRequest {
   env?: Record<string, string>
   composeFile?: string
   entryService?: string
+  repo?: string
 }
 
 interface DeployRequest {
@@ -347,7 +348,7 @@ route('POST', '/apps', async (req, res) => {
     healthPath,
     trackTag: tag,
     env,
-    ...(isCompose ? { composeFile, entryService } : {})
+    ...(isCompose ? { composeFile, entryService, repo: body.repo } : {})
   })
 
   json<AddAppResponse>(res, 201, {
@@ -381,12 +382,15 @@ route('POST', '/apps/:name/deploy', async (req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
 
+  const raw = (await readBody(req)).toString()
+  const body = raw ? parseJSON<DeployRequest>(raw) : null
+  const tag = body?.tag
+
   let imageWithTag: string | undefined
-  if (!isComposeApp(app)) {
-    const raw = (await readBody(req)).toString()
-    const body = raw ? parseJSON<DeployRequest>(raw) : null
-    const tag = body?.tag ?? app.trackTag
-    imageWithTag = `${app.image}:${tag}`
+  if (isComposeApp(app)) {
+    imageWithTag = tag
+  } else {
+    imageWithTag = `${app.image}:${tag ?? app.trackTag}`
   }
 
   const result = await deploy(name, imageWithTag)
@@ -520,7 +524,9 @@ route('POST', '/upgrade', async (req, res) => {
   console.log(`[upgrade] pulling ${tag ?? 'latest'} image and restarting...`)
 
   const COMPOSE_FILE = '/opt/zero/docker-compose.yml'
-  const swapTag = tag ? `sed -i 's|image: ghcr.io/shipzero/zero:.*|image: ghcr.io/shipzero/zero:${tag}|' ${COMPOSE_FILE} && ` : ''
+  const swapTag = tag
+    ? `sed -i 's|image: ghcr.io/shipzero/zero:.*|image: ghcr.io/shipzero/zero:${tag}|' ${COMPOSE_FILE} && `
+    : ''
   const pullCmd = `${swapTag}docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d`
 
   try {
@@ -573,7 +579,7 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
 
   try {
     if (isCompose) {
-      await deployComposePreview(name, label, previewDomain, expiresAt)
+      await deployComposePreview(name, label, previewDomain, expiresAt, body?.tag)
     } else {
       await deployPreview(name, label, body!.tag!, previewDomain, expiresAt)
     }
@@ -829,14 +835,40 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
     return
   }
 
-  if (app.trackTag !== 'any' && tag !== app.trackTag) {
+  const isCompose = isComposeApp(app)
+  const isTrackedTag = app.trackTag === 'any' || tag === app.trackTag
+  const hasRepo = isCompose && !!app.repo
+  const isPreviewCandidate = !isTrackedTag && app.domain
+
+  if (!isTrackedTag && !isPreviewCandidate) {
     json(res, 200, { message: `ignored: tag "${tag}" != tracked "${app.trackTag}"` })
     return
   }
 
-  const image = `${app.image}:${tag}`
-  json(res, 202, { message: 'deploy triggered', image })
-  deploy(app.name, image).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
+  if (isPreviewCandidate) {
+    const previewDomain = buildPreviewDomain(app.domain!, tag)
+    const expiresAt = previewExpiresAt(PREVIEW_TTL_HOURS)
+    json(res, 202, { message: 'preview deploy triggered', tag })
+    if (isCompose && hasRepo) {
+      deployComposePreview(app.name, tag, previewDomain, expiresAt, tag).catch((err) =>
+        console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
+      )
+    } else if (!isCompose) {
+      deployPreview(app.name, tag, tag, previewDomain, expiresAt).catch((err) =>
+        console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
+      )
+    }
+    return
+  }
+
+  if (isCompose) {
+    json(res, 202, { message: 'deploy triggered', tag })
+    deploy(app.name, hasRepo ? tag : undefined).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
+  } else {
+    const image = `${app.image}:${tag}`
+    json(res, 202, { message: 'deploy triggered', image })
+    deploy(app.name, image).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
+  }
 })
 
 function extractTag(payload: Record<string, unknown>): string | null {
