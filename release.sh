@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ "${1:-}" = "--preview" ]; then
-  TAG="preview-$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+  TAG="v$(date +%Y.%-m.%-d)-preview.$(git rev-parse --short HEAD)"
 else
   TAG="v$(date +%Y.%-m.%-d)"
   git tag -d "$TAG" 2>/dev/null && git push origin ":refs/tags/$TAG" 2>/dev/null || true

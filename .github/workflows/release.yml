@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: [ 'v*', 'preview-*' ]
+    tags: [ 'v*' ]
 
 env:
   REGISTRY: ghcr.io
@@ -21,7 +21,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           echo "version=${TAG}+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          if [[ "$TAG" == preview-* ]]; then
+          if [[ "$TAG" == *-preview.* ]]; then
             echo "is_preview=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_preview=false" >> "$GITHUB_OUTPUT"
