@@ -226,25 +226,17 @@ route('GET', '/apps', async (_req, res) => {
       const deployment = getCurrentDeployment(app)
       let status: AppSummary['status'] = 'no deployment'
       if (deployment) {
-        if (isComposeApp(app)) {
-          const id = await findComposeContainer(app.entryService!)
-          status = id ? 'running' : 'stopped'
-        } else {
-          const state = await getContainerState(deployment.containerId)
-          status = state.running ? 'running' : 'stopped'
-        }
+        status = await resolveContainerStatus(deployment.containerId, isComposeApp(app), app.entryService)
       }
 
       const previews: PreviewSummary[] = await Promise.all(
         getPreviewsForApp(app.name).map(async (preview) => {
-          let previewStatus: 'running' | 'stopped'
-          if (preview.isCompose) {
-            const id = await findComposeContainer(app.entryService!, preview.containerId)
-            previewStatus = id ? 'running' : 'stopped'
-          } else {
-            const previewState = await getContainerState(preview.containerId)
-            previewStatus = previewState.running ? 'running' : 'stopped'
-          }
+          const previewStatus = await resolveContainerStatus(
+            preview.containerId,
+            !!preview.isCompose,
+            app.entryService,
+            preview.containerId
+          )
           return {
             name: app.name,
             label: preview.label,
@@ -524,9 +516,8 @@ route('POST', '/upgrade', async (req, res) => {
   console.log(`[upgrade] pulling ${tag ?? 'latest'} image and restarting...`)
 
   const COMPOSE_FILE = '/opt/zero/docker-compose.yml'
-  const swapTag = tag
-    ? `sed -i 's|image: ghcr.io/shipzero/zero:.*|image: ghcr.io/shipzero/zero:${tag}|' ${COMPOSE_FILE} && `
-    : ''
+  const effectiveTag = tag ?? 'latest'
+  const swapTag = `sed -i 's|image: ghcr.io/shipzero/zero:.*|image: ghcr.io/shipzero/zero:${effectiveTag}|' ${COMPOSE_FILE} && `
   const pullCmd = `${swapTag}docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d`
 
   try {
@@ -608,14 +599,12 @@ route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
 
   const previews: PreviewSummary[] = await Promise.all(
     getPreviewsForApp(name).map(async (preview) => {
-      let status: PreviewSummary['status']
-      if (preview.isCompose) {
-        const id = await findComposeContainer(parent.entryService!, preview.containerId)
-        status = id ? 'running' : 'stopped'
-      } else {
-        const state = await getContainerState(preview.containerId)
-        status = state.running ? 'running' : 'stopped'
-      }
+      const status = await resolveContainerStatus(
+        preview.containerId,
+        !!preview.isCompose,
+        parent.entryService,
+        preview.containerId
+      )
       return {
         name: parent.name,
         label: preview.label,
@@ -753,6 +742,20 @@ async function findComposeContainer(entryService: string, project?: string): Pro
   if (project) labels.push(`com.docker.compose.project=${project}`)
   const containers = await docker.listContainers({ filters: { label: labels } })
   return containers[0]?.Id ?? null
+}
+
+async function resolveContainerStatus(
+  containerId: string,
+  isCompose: boolean,
+  entryService?: string,
+  project?: string
+): Promise<'running' | 'stopped'> {
+  if (isCompose) {
+    const id = await findComposeContainer(entryService!, project)
+    return id ? 'running' : 'stopped'
+  }
+  const state = await getContainerState(containerId)
+  return state.running ? 'running' : 'stopped'
 }
 
 route('GET', '/metrics', async (_req, res) => {

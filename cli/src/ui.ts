@@ -125,6 +125,37 @@ export function printTable(columns: Column[], rows: Record<string, string>[]): v
   }
 }
 
+export function requireAppName(positionals: string[], usage: string): string {
+  const appName = positionals[0]
+  if (!appName) {
+    logError(`usage: ${usage}`)
+    process.exit(1)
+  }
+  return appName
+}
+
+export function buildStreamPath(
+  positionals: string[],
+  flags: Record<string, string | true>,
+  endpoint: string,
+  serverLabel: string
+): { path: string; label: string } {
+  const isServer = flags['server'] === true
+  const previewLabel = flags['preview'] as string | undefined
+
+  if (isServer) return { path: `/${endpoint}`, label: serverLabel }
+
+  const appName = requireAppName(positionals, `zero ${endpoint} <app> [--preview <label>]`)
+  const encodedApp = encodeURIComponent(appName)
+
+  if (previewLabel) {
+    const encodedLabel = encodeURIComponent(previewLabel)
+    return { path: `/apps/${encodedApp}/previews/${encodedLabel}/${endpoint}`, label: `${appName}/${previewLabel}` }
+  }
+
+  return { path: `/apps/${encodedApp}/${endpoint}`, label: appName }
+}
+
 export async function confirm(message: string): Promise<boolean> {
   if (!process.stdin.isTTY) return true
   process.stdout.write(`${yellow('?')} ${message} ${dim('[y/N]')} `)

@@ -1,13 +1,9 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logError, confirm, bold } from '../ui.ts'
+import { logSuccess, logError, confirm, bold, requireAppName } from '../ui.ts'
 
 export async function rm(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero rm <app> [--force]')
-    process.exit(1)
-  }
+  const appName = requireAppName(positionals, 'zero rm <app> [--force]')
 
   const client = createClient()
 

@@ -69,11 +69,11 @@ async function upgradeCli(isForce: boolean, isPreview: boolean): Promise<void> {
 }
 
 async function upgradeServer(isPreview: boolean): Promise<void> {
-  logInfo(`upgrading server${isPreview ? ' (preview)' : ''}...`)
+  const { tag } = fetchLatestRelease(isPreview)
+  logInfo(`upgrading server to ${tag}...`)
 
   const client = createClient()
-  const body = isPreview ? { tag: 'preview' } : undefined
-  const data = unwrap(await client.post<MessageResponse>('/upgrade', body), logError)
+  const data = unwrap(await client.post<MessageResponse>('/upgrade', { tag }), logError)
 
   logSuccess(data.message)
 }

@@ -1,5 +1,5 @@
 import { createClient, unwrap } from '../client.ts'
-import { logSuccess, logError } from '../ui.ts'
+import { logSuccess, logError, requireAppName } from '../ui.ts'
 
 interface WebhookResetResponse {
   webhookSecret: string
@@ -16,11 +16,7 @@ export async function webhook(subcommand: string | null, positionals: string[]):
 }
 
 async function webhookReset(positionals: string[]): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero webhook reset <app>')
-    process.exit(1)
-  }
+  const appName = requireAppName(positionals, 'zero webhook reset <app>')
 
   const client = createClient()
   const data = unwrap(

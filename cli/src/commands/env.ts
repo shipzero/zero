@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logWarn, logError, logHint, bold } from '../ui.ts'
+import { logSuccess, logInfo, logWarn, logError, logHint, bold, requireAppName } from '../ui.ts'
 
 export async function env(
   subcommand: string | null,
@@ -68,11 +68,7 @@ async function envRm(positionals: string[]): Promise<void> {
 }
 
 async function envLs(positionals: string[]): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero env ls <app>')
-    process.exit(1)
-  }
+  const appName = requireAppName(positionals, 'zero env ls <app>')
 
   const client = createClient()
   const data = unwrap(await client.get<AppDetail>(`/apps/${encodeURIComponent(appName)}`), logError)

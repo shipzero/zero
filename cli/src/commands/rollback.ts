@@ -1,13 +1,9 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, RollbackResponse, RollbackTargetResponse } from '../../../src/types.ts'
-import { logSuccess, logError, logHint, confirm, bold, dim, timeAgo } from '../ui.ts'
+import { logSuccess, logError, logHint, confirm, bold, dim, timeAgo, requireAppName } from '../ui.ts'
 
 export async function rollback(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero rollback <app> [--force]')
-    process.exit(1)
-  }
+  const appName = requireAppName(positionals, 'zero rollback <app> [--force]')
 
   const client = createClient()
 

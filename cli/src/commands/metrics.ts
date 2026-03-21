@@ -1,5 +1,5 @@
 import { createClient } from '../client.ts'
-import { bold, dim, cyan, yellow, green, red, logError } from '../ui.ts'
+import { bold, dim, cyan, yellow, green, red, buildStreamPath } from '../ui.ts'
 import type { ContainerStats } from '../../../src/types.ts'
 
 const BAR_WIDTH = 20
@@ -48,34 +48,8 @@ function renderStats(label: string, stats: ContainerStats, isFirst: boolean): vo
   }
 }
 
-function buildPath(
-  positionals: string[],
-  flags: Record<string, string | true>
-): { path: string; label: string } | null {
-  const isServer = flags['server'] === true
-  const appName = positionals[0]
-  const previewLabel = flags['preview'] as string | undefined
-
-  if (isServer) return { path: '/metrics', label: 'zero' }
-
-  if (!appName) {
-    logError('usage: zero metrics <app> [--preview <label>]')
-    logError('       zero metrics --server')
-    process.exit(1)
-  }
-
-  const encodedApp = encodeURIComponent(appName)
-  if (previewLabel) {
-    const encodedLabel = encodeURIComponent(previewLabel)
-    return { path: `/apps/${encodedApp}/previews/${encodedLabel}/metrics`, label: `${appName}/${previewLabel}` }
-  }
-
-  return { path: `/apps/${encodedApp}/metrics`, label: appName }
-}
-
 export async function metrics(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const target = buildPath(positionals, flags)
-  if (!target) return
+  const target = buildStreamPath(positionals, flags, 'metrics', 'zero')
 
   const client = createClient()
 

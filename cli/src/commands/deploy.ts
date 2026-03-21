@@ -1,6 +1,6 @@
 import { createClient } from '../client.ts'
 import type { DeployResult } from '../../../src/types.ts'
-import { logInfo, logSuccess, logError, logHint, cyan, dim, green, red } from '../ui.ts'
+import { logInfo, logSuccess, logError, logHint, cyan, dim, green, red, requireAppName } from '../ui.ts'
 
 export function formatDeployLog(line: string): string | null {
   const stripped = line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
@@ -34,11 +34,7 @@ function logLine(prefix: string, message: string): string {
 }
 
 export async function deploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero deploy <app> [--tag <tag>]')
-    process.exit(1)
-  }
+  const appName = requireAppName(positionals, 'zero deploy <app> [--tag <tag>]')
 
   const tag = flags['tag'] as string | undefined
   const client = createClient()
