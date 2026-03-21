@@ -3,9 +3,9 @@ import tls from 'node:tls'
 import http from 'node:http'
 import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge } from './certs.ts'
 import { isTLSEnabled } from './url.ts'
-import { DEV_PORT } from './env.ts'
+import { DEV_PORT, API_PORT } from './env.ts'
 
-const REQUEST_TIMEOUT_MS = 30_000 // 30 seconds
+const REQUEST_TIMEOUT_MS = 60_000 // 60 seonds
 const HEADERS_TIMEOUT_MS = 10_000 // 10 seconds
 const MAX_BODY_BYTES = 100 * 1024 * 1024 // 100 MB
 const MAX_CONNECTIONS = 1024
@@ -83,6 +83,7 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
     }
   })
 
+  const isApiRequest = targetPort === API_PORT
   const upstream = http.request(
     {
       hostname: '127.0.0.1',
@@ -90,7 +91,7 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
       path: req.url,
       method: req.method,
       headers,
-      timeout: REQUEST_TIMEOUT_MS
+      timeout: isApiRequest ? 0 : REQUEST_TIMEOUT_MS
     },
     (proxyRes) => {
       const status = proxyRes.statusCode ?? 502

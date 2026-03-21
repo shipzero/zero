@@ -577,7 +577,7 @@ header.
 - Apps without a domain can be exposed directly via `--host-port`
 - Security headers added automatically: `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`
 - Forwarding headers set: `X-Forwarded-For`, `X-Real-IP`, `X-Forwarded-Proto`
-- Request timeout: 30s, max body size: 100 MB
+- Request timeout: 60s, max body size: 100 MB
 
 ### Certificate Management
 

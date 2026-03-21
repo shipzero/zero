@@ -68,7 +68,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 function formatHelp(): string {
   const commands = [
     [
-      'add --name --image [--domain] [--port] [--host-port] [--command] [--volume] [--health-path] [--health-timeout] [--repo] [--tag]',
+      'add --name --image [--domain] [--port] [--host-port] [--repo] [--tag] [--command] [--volume] [--health-path] [--health-timeout]',
       'Add a new app'
     ],
     ['deploy <app> [--tag <tag>]', 'Trigger deployment'],
@@ -101,7 +101,7 @@ function formatHelp(): string {
   const lines = commands.map(([cmd, desc]) => `  ${cyan(cmd.padEnd(maxCmd))}  ${dim(desc)}`)
 
   return [
-    bold('zero') + ' — self-hosted deployment platform',
+    bold('zero') + ' — your server, your apps, one command',
     '',
     `usage: ${cyan('zero <command>')} [options]`,
     '',
