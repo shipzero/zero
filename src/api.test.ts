@@ -39,7 +39,8 @@ vi.mock('./compose.ts', () => ({
   composeStop: vi.fn().mockResolvedValue(undefined),
   composeStart: vi.fn().mockResolvedValue(undefined),
   composeLogs: vi.fn().mockReturnValue((async function* () {})()),
-  removeComposeDir: vi.fn()
+  removeComposeDir: vi.fn(),
+  substituteImageTags: vi.fn().mockImplementation((content: string) => content)
 }))
 
 vi.mock('./proxy.ts', () => ({
@@ -773,6 +774,34 @@ describe('API', () => {
       })
       const res = await request('POST', '/apps/compnotag/previews', { label: 'pr-1' })
       expect(res.status).toBe(201)
+    })
+
+    it('stores tag in compose preview image field', async () => {
+      await request('POST', '/apps', {
+        name: 'comptag',
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:latest',
+        entryService: 'web',
+        domain: 'comptag.example.com',
+        repo: 'ghcr.io/org/app',
+        trackTag: 'latest'
+      })
+      await request('POST', '/apps/comptag/previews', { label: 'pr-5', tag: 'pr-5' })
+      const preview = state.getApp('comptag')?.previews['pr-5']
+      expect(preview!.image).toBe('pr-5')
+    })
+
+    it('uses trackTag for compose preview when no tag given', async () => {
+      await request('POST', '/apps', {
+        name: 'compdefault',
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:stable',
+        entryService: 'web',
+        domain: 'compdefault.example.com',
+        repo: 'ghcr.io/org/app',
+        trackTag: 'stable'
+      })
+      await request('POST', '/apps/compdefault/previews', { label: 'prev' })
+      const preview = state.getApp('compdefault')?.previews['prev']
+      expect(preview!.image).toBe('stable')
     })
   })
 
