@@ -5,10 +5,11 @@ import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge } from '
 import { isTLSEnabled } from './url.ts'
 import { DEV_PORT } from './env.ts'
 
-const REQUEST_TIMEOUT_MS = 30_000
-const HEADERS_TIMEOUT_MS = 10_000
+const REQUEST_TIMEOUT_MS = 30_000 // 30 seconds
+const HEADERS_TIMEOUT_MS = 10_000 // 10 seconds
 const MAX_BODY_BYTES = 100 * 1024 * 1024 // 100 MB
 const MAX_CONNECTIONS = 1024
+const WS_IDLE_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 const HOP_BY_HOP_HEADERS = new Set([
   'keep-alive',
@@ -164,6 +165,17 @@ function proxyUpgrade(req: http.IncomingMessage, clientSocket: net.Socket, head:
     upstream.pipe(clientSocket)
     clientSocket.pipe(upstream)
   })
+
+  function resetIdleTimeout(socket: net.Socket) {
+    socket.setTimeout(WS_IDLE_TIMEOUT_MS, () => {
+      clientSocket.destroy()
+      upstream.destroy()
+    })
+  }
+
+  resetIdleTimeout(clientSocket)
+  clientSocket.on('data', () => resetIdleTimeout(clientSocket))
+  upstream.on('data', () => resetIdleTimeout(clientSocket))
 
   upstream.on('error', () => clientSocket.destroy())
   clientSocket.on('error', () => upstream.destroy())
