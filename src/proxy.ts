@@ -7,6 +7,7 @@ import { DEV_PORT } from './env.ts'
 const REQUEST_TIMEOUT_MS = 30_000
 const HEADERS_TIMEOUT_MS = 10_000
 const MAX_BODY_BYTES = 100 * 1024 * 1024 // 100 MB
+const MAX_CONNECTIONS = 1024
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -61,6 +62,13 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
   const forwardedFor = req.headers['x-forwarded-for']
   const isEncrypted = 'encrypted' in req.socket
 
+  const contentLength = parseInt(req.headers['content-length'] ?? '', 10)
+  if (contentLength > MAX_BODY_BYTES) {
+    res.writeHead(413, { 'Content-Type': 'text/plain' })
+    res.end('Request entity too large')
+    return
+  }
+
   const headers: Record<string, string | string[] | undefined> = {}
   for (const [key, value] of Object.entries(req.headers)) {
     if (!HOP_BY_HOP_HEADERS.has(key)) headers[key] = value
@@ -68,6 +76,19 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
   headers['x-forwarded-for'] = forwardedFor ? `${forwardedFor}, ${clientIp}` : clientIp
   headers['x-real-ip'] = clientIp
   headers['x-forwarded-proto'] = isEncrypted ? 'https' : 'http'
+
+  let receivedBytes = 0
+  req.on('data', (chunk: Buffer) => {
+    receivedBytes += chunk.length
+    if (receivedBytes > MAX_BODY_BYTES) {
+      req.destroy()
+      upstream.destroy()
+      if (!res.headersSent) {
+        res.writeHead(413, { 'Content-Type': 'text/plain' })
+        res.end('Request entity too large')
+      }
+    }
+  })
 
   const upstream = http.request(
     {
@@ -103,14 +124,6 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
     }
   })
 
-  const contentLength = parseInt(req.headers['content-length'] ?? '', 10)
-  if (contentLength > MAX_BODY_BYTES) {
-    upstream.destroy()
-    res.writeHead(413, { 'Content-Type': 'text/plain' })
-    res.end('Request entity too large')
-    return
-  }
-
   req.pipe(upstream)
 }
 
@@ -119,6 +132,8 @@ function proxyRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   const port = routes.get(host)
 
   if (!port) {
+    const clientIp = req.socket.remoteAddress ?? ''
+    console.warn(`[proxy] ${clientIp} ${req.method} ${req.headers.host}${req.url} → 502 (no route for "${host}")`)
     res.writeHead(502, { 'Content-Type': 'text/plain' })
     res.end('Bad gateway')
     return
@@ -141,7 +156,7 @@ function updatePortRoute(hostPort: number, targetPort: number) {
   const server = http.createServer((req, res) => {
     forwardTo(req, res, entry.targetPort)
   })
-  applyTimeouts(server)
+  applyServerLimits(server)
   entry.server = server
 
   server.on('error', (err) => {
@@ -172,9 +187,10 @@ export async function closeAllPortListeners(): Promise<void> {
   await Promise.all(closes)
 }
 
-function applyTimeouts(server: http.Server) {
+function applyServerLimits(server: http.Server) {
   server.requestTimeout = REQUEST_TIMEOUT_MS
   server.headersTimeout = HEADERS_TIMEOUT_MS
+  server.maxConnections = MAX_CONNECTIONS
 }
 
 export function startTLSProxy() {
@@ -204,7 +220,7 @@ export function startTLSProxy() {
 
   // Non-listening HTTP server to parse decrypted TLS sockets as HTTP requests
   const httpHandler = http.createServer((req, res) => proxyRequest(req, res))
-  applyTimeouts(httpHandler)
+  applyServerLimits(httpHandler)
 
   server.on('secureConnection', (socket) => {
     httpHandler.emit('connection', socket)
@@ -230,14 +246,14 @@ export function startHTTPProxy() {
     proxyRequest(req, res)
   })
 
-  applyTimeouts(server)
+  applyServerLimits(server)
   server.listen(80, () => console.log('[proxy] HTTP listening on :80'))
   return server
 }
 
 export function startDevProxy() {
   const server = http.createServer((req, res) => proxyRequest(req, res))
-  applyTimeouts(server)
+  applyServerLimits(server)
 
   server.listen(DEV_PORT, () => console.log(`[proxy] dev mode — HTTP listening on :${DEV_PORT}`))
   return server
