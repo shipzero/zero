@@ -38,7 +38,7 @@ export interface AppConfig {
   command?: string[]
   volumes?: string[]
   healthPath?: string
-  healthTimeout?: number
+  healthTimeout?: string
   env: Record<string, string>
   deployments: Deployment[]
   composeFile?: string

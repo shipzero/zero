@@ -152,15 +152,15 @@ zero upgrade --server
 
 Configuration is stored in `/opt/zero/.env`:
 
-| Variable                 | Description                                     | Default        |
-|--------------------------|-------------------------------------------------|----------------|
-| `TOKEN`                  | Internal auth token (do not share)              | *(generated)*  |
-| `JWT_SECRET`             | Secret for signing JWT tokens                   | *(generated)*  |
-| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)   | *(server IP)*  |
-| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —              |
-| `API_PORT`               | API server port                                 | `2020`         |
-| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`           |
-| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments    | `168` (7 days) |
+| Variable                 | Description                                     | Default       |
+|--------------------------|-------------------------------------------------|---------------|
+| `TOKEN`                  | Internal auth token (do not share)              | *(generated)* |
+| `JWT_SECRET`             | Secret for signing JWT tokens                   | *(generated)* |
+| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)   | *(server IP)* |
+| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —             |
+| `API_PORT`               | API server port                                 | `2020`        |
+| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`          |
+| `PREVIEW_TTL`            | Default time to live for preview deployments    | `7d`          |
 
 View server logs:
 
@@ -256,7 +256,7 @@ Available options for `zero add`:
 | `--command`        | Container startup command                                         | —       |
 | `--volume`         | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —       |
 | `--health-path`    | HTTP health check endpoint                                        | —       |
-| `--health-timeout` | Health check timeout in seconds                                   | `60`    |
+| `--health-timeout` | Health check timeout (e.g. `30s`, `3m`)                           | `60s`   |
 
 Examples:
 
@@ -268,7 +268,7 @@ zero add --name api --image ghcr.io/you/api:latest --domain api.example.com --po
 zero add --name postgres --image postgres:16 --port 5432 --host-port 5432 --volume pgdata:/var/lib/postgresql/data
 
 # App with a custom command and health check
-zero add --name keycloak --image quay.io/keycloak/keycloak:latest --port 8080 --command "start" --health-path /health/ready --health-timeout 180
+zero add --name keycloak --image quay.io/keycloak/keycloak:latest --port 8080 --command "start" --health-path /health/ready --health-timeout 3m
 ```
 
 ### Docker Compose Stacks
@@ -315,8 +315,10 @@ accepts connections.
 **HTTP check** (when `--health-path` is set): zero sends `GET` requests to the specified path. The container is
 considered healthy when it responds with a status code below 500.
 
-Health checks run every 500ms with a 60-second timeout (configurable via `--health-timeout`). If the container crashes
-or exits during the health check, the deployment fails immediately and traffic stays on the previous version.
+Health checks run every 500ms with a 60-second timeout (configurable via `--health-timeout`, e.g.
+`--health-timeout 3m`).
+If the container crashes or exits during the health check, the deployment fails immediately and traffic stays on the
+previous version.
 
 ### Environment Variables
 
@@ -378,14 +380,14 @@ their own subdomain automatically.
 zero preview deploy myapp --tag pr-42
 
 # Deploy with a custom label and TTL
-zero preview deploy myapp --tag feature-branch --label feat-1 --ttl 24
+zero preview deploy myapp --tag feature-branch --label feat-1 --ttl 24h
 ```
 
 | Flag      | Description                       | Default         |
 |-----------|-----------------------------------|-----------------|
 | `--tag`   | Image tag to deploy (required)    | —               |
 | `--label` | Preview label (used in subdomain) | same as `--tag` |
-| `--ttl`   | Time to live in hours             | `168` (7 days)  |
+| `--ttl`   | Time to live (e.g. `24h`, `7d`)   | `7d`            |
 
 The preview is deployed at `<label>.<app-domain>`. For example, if the app domain is `myapp.example.com` and the label
 is `pr-42`, the preview URL is `https://pr-42.myapp.example.com`.

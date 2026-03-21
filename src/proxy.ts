@@ -11,13 +11,7 @@ const MAX_BODY_BYTES = 100 * 1024 * 1024 // 100 MB
 const MAX_CONNECTIONS = 1024
 const WS_IDLE_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
-const HOP_BY_HOP_HEADERS = new Set([
-  'keep-alive',
-  'proxy-authenticate',
-  'proxy-authorization',
-  'te',
-  'trailer'
-])
+const HOP_BY_HOP_HEADERS = new Set(['keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer'])
 
 const SECURITY_HEADERS: Record<string, string> = {
   'strict-transport-security': 'max-age=63072000; includeSubDomains',

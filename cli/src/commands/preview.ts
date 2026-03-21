@@ -21,12 +21,12 @@ async function previewDeploy(positionals: string[], flags: Record<string, string
   const appName = positionals[0]
   const tag = flags['tag'] as string | undefined
   if (!appName || !tag) {
-    logError('usage: zero preview deploy <app> --tag <tag> [--label <label>] [--ttl <hours>]')
+    logError('usage: zero preview deploy <app> --tag <tag> [--label <label>] [--ttl <duration>]')
     process.exit(1)
   }
 
   const label = (flags['label'] as string | undefined) ?? tag
-  const ttlHours = flags['ttl'] ? Number(flags['ttl']) : undefined
+  const ttl = flags['ttl'] as string | undefined
   const client = createClient()
 
   logInfo(`deploying preview ${bold(label)} for ${bold(appName)}...`)
@@ -53,7 +53,7 @@ async function previewDeploy(positionals: string[], flags: Record<string, string
   const { data } = await client.post<PreviewDeployResponse>(`/apps/${encodeURIComponent(appName)}/previews`, {
     label,
     tag,
-    ...(ttlHours !== undefined ? { ttlHours } : {})
+    ...(ttl ? { ttl } : {})
   })
 
   abort.abort()
