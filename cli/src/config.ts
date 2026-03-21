@@ -5,6 +5,7 @@ import { logError } from './ui.ts'
 export interface Config {
   host: string
   token: string
+  destination: string
 }
 
 const CONFIG_DIR = path.join(process.cwd(), '.zero')

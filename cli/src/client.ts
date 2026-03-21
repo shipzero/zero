@@ -1,6 +1,7 @@
 import http from 'node:http'
 import https from 'node:https'
-import { loadConfig, type Config } from './config.ts'
+import { loadConfig, saveConfig, type Config } from './config.ts'
+import { sshMintJwt } from './commands/login.ts'
 import type { ErrorResponse } from '../../src/types.ts'
 export type { ErrorResponse, MessageResponse } from '../../src/types.ts'
 
@@ -75,6 +76,22 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
   })
 }
 
+async function refreshToken(config: Config): Promise<boolean> {
+  if (!config.destination) return false
+  const jwt = await sshMintJwt(config.destination)
+  if (!jwt) return false
+  config.token = jwt
+  saveConfig(config)
+  return true
+}
+
+async function requestWithRefresh<T>(config: Config, opts: RequestOptions): Promise<ApiResponse<T>> {
+  const res = await request<T>(config, opts)
+  if (res.status !== 401) return res
+  if (!(await refreshToken(config))) return res
+  return request<T>(config, opts)
+}
+
 /** Shared client that loads config once per command */
 function createClient() {
   const config = loadConfig()
@@ -83,19 +100,19 @@ function createClient() {
     config,
 
     async get<T = unknown>(path: string) {
-      return request<T>(config, { method: 'GET', path })
+      return requestWithRefresh<T>(config, { method: 'GET', path })
     },
 
     async post<T = unknown>(path: string, body?: unknown) {
-      return request<T>(config, { method: 'POST', path, body })
+      return requestWithRefresh<T>(config, { method: 'POST', path, body })
     },
 
     async patch<T = unknown>(path: string, body?: unknown) {
-      return request<T>(config, { method: 'PATCH', path, body })
+      return requestWithRefresh<T>(config, { method: 'PATCH', path, body })
     },
 
     async del<T = unknown>(path: string, body?: unknown) {
-      return request<T>(config, { method: 'DELETE', path, body })
+      return requestWithRefresh<T>(config, { method: 'DELETE', path, body })
     },
 
     streamSSE(path: string, onData: (line: string) => void, signal?: AbortSignal): Promise<void> {

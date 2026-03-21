@@ -9,7 +9,6 @@ import { logSuccess, logInfo, logError } from '../ui.ts'
 export async function login(positionals: string[], _flags: Record<string, string | true>): Promise<void> {
   const destination = positionals[0]
 
-
   if (!destination || !destination.includes('@')) {
     logError('usage: zero login <user@server>')
     console.error('Example: zero login root@your-server.com')
@@ -29,7 +28,7 @@ export async function login(positionals: string[], _flags: Record<string, string
     process.exit(1)
   }
 
-  saveConfig({ host, token: jwt })
+  saveConfig({ host, token: jwt, destination })
   ensureGitignore()
   logSuccess(`linked to ${host}`)
 }
@@ -50,7 +49,7 @@ function sshExec(destination: string, command: string): Promise<{ stdout: string
   })
 }
 
-async function sshMintJwt(destination: string): Promise<string | null> {
+export async function sshMintJwt(destination: string): Promise<string | null> {
   const { stdout, ok } = await sshExec(destination, SSH_COMMAND)
   if (!ok) return null
 
