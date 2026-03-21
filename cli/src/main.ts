@@ -89,7 +89,7 @@ function formatHelp(): string {
     ['start <app>', 'Start a stopped container'],
     ['status', 'Show server connection and info'],
     ['stop <app> [--force]', 'Stop running container'],
-    ['upgrade [--server] [--all] [--force]', 'Upgrade CLI and/or server'],
+    ['upgrade [--server] [--all] [--force] [--preview]', 'Upgrade CLI and/or server'],
     ['version', 'Show CLI and server version'],
     ['webhook reset <app>', 'Reset webhook secret and show new URL']
   ]

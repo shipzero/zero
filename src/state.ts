@@ -24,6 +24,7 @@ export interface Preview {
   port: number
   deployedAt: string
   expiresAt: string
+  isCompose?: boolean
 }
 
 export interface AppConfig {

@@ -1,13 +1,24 @@
 import { getAllExpiredPreviews, removePreview } from './state.ts'
 import type { Preview } from './state.ts'
 import { removeContainer } from './docker.ts'
+import { composeDown, composeDir, removeComposeDir } from './compose.ts'
 import { removeProxyRoute } from './proxy.ts'
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
 export async function destroyPreview(appName: string, preview: Preview): Promise<void> {
   removeProxyRoute(preview.domain)
-  await removeContainer(preview.containerId)
+  if (preview.isCompose) {
+    const projectName = preview.containerId
+    try {
+      await composeDown(composeDir(projectName))
+    } catch {
+      /* project may already be gone */
+    }
+    removeComposeDir(projectName)
+  } else {
+    await removeContainer(preview.containerId)
+  }
   removePreview(appName, preview.label)
 }
 

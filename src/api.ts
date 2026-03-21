@@ -21,7 +21,7 @@ import {
   setRegistryAuth,
   removeRegistryAuth
 } from './state.ts'
-import { deploy, deployPreview, rollback, deployEvents } from './deploy.ts'
+import { deploy, deployPreview, deployComposePreview, rollback, deployEvents } from './deploy.ts'
 import {
   docker,
   streamLogs,
@@ -236,12 +236,18 @@ route('GET', '/apps', async (_req, res) => {
 
       const previews: PreviewSummary[] = await Promise.all(
         getPreviewsForApp(app.name).map(async (preview) => {
-          const previewState = await getContainerState(preview.containerId)
+          let previewStatus: 'running' | 'stopped'
+          if (preview.isCompose) {
+            previewStatus = 'running'
+          } else {
+            const previewState = await getContainerState(preview.containerId)
+            previewStatus = previewState.running ? 'running' : 'stopped'
+          }
           return {
             name: app.name,
             label: preview.label,
             domain: preview.domain,
-            status: previewState.running ? ('running' as const) : ('stopped' as const),
+            status: previewStatus,
             image: preview.image,
             deployedAt: preview.deployedAt,
             expiresAt: preview.expiresAt
@@ -496,27 +502,38 @@ route('POST', '/apps/:name/webhooks/reset', async (_req, res, { name }) => {
   json(res, 200, { webhookSecret: secret, webhookUrl: webhookUrl(secret) })
 })
 
-route('POST', '/upgrade', async (_req, res) => {
+route('POST', '/upgrade', async (req, res) => {
   if (IS_DEV) {
     json(res, 400, { error: 'upgrade is only available in production mode' })
     return
   }
 
-  console.log('[upgrade] pulling latest image and restarting...')
+  const raw = (await readBody(req)).toString()
+  const body = raw ? parseJSON<{ tag?: string }>(raw) : null
+  const tag = body?.tag
+
+  if (tag && !/^[a-zA-Z0-9._-]+$/.test(tag)) {
+    json(res, 400, { error: 'invalid tag' })
+    return
+  }
+
+  console.log(`[upgrade] pulling ${tag ?? 'latest'} image and restarting...`)
 
   const COMPOSE_FILE = '/opt/zero/docker-compose.yml'
+  const swapTag = tag ? `sed -i 's|image:.*|image: ghcr.io/shipzero/zero:${tag}|' ${COMPOSE_FILE} && ` : ''
+  const pullCmd = `${swapTag}docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d`
 
   try {
     const upgrader = await docker.createContainer({
       Image: 'docker:cli',
-      Cmd: ['sh', '-c', `sleep 2 && docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d`],
+      Cmd: ['sh', '-c', `sleep 2 && ${pullCmd}`],
       HostConfig: {
         Binds: ['/var/run/docker.sock:/var/run/docker.sock', '/opt/zero:/opt/zero:ro'],
         AutoRemove: true
       }
     })
     await upgrader.start()
-    json<MessageResponse>(res, 200, { message: 'upgrade started — zero will restart' })
+    json<MessageResponse>(res, 200, { message: `upgrade started (${tag ?? 'latest'}) — zero will restart` })
   } catch (err) {
     console.error('[upgrade] failed:', err)
     json(res, 500, { error: getErrorMessage(err) })
@@ -536,27 +553,30 @@ function previewExpiresAt(ttlHours: number): string {
 route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   const parent = requireApp(name, res)
   if (!parent) return
-  if (isComposeApp(parent)) {
-    json(res, 400, { error: 'previews are not supported for compose apps' })
-    return
-  }
   if (!parent.domain) {
     json(res, 400, { error: 'parent app must have a domain for preview subdomains' })
     return
   }
 
   const body = parseJSON<PreviewDeployRequest>((await readBody(req)).toString())
-  if (!body?.tag) {
+  const isCompose = isComposeApp(parent)
+
+  if (!isCompose && !body?.tag) {
     json(res, 400, { error: 'tag required' })
     return
   }
 
-  const label = body.label ?? body.tag
-  const ttlHours = body.ttlHours ?? PREVIEW_TTL_HOURS
+  const label = body?.label ?? body?.tag ?? 'preview'
+  const ttlHours = body?.ttlHours ?? PREVIEW_TTL_HOURS
   const previewDomain = buildPreviewDomain(parent.domain, label)
+  const expiresAt = previewExpiresAt(ttlHours)
 
   try {
-    await deployPreview(name, label, body.tag, previewDomain, previewExpiresAt(ttlHours))
+    if (isCompose) {
+      await deployComposePreview(name, label, previewDomain, expiresAt)
+    } else {
+      await deployPreview(name, label, body!.tag!, previewDomain, expiresAt)
+    }
     json<PreviewDeployResponse>(res, 201, {
       name,
       label,
@@ -582,9 +602,13 @@ route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
 
   const previews: PreviewSummary[] = await Promise.all(
     getPreviewsForApp(name).map(async (preview) => {
-      let status: PreviewSummary['status'] = 'no deployment'
-      const state = await getContainerState(preview.containerId)
-      status = state.running ? 'running' : 'stopped'
+      let status: PreviewSummary['status']
+      if (preview.isCompose) {
+        status = 'running'
+      } else {
+        const state = await getContainerState(preview.containerId)
+        status = state.running ? 'running' : 'stopped'
+      }
       return {
         name: parent.name,
         label: preview.label,
@@ -612,12 +636,21 @@ route('GET', '/apps/:name/previews/:label/logs', async (_req, res, { name, label
   if (!preview) return
 
   startSSE(res)
-  await pipeSSE(res, streamLogs(preview.containerId))
+  if (preview.isCompose) {
+    await pipeSSE(res, composeLogs(composeDir(preview.containerId)))
+  } else {
+    await pipeSSE(res, streamLogs(preview.containerId))
+  }
 })
 
 route('GET', '/apps/:name/previews/:label/metrics', async (_req, res, { name, label }) => {
   const preview = requirePreview(name, label, res)
   if (!preview) return
+
+  if (preview.isCompose) {
+    json(res, 400, { error: 'metrics are not available for compose previews' })
+    return
+  }
 
   startSSE(res)
   await pipeSSE(res, streamStats(preview.containerId))
