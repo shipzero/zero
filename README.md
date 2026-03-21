@@ -380,6 +380,16 @@ zero preview ls myapp
 
 Previews are also shown under their parent app in `zero ls`.
 
+**Logs and metrics:**
+
+```bash
+# Stream preview container logs
+zero preview logs myapp pr-42
+
+# Show live resource usage
+zero preview metrics myapp pr-42
+```
+
 **Remove previews:**
 
 ```bash
@@ -572,7 +582,9 @@ ls                                      List all apps (including previews)
 metrics <app> | --server                Show live resource usage
 preview deploy <app> --tag <tag> [--label] [--ttl]
                                         Deploy a preview environment
+preview logs <app> <label>              Stream preview logs
 preview ls <app>                        List previews for an app
+preview metrics <app> <label>           Show live preview resource usage
 preview rm <app> <label> [--force]      Remove a preview
 preview rm <app> --all [--force]        Remove all previews
 registry login <server> --user --password

@@ -1,6 +1,6 @@
 import http from 'node:http'
 import crypto from 'node:crypto'
-import type { AppConfig } from './state.ts'
+import type { AppConfig, Preview } from './state.ts'
 import { getErrorMessage } from './errors.ts'
 import {
   getApps,
@@ -187,6 +187,16 @@ function requireApp(name: string, res: http.ServerResponse): AppConfig | null {
     return null
   }
   return app
+}
+
+function requirePreview(appName: string, label: string, res: http.ServerResponse): Preview | null {
+  if (!requireApp(appName, res)) return null
+  const preview = getPreview(appName, label)
+  if (!preview) {
+    json(res, 404, { error: 'preview not found' })
+    return null
+  }
+  return preview
 }
 
 route('GET', '/version', async (_req, res) => {
@@ -573,14 +583,27 @@ route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
 })
 
 route('DELETE', '/apps/:name/previews/:label', async (_req, res, { name, label }) => {
-  const preview = getPreview(name, label)
-  if (!preview) {
-    json(res, 404, { error: 'preview not found' })
-    return
-  }
+  const preview = requirePreview(name, label, res)
+  if (!preview) return
 
   await destroyPreview(name, preview)
   json<MessageResponse>(res, 200, { message: `preview ${label} removed` })
+})
+
+route('GET', '/apps/:name/previews/:label/logs', async (_req, res, { name, label }) => {
+  const preview = requirePreview(name, label, res)
+  if (!preview) return
+
+  startSSE(res)
+  await pipeSSE(res, streamLogs(preview.containerId))
+})
+
+route('GET', '/apps/:name/previews/:label/metrics', async (_req, res, { name, label }) => {
+  const preview = requirePreview(name, label, res)
+  if (!preview) return
+
+  startSSE(res)
+  await pipeSSE(res, streamStats(preview.containerId))
 })
 
 route('DELETE', '/apps/:name/previews', async (_req, res, { name }) => {

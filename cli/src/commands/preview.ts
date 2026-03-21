@@ -5,13 +5,13 @@ import {
   logSuccess,
   logError,
   logHint,
-  bold,
   dim,
   cyan,
   confirm,
   timeAgo,
   timeUntil,
-  formatStatus
+  formatStatus,
+  printTable
 } from '../ui.ts'
 
 async function previewDeploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
@@ -66,41 +66,69 @@ async function previewLs(positionals: string[]): Promise<void> {
   }
 
   const serverUrl = new URL(client.config.host)
-  const urls = data.map((p) => `${serverUrl.protocol}//${p.domain}`)
-  const labelWidth = Math.max(5, ...data.map((p) => p.label.length))
-  const statusWidth = 7
-  const urlWidth = Math.max(3, ...urls.map((u) => u.length))
-  const imageWidth = Math.max(5, ...data.map((p) => (p.image ?? '—').length))
-  const deployedValues = data.map((p) => (p.deployedAt ? timeAgo(p.deployedAt) : '—'))
-  const deployedWidth = Math.max(8, ...deployedValues.map((v) => v.length))
+  const rows = data.map((p) => ({
+    label: p.label,
+    status: formatStatus(p.status),
+    url: `${serverUrl.protocol}//${p.domain}`,
+    image: p.image ?? '—',
+    deployed: dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
+    expires: dim(p.expiresAt ? timeUntil(p.expiresAt) : '—')
+  }))
 
-  console.log(
-    bold(
-      [
-        'LABEL'.padEnd(labelWidth),
-        'STATUS'.padEnd(statusWidth),
-        'URL'.padEnd(urlWidth),
-        'IMAGE'.padEnd(imageWidth),
-        'DEPLOYED'.padEnd(deployedWidth),
-        'EXPIRES'
-      ].join('  ')
-    )
+  printTable(
+    [
+      { header: 'LABEL', key: 'label' },
+      { header: 'STATUS', key: 'status' },
+      { header: 'URL', key: 'url' },
+      { header: 'IMAGE', key: 'image' },
+      { header: 'DEPLOYED', key: 'deployed' },
+      { header: 'EXPIRES', key: 'expires' }
+    ],
+    rows
   )
+}
 
-  for (let i = 0; i < data.length; i++) {
-    const p = data[i]
-    const statusText = formatStatus(p.status)
-    const statusPad = ' '.repeat(Math.max(0, statusWidth - (p.status === 'no deployment' ? 1 : p.status.length)))
-    const row = [
-      p.label.padEnd(labelWidth),
-      statusText + statusPad,
-      urls[i].padEnd(urlWidth),
-      (p.image ?? '—').padEnd(imageWidth),
-      dim(deployedValues[i].padEnd(deployedWidth)),
-      dim(p.expiresAt ? timeUntil(p.expiresAt) : '—')
-    ].join('  ')
-    console.log(row)
+async function previewLogs(positionals: string[]): Promise<void> {
+  const appName = positionals[0]
+  const label = positionals[1]
+  if (!appName || !label) {
+    logError('usage: zero preview logs <app> <label>')
+    process.exit(1)
   }
+
+  const client = createClient()
+
+  process.on('SIGINT', () => {
+    console.log(dim('\n[disconnected]'))
+    process.exit(0)
+  })
+
+  let isFirst = true
+  await client.streamSSE(
+    `/apps/${encodeURIComponent(appName)}/previews/${encodeURIComponent(label)}/logs`,
+    (line) => {
+      if (isFirst) {
+        console.log(dim('ctrl+c to stop\n'))
+        isFirst = false
+      }
+      console.log(line)
+    }
+  )
+}
+
+async function previewMetrics(positionals: string[]): Promise<void> {
+  const appName = positionals[0]
+  const label = positionals[1]
+  if (!appName || !label) {
+    logError('usage: zero preview metrics <app> <label>')
+    process.exit(1)
+  }
+
+  const { streamMetrics } = await import('./metrics.ts')
+  await streamMetrics(
+    `/apps/${encodeURIComponent(appName)}/previews/${encodeURIComponent(label)}/metrics`,
+    `${appName}/${label}`
+  )
 }
 
 async function previewRm(positionals: string[], flags: Record<string, string | true>): Promise<void> {
@@ -151,11 +179,17 @@ export async function preview(
     case 'ls':
       await previewLs(positionals)
       break
+    case 'logs':
+      await previewLogs(positionals)
+      break
+    case 'metrics':
+      await previewMetrics(positionals)
+      break
     case 'rm':
       await previewRm(positionals, flags)
       break
     default:
-      logError('usage: zero preview <deploy|ls|rm> ...')
+      logError('usage: zero preview <deploy|ls|logs|metrics|rm> ...')
       process.exit(1)
   }
 }

@@ -706,6 +706,32 @@ describe('API', () => {
     })
   })
 
+  describe('GET /apps/:name/previews/:label/logs', () => {
+    it('returns 404 for unknown preview', async () => {
+      await request('POST', '/apps', { name: 'plog', image: 'nginx:latest', domain: 'plog.example.com' })
+      const res = await request('GET', '/apps/plog/previews/nope/logs')
+      expect(res.status).toBe(404)
+    })
+
+    it('returns 404 for unknown app', async () => {
+      const res = await request('GET', '/apps/nope/previews/x/logs')
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe('GET /apps/:name/previews/:label/metrics', () => {
+    it('returns 404 for unknown preview', async () => {
+      await request('POST', '/apps', { name: 'pmet', image: 'nginx:latest', domain: 'pmet.example.com' })
+      const res = await request('GET', '/apps/pmet/previews/nope/metrics')
+      expect(res.status).toBe(404)
+    })
+
+    it('returns 404 for unknown app', async () => {
+      const res = await request('GET', '/apps/nope/previews/x/metrics')
+      expect(res.status).toBe(404)
+    })
+  })
+
   describe('DELETE /apps/:name/previews', () => {
     it('removes all previews for an app', async () => {
       await request('POST', '/apps', { name: 'pdelall', image: 'nginx:latest', domain: 'pdelall.example.com' })

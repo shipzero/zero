@@ -247,41 +247,51 @@ export async function deployPreview(
   const app = getApp(appName)
   if (!app) throw new Error(`App "${appName}" not registered`)
 
-  const imageWithTag = `${app.image}:${tag}`
-  const logKey = `${appName}/preview/${label}`
-
-  const existing = getPreview(appName, label)
-  if (existing) {
-    log(logKey, `removing old container ${existing.containerId.slice(0, 12)}`)
-    await removeContainer(existing.containerId)
+  const lockKey = `${appName}--preview--${label}`
+  if (locks.has(lockKey)) {
+    throw new Error(`Deploy already in progress for preview "${label}"`)
   }
+  locks.add(lockKey)
 
-  const { containerId, port } = await deployContainer({
-    imageWithTag,
-    containerName: `${appName}-preview-${label}`,
-    internalPort: app.internalPort,
-    env: app.env,
-    healthPath: app.healthPath,
-    command: app.command,
-    volumes: app.volumes,
-    logKey
-  })
+  try {
+    const imageWithTag = `${app.image}:${tag}`
+    const logKey = `${appName}/preview/${label}`
 
-  updateProxyRoute(domain, port)
+    const existing = getPreview(appName, label)
+    if (existing) {
+      log(logKey, `removing old container ${existing.containerId.slice(0, 12)}`)
+      await removeContainer(existing.containerId)
+    }
 
-  const preview: Preview = {
-    label,
-    domain,
-    image: imageWithTag,
-    containerId,
-    port,
-    deployedAt: new Date().toISOString(),
-    expiresAt
+    const { containerId, port } = await deployContainer({
+      imageWithTag,
+      containerName: `${appName}-preview-${label}`,
+      internalPort: app.internalPort,
+      env: app.env,
+      healthPath: app.healthPath,
+      command: app.command,
+      volumes: app.volumes,
+      logKey
+    })
+
+    updateProxyRoute(domain, port)
+
+    const preview: Preview = {
+      label,
+      domain,
+      image: imageWithTag,
+      containerId,
+      port,
+      deployedAt: new Date().toISOString(),
+      expiresAt
+    }
+    setPreview(appName, label, preview)
+
+    log(logKey, `deploy complete — ${buildDomainUrl(domain)}`)
+    return preview
+  } finally {
+    locks.delete(lockKey)
   }
-  setPreview(appName, label, preview)
-
-  log(logKey, `deploy complete — ${buildDomainUrl(domain)}`)
-  return preview
 }
 
 /** Rollback = redeploy the most recent image that differs from the current one. */

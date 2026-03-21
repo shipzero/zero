@@ -73,12 +73,14 @@ export function timeAgo(iso: string): string {
 }
 
 export function timeUntil(iso: string): string {
-  const diff = new Date(iso).getTime() - Date.now()
+  const date = new Date(iso)
+  const diff = date.getTime() - Date.now()
   if (diff <= 0) return 'expired'
   const hours = Math.floor(diff / 3_600_000)
-  if (hours < 24) return `${hours}h`
+  const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (hours < 24) return `${hours}h (${formatted})`
   const days = Math.floor(hours / 24)
-  return `${days}d`
+  return `${days}d (${formatted})`
 }
 
 export function formatStatus(status: 'running' | 'stopped' | 'no deployment'): string {
@@ -89,6 +91,37 @@ export function formatStatus(status: 'running' | 'stopped' | 'no deployment'): s
       return red('stopped')
     case 'no deployment':
       return dim('—')
+  }
+}
+
+const ANSI_REGEX = /\x1b\[[0-9;]*m/g
+
+function visibleLength(text: string): number {
+  return text.replace(ANSI_REGEX, '').length
+}
+
+export interface Column {
+  header: string
+  key: string
+  minWidth?: number
+}
+
+export function printTable(columns: Column[], rows: Record<string, string>[]): void {
+  const widths = columns.map((col) => {
+    const cellWidths = rows.map((row) => visibleLength(row[col.key] ?? ''))
+    return Math.max(col.minWidth ?? 0, visibleLength(col.header), ...cellWidths)
+  })
+
+  const header = columns.map((col, i) => col.header.padEnd(widths[i])).join('  ')
+  console.log(bold(header))
+
+  for (const row of rows) {
+    const cells = columns.map((col, i) => {
+      const value = row[col.key] ?? ''
+      const pad = widths[i] - visibleLength(value)
+      return pad > 0 ? value + ' '.repeat(pad) : value
+    })
+    console.log(cells.join('  '))
   }
 }
 

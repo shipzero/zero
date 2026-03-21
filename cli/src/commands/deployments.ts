@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { DeploymentInfo } from '../../../src/types.ts'
-import { bold, dim, green, logInfo, logError } from '../ui.ts'
+import { dim, green, logInfo, logError, printTable } from '../ui.ts'
 
 export async function deployments(positionals: string[]): Promise<void> {
   const appName = positionals[0]
@@ -17,16 +17,18 @@ export async function deployments(positionals: string[]): Promise<void> {
     return
   }
 
-  const idWidth = 12
-  const imageWidth = Math.max(5, ...data.map((deployment) => deployment.image.length))
+  const rows = data.map((d) => ({
+    id: d.containerId.slice(0, 12),
+    image: d.image + (d.isCurrent ? green(' ← current') : ''),
+    deployed: dim(new Date(d.deployedAt).toLocaleString())
+  }))
 
-  const header = bold(['ID'.padEnd(idWidth), 'IMAGE'.padEnd(imageWidth), 'DEPLOYED'].join('  '))
-  console.log(header)
-
-  for (const deployment of data) {
-    const shortId = deployment.containerId.slice(0, 12)
-    const deployedAt = dim(new Date(deployment.deployedAt).toLocaleString())
-    const currentMarker = deployment.isCurrent ? green(' ← current') : ''
-    console.log([shortId.padEnd(idWidth), deployment.image.padEnd(imageWidth), deployedAt].join('  ') + currentMarker)
-  }
+  printTable(
+    [
+      { header: 'ID', key: 'id', minWidth: 12 },
+      { header: 'IMAGE', key: 'image' },
+      { header: 'DEPLOYED', key: 'deployed' }
+    ],
+    rows
+  )
 }
