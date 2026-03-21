@@ -709,6 +709,36 @@ describe('API', () => {
       const expectedMin = Date.now() + 23 * 60 * 60 * 1000
       expect(expiresAt).toBeGreaterThan(expectedMin)
     })
+
+    it('creates a compose preview deployment', async () => {
+      await request('POST', '/apps', {
+        name: 'compprev',
+        composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
+        entryService: 'web',
+        domain: 'compprev.example.com'
+      })
+      const res = await request('POST', '/apps/compprev/previews', { label: 'pr-1' })
+      expect(res.status).toBe(201)
+      const body = res.body as { name: string; label: string; domain: string; success: boolean }
+      expect(body.name).toBe('compprev')
+      expect(body.label).toBe('pr-1')
+      expect(body.domain).toBe('pr-1.compprev.example.com')
+      expect(body.success).toBe(true)
+      const preview = state.getApp('compprev')?.previews['pr-1']
+      expect(preview).toBeDefined()
+      expect(preview!.isCompose).toBe(true)
+    })
+
+    it('does not require tag for compose previews', async () => {
+      await request('POST', '/apps', {
+        name: 'compnotag',
+        composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
+        entryService: 'web',
+        domain: 'compnotag.example.com'
+      })
+      const res = await request('POST', '/apps/compnotag/previews', { label: 'pr-1' })
+      expect(res.status).toBe(201)
+    })
   })
 
   describe('GET /apps/:name/previews', () => {

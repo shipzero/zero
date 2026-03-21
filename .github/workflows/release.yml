@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: [ 'v*' ]
+    tags: [ 'v*', 'preview-*' ]
 
 env:
   REGISTRY: ghcr.io
@@ -14,10 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      is_preview: ${{ steps.version.outputs.is_preview }}
     steps:
       - name: Set version
         id: version
-        run: echo "version=${GITHUB_REF#refs/tags/}+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "version=${TAG}+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == preview-* ]]; then
+            echo "is_preview=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_preview=false" >> "$GITHUB_OUTPUT"
+          fi
 
   docker:
     name: Build & Push Docker Image
@@ -41,8 +49,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
-            type=semver,pattern={{version}}
+            type=raw,value=${{ needs.version.outputs.is_preview == 'true' && 'preview' || 'latest' }}
+            type=raw,value=${{ github.ref_name }}
             type=sha,prefix=
 
       - uses: docker/build-push-action@v6
@@ -87,7 +95,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: cli
+    needs: [version, cli]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -114,4 +122,5 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ needs.version.outputs.is_preview == 'true' }}
           files: artifacts/zero-*

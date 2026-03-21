@@ -13,22 +13,38 @@ export async function upgrade(flags: Record<string, string | true>): Promise<voi
   const shouldUpgradeServer = flags['server'] === true || flags['all'] === true
   const shouldUpgradeCli = flags['server'] !== true || flags['all'] === true
   const isForce = flags['force'] === true
+  const isPreview = flags['preview'] === true
 
   if (shouldUpgradeCli) {
-    await upgradeCli(isForce)
+    await upgradeCli(isForce, isPreview)
   }
 
   if (shouldUpgradeServer) {
-    await upgradeServer()
+    await upgradeServer(isPreview)
   }
 }
 
-async function upgradeCli(isForce: boolean): Promise<void> {
+function fetchLatestRelease(isPreview: boolean): { tag: string } {
+  if (isPreview) {
+    const json = execSync(`curl -fsSL https://api.github.com/repos/${REPO}/releases`, { encoding: 'utf8' })
+    const releases = JSON.parse(json) as Array<{ tag_name: string; prerelease: boolean }>
+    const preview = releases.find((r) => r.prerelease)
+    if (!preview) {
+      logError('no preview release found')
+      process.exit(1)
+    }
+    return { tag: preview.tag_name }
+  }
+
+  const json = execSync(`curl -fsSL https://api.github.com/repos/${REPO}/releases/latest`, { encoding: 'utf8' })
+  const latest = JSON.parse(json) as { tag_name: string }
+  return { tag: latest.tag_name }
+}
+
+async function upgradeCli(isForce: boolean, isPreview: boolean): Promise<void> {
   const platform = process.platform === 'darwin' ? 'zero-macos' : 'zero-linux'
 
-  const latestJson = execSync(`curl -fsSL https://api.github.com/repos/${REPO}/releases/latest`, { encoding: 'utf8' })
-  const latest = JSON.parse(latestJson)
-  const tag = latest.tag_name as string
+  const { tag } = fetchLatestRelease(isPreview)
 
   if (tag === baseVersion(VERSION) && !isForce) {
     logInfo(`cli already up to date (${VERSION})`)
@@ -52,11 +68,12 @@ async function upgradeCli(isForce: boolean): Promise<void> {
   logSuccess(`cli upgraded to ${tag}`)
 }
 
-async function upgradeServer(): Promise<void> {
-  logInfo('upgrading server...')
+async function upgradeServer(isPreview: boolean): Promise<void> {
+  logInfo(`upgrading server${isPreview ? ' (preview)' : ''}...`)
 
   const client = createClient()
-  const data = unwrap(await client.post<MessageResponse>('/upgrade'), logError)
+  const body = isPreview ? { tag: 'preview' } : undefined
+  const data = unwrap(await client.post<MessageResponse>('/upgrade', body), logError)
 
   logSuccess(data.message)
 }

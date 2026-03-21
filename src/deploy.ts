@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { getApp, addDeployment, findRollbackTarget, isComposeApp, getPreview, setPreview } from './state.ts'
-import type { AppConfig, Preview } from './state.ts'
+import type { Preview } from './state.ts'
 import {
   pullImage,
   runContainer,
@@ -10,7 +10,7 @@ import {
   waitForHealthy,
   getFreePort
 } from './docker.ts'
-import { writeComposeFiles, composePull, composeUp } from './compose.ts'
+import { writeComposeFiles, composePull, composeUp, composeDown, composeDir, removeComposeDir } from './compose.ts'
 import { routeApp, updateProxyRoute } from './proxy.ts'
 import { buildDomainUrl } from './url.ts'
 import { DOMAIN } from './env.ts'
@@ -284,6 +284,93 @@ export async function deployPreview(
       port,
       deployedAt: new Date().toISOString(),
       expiresAt
+    }
+    setPreview(appName, label, preview)
+
+    log(logKey, `deploy complete — ${buildDomainUrl(domain)}`)
+    return preview
+  } finally {
+    locks.delete(lockKey)
+  }
+}
+
+export async function deployComposePreview(
+  appName: string,
+  label: string,
+  domain: string,
+  expiresAt: string
+): Promise<Preview> {
+  const app = getApp(appName)
+  if (!app) throw new Error(`App "${appName}" not registered`)
+
+  const lockKey = `${appName}--preview--${label}`
+  if (locks.has(lockKey)) {
+    throw new Error(`Deploy already in progress for preview "${label}"`)
+  }
+  locks.add(lockKey)
+
+  try {
+    const logKey = `${appName}/preview/${label}`
+    const previewProjectName = `${appName}-preview-${label}`
+
+    const existing = getPreview(appName, label)
+    if (existing) {
+      log(logKey, 'removing old compose preview')
+      try {
+        await composeDown(composeDir(previewProjectName))
+      } catch {
+        /* may not exist yet */
+      }
+      removeComposeDir(previewProjectName)
+    }
+
+    log(logKey, '── deploy start: compose preview')
+
+    const containerPort = await getFreePort()
+    const projectDir = writeComposeFiles(
+      previewProjectName,
+      app.composeFile!,
+      app.entryService!,
+      containerPort,
+      app.internalPort
+    )
+
+    log(logKey, 'phase 1/3: pulling images')
+    await composePull(projectDir, (line) => log(logKey, line))
+
+    log(logKey, 'phase 2/3: starting services')
+    await composeUp(projectDir, (line) => log(logKey, line))
+
+    const healthPath = app.healthPath ?? '/'
+    log(logKey, `phase 3/3: waiting for healthy on port ${containerPort} (GET ${healthPath})`)
+    try {
+      await waitForHealthy(containerPort, app.healthPath)
+      log(logKey, 'entry service is healthy')
+    } catch {
+      log(
+        logKey,
+        `health check failed — entry service did not respond at http://127.0.0.1:${containerPort}${healthPath}`
+      )
+      try {
+        await composeDown(projectDir)
+      } catch {
+        /* best effort */
+      }
+      removeComposeDir(previewProjectName)
+      throw new Error(`health check failed on port ${containerPort}${healthPath}`)
+    }
+
+    updateProxyRoute(domain, containerPort)
+
+    const preview: Preview = {
+      label,
+      domain,
+      image: 'compose',
+      containerId: previewProjectName,
+      port: containerPort,
+      deployedAt: new Date().toISOString(),
+      expiresAt,
+      isCompose: true
     }
     setPreview(appName, label, preview)
 
