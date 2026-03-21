@@ -2,6 +2,7 @@ export const IS_DEV = process.env.NODE_ENV !== 'production'
 export const DOMAIN = process.env.DOMAIN ?? ''
 export const EMAIL = process.env.EMAIL ?? ''
 export const TOKEN = process.env.TOKEN ?? ''
+export const JWT_SECRET = process.env.JWT_SECRET ?? ''
 export const API_PORT = Number(process.env.API_PORT ?? 2020)
 export const DEV_PORT = Number(process.env.DEV_PORT ?? 8080)
 export const STATE_PATH = process.env.STATE_PATH ?? (IS_DEV ? '.zero/state.json' : '/data/state/state.json')

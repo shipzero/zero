@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/install.sh | sud
 curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/cli/install.sh | bash
 
 # Connect and deploy
-zero login https://your-server.com <token>
+zero login root@your-server.com
 zero add --name myapp --image ghcr.io/you/myapp:latest --domain myapp.example.com
 zero deploy myapp
 ```
@@ -119,10 +119,10 @@ The installer will:
 
 1. Install Docker if not already present
 2. Prompt for your domain and an email address for Let's Encrypt
-3. Generate an API token
+3. Generate authentication secrets
 4. Start zero
 
-After installation, the output shows your API URL and token:
+After installation, the output shows your API URL and login command:
 
 ```
 ┌──────────┐
@@ -131,8 +131,7 @@ After installation, the output shows your API URL and token:
 
 [zero] zero is running!
 [zero] API:    https://your-server.com
-[zero] TOKEN:  <your-token>
-[zero] CLI:    zero login https://your-server.com <your-token>
+[zero] CLI:    zero login root@your-server.com
 ```
 
 ### Upgrade
@@ -153,14 +152,15 @@ zero upgrade --server
 
 Configuration is stored in `/opt/zero/.env`:
 
-| Variable                 | Description                                     | Default        |
-|--------------------------|-------------------------------------------------|----------------|
-| `TOKEN`                  | API authentication token                        | *(generated)*  |
-| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)   | *(server IP)*  |
-| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —              |
-| `API_PORT`               | API server port                                 | `2020`         |
-| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`           |
-| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments    | `168` (7 days) |
+| Variable                 | Description                                             | Default        |
+|--------------------------|---------------------------------------------------------|----------------|
+| `TOKEN`                  | Internal auth token (do not share)                      | *(generated)*  |
+| `JWT_SECRET`             | Secret for signing JWT tokens                           | *(generated)*  |
+| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)           | *(server IP)*  |
+| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)             | —              |
+| `API_PORT`               | API server port                                         | `2020`         |
+| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry         | `30`           |
+| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments            | `168` (7 days) |
 
 View server logs:
 
@@ -201,8 +201,10 @@ The binary is written to `dist/zero`.
 ### Connect to Your Server
 
 ```bash
-zero login https://your-server.com <token>
+zero login user@your-server.com
 ```
+
+Authentication uses SSH — if you can SSH into the server, you can use zero. The CLI obtains a short-lived JWT via SSH and stores it locally.
 
 Credentials are saved to `~/.zero/config.json`. Verify the connection:
 
@@ -575,7 +577,7 @@ deployments <app>                       Show deployment history
 env ls <app>                            List environment variables
 env set <app> KEY=val [KEY=val ...]     Set environment variables
 env rm <app> KEY [KEY ...]              Remove environment variables
-login <host> <token>                    Save server credentials
+login <user@server>                     Authenticate via SSH
 logs <app> [--preview <label>] | --server
                                         Stream app or preview logs
 ls                                      List all apps (including previews)

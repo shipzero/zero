@@ -12,7 +12,7 @@ const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json')
 
 export function loadConfig(): Config {
   if (!fs.existsSync(CONFIG_PATH)) {
-    logError('not linked — run: zero login <host> <token>')
+    logError('not linked — run: zero login user@server')
     process.exit(1)
   }
 

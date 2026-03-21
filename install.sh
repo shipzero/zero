@@ -65,13 +65,22 @@ mkdir -p "$INSTALL_DIR" /data/state /data/certs /data/compose
 
 if [ "$IS_UPGRADE" = false ]; then
   TOKEN=$(openssl rand -hex 32)
+  JWT_SECRET=$(openssl rand -hex 32)
 
   cat > "$INSTALL_DIR/.env" <<EOF
 TOKEN=${TOKEN}
+JWT_SECRET=${JWT_SECRET}
 DOMAIN=${DOMAIN}
 EMAIL=${EMAIL}
 EOF
   chmod 600 "$INSTALL_DIR/.env"
+else
+  # Ensure JWT_SECRET exists for upgrades from older versions
+  if ! grep -q '^JWT_SECRET=' "$INSTALL_DIR/.env"; then
+    JWT_SECRET=$(openssl rand -hex 32)
+    echo "JWT_SECRET=${JWT_SECRET}" >> "$INSTALL_DIR/.env"
+    log "generated JWT_SECRET for existing installation"
+  fi
 fi
 
 # Compose file is always regenerated (picks up new volumes, settings etc.)
@@ -119,12 +128,7 @@ echo "└──────────┘"
 echo ""
 log "zero is running!"
 log "API:    ${API_URL}"
-if [ "$IS_UPGRADE" = false ]; then
-  log "TOKEN:  ${TOKEN}"
-  log "CLI:    zero login ${API_URL} ${TOKEN}"
-else
-  log "TOKEN:  (unchanged)"
-fi
+log "CLI:    zero login $(whoami)@${DOMAIN}"
 if [ -n "$EMAIL" ] && [ "$IS_IP_ONLY" = false ]; then
   log "TLS:    enabled (Let's Encrypt via ${EMAIL})"
 elif [ "$IS_IP_ONLY" = true ]; then

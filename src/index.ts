@@ -10,7 +10,7 @@ import {
 import { startApi } from './api.ts'
 import { renewExpiringCerts } from './certs.ts'
 import { isTLSEnabled } from './url.ts'
-import { IS_DEV, DOMAIN, TOKEN, API_PORT, CERT_RENEW_INTERVAL_MS } from './env.ts'
+import { IS_DEV, DOMAIN, TOKEN, JWT_SECRET, API_PORT, CERT_RENEW_INTERVAL_MS } from './env.ts'
 import { VERSION } from './version.ts'
 import { startPreviewCleanupInterval, cleanupExpiredPreviews } from './preview.ts'
 
@@ -19,6 +19,15 @@ if (!TOKEN) {
     console.warn('[warn] TOKEN not set — API is unprotected')
   } else {
     console.error('[fatal] TOKEN must be set in production')
+    process.exit(1)
+  }
+}
+
+if (!JWT_SECRET) {
+  if (IS_DEV) {
+    console.warn('[warn] JWT_SECRET not set — API is unprotected')
+  } else {
+    console.error('[fatal] JWT_SECRET must be set in production')
     process.exit(1)
   }
 }

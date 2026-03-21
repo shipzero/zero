@@ -73,7 +73,7 @@ function formatHelp(): string {
     ['env ls <app>', 'List environment variables'],
     ['env rm <app> KEY [KEY ...]', 'Remove environment variables'],
     ['env set <app> KEY=val [KEY=val ...]', 'Set environment variables'],
-    ['login <host> <token>', 'Save server credentials'],
+    ['login <user@server>', 'Authenticate via SSH'],
     ['logs <app> [--preview <label>] | --server', 'Stream app or preview logs'],
     ['ls', 'List all apps'],
     ['metrics <app> [--preview <label>] | --server', 'Show live resource usage'],

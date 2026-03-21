@@ -1,56 +1,91 @@
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
 import { saveConfig } from '../config.ts'
-import { logSuccess, logInfo, logWarn, logError } from '../ui.ts'
+import { logSuccess, logInfo, logError } from '../ui.ts'
 
 export async function login(positionals: string[], _flags: Record<string, string | true>): Promise<void> {
-  const [host, token] = positionals
+  const destination = positionals[0]
 
-  if (!host || !token) {
-    logError('usage: zero login <host> <token>')
-    console.error('Example: zero login https://myserver.com:2020 abc123...')
+
+  if (!destination || !destination.includes('@')) {
+    logError('usage: zero login <user@server>')
+    console.error('Example: zero login root@your-server.com')
     process.exit(1)
   }
 
-  const normalizedHost = host.startsWith('http') ? host : `https://${host}`
+  const server = destination.split('@').pop()!
 
-  // Verify connection before saving
-  const ok = await verifyConnection(normalizedHost, token)
-  if (!ok) {
-    logWarn('could not reach server — credentials saved anyway')
+  const jwt = await sshMintJwt(destination)
+  if (!jwt) {
+    process.exit(1)
   }
 
-  saveConfig({ host: normalizedHost, token })
+  const host = await resolveApiUrl(server, jwt)
+  if (!host) {
+    logError('authentication failed')
+    process.exit(1)
+  }
+
+  saveConfig({ host, token: jwt })
   ensureGitignore()
-  logSuccess(`linked to ${normalizedHost}`)
+  logSuccess(`linked to ${host}`)
 }
 
-async function verifyConnection(host: string, token: string): Promise<boolean> {
+const SSH_COMMAND =
+  'source /opt/zero/.env && curl -sf -H "Authorization: Bearer ${TOKEN}" -X POST http://127.0.0.1:2020/auth/token'
+
+function sshExec(destination: string, command: string): Promise<{ stdout: string; ok: boolean }> {
   return new Promise((resolve) => {
-    const url = new URL(host)
-    const transport = url.protocol === 'https:' ? https : http
+    execFile('ssh', [destination, command], { timeout: 30_000 }, (err, stdout) => {
+      if (err) {
+        logError(`SSH connection failed — check that you can ssh to ${destination}`)
+        resolve({ stdout: '', ok: false })
+        return
+      }
+      resolve({ stdout: stdout.trim(), ok: true })
+    })
+  })
+}
+
+async function sshMintJwt(destination: string): Promise<string | null> {
+  const { stdout, ok } = await sshExec(destination, SSH_COMMAND)
+  if (!ok) return null
+
+  if (!stdout) {
+    logError('failed to obtain token — is zero running on the server?')
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(stdout) as { token?: string }
+    if (parsed.token) return parsed.token
+  } catch {
+    // not JSON
+  }
+
+  logError('unexpected response from server')
+  return null
+}
+
+function tryUrl(url: string, token: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const parsed = new URL(url)
+    const transport = parsed.protocol === 'https:' ? https : http
     const req = transport.request(
       {
-        hostname: url.hostname,
-        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
         path: '/version',
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
-        rejectUnauthorized: false,
-        timeout: 30_000
+        timeout: 10_000
       },
       (res) => {
         res.resume()
-        if (res.statusCode === 200) {
-          resolve(true)
-        } else if (res.statusCode === 401) {
-          logError('invalid token')
-          resolve(false)
-        } else {
-          resolve(false)
-        }
+        resolve(res.statusCode === 200)
       }
     )
     req.on('timeout', () => {
@@ -62,7 +97,16 @@ async function verifyConnection(host: string, token: string): Promise<boolean> {
   })
 }
 
-/** Adds .zero/ to .gitignore if it exists but doesn't contain the entry yet. */
+async function resolveApiUrl(server: string, token: string): Promise<string | null> {
+  const httpsUrl = `https://${server}`
+  if (await tryUrl(httpsUrl, token)) return httpsUrl
+
+  const httpUrl = `http://${server}`
+  if (await tryUrl(httpUrl, token)) return httpUrl
+
+  return null
+}
+
 function ensureGitignore(): void {
   const gitignorePath = path.join(process.cwd(), '.gitignore')
   if (!fs.existsSync(gitignorePath)) return

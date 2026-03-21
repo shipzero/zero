@@ -36,7 +36,8 @@ import { composeDir, composeDown, composeStop, composeStart, composeLogs, remove
 import { routeApp, unrouteApp } from './proxy.ts'
 import { destroyPreview } from './preview.ts'
 import { isTLSEnabled, buildDomainUrl } from './url.ts'
-import { IS_DEV, TOKEN, DOMAIN, API_PORT, PREVIEW_TTL_HOURS } from './env.ts'
+import { IS_DEV, TOKEN, JWT_SECRET, DOMAIN, API_PORT, PREVIEW_TTL_HOURS } from './env.ts'
+import { signJwt, verifyJwt } from './jwt.ts'
 import { VERSION } from './version.ts'
 import type {
   MessageResponse,
@@ -52,6 +53,11 @@ import type {
 
 const WEBHOOK_HOST = DOMAIN || 'localhost'
 const ZERO_CONTAINER = 'zero'
+const BEARER_PREFIX = 'Bearer '
+const MAX_BODY_SIZE = 1024 * 1024
+const JWT_TTL_SECONDS = 24 * 60 * 60
+const AUTH_WINDOW_MS = 60_000
+const MAX_AUTH_FAILURES = 10
 
 function webhookUrl(secret: string): string {
   return `${buildDomainUrl(WEBHOOK_HOST)}/webhooks/${secret}`
@@ -144,8 +150,6 @@ function maskValues(env: Record<string, string>): Record<string, string> {
   return masked
 }
 
-const MAX_BODY_SIZE = 1024 * 1024
-
 function readBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -172,12 +176,19 @@ function parseJSON<T = unknown>(raw: string): T | null {
   }
 }
 
-function authenticate(req: http.IncomingMessage): boolean {
-  if (!TOKEN) return true // dev mode
+function authenticateStaticToken(req: http.IncomingMessage): boolean {
   const header = req.headers['authorization'] ?? ''
   const expected = `Bearer ${TOKEN}`
   if (header.length !== expected.length) return false
   return crypto.timingSafeEqual(Buffer.from(header), Buffer.from(expected))
+}
+
+function authenticate(req: http.IncomingMessage): boolean {
+  if (!TOKEN && !JWT_SECRET) return true
+  const header = req.headers['authorization'] ?? ''
+  if (!header.startsWith(BEARER_PREFIX)) return false
+  const token = header.slice(BEARER_PREFIX.length)
+  return verifyJwt(JWT_SECRET, token) !== null
 }
 
 function requireApp(name: string, res: http.ServerResponse): AppConfig | null {
@@ -201,6 +212,12 @@ function requirePreview(appName: string, label: string, res: http.ServerResponse
 
 route('GET', '/version', async (_req, res) => {
   json<VersionResponse>(res, 200, { version: VERSION })
+})
+
+route('POST', '/auth/token', async (_req, res) => {
+  const now = Math.floor(Date.now() / 1000)
+  const token = signJwt(JWT_SECRET, { exp: now + JWT_TTL_SECONDS })
+  json(res, 200, { token })
 })
 
 route('GET', '/apps', async (_req, res) => {
@@ -804,8 +821,6 @@ function extractTag(payload: Record<string, unknown>): string | null {
   return null
 }
 
-const AUTH_WINDOW_MS = 60_000
-const MAX_AUTH_FAILURES = 10
 const authFailures = new Map<string, number[]>()
 
 function isRateLimited(ip: string): boolean {
@@ -828,14 +843,18 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   const clientIp = req.socket.remoteAddress ?? ''
 
   const isWebhook = url.startsWith('/webhooks/')
-  if (!isWebhook && !authenticate(req)) {
+  const isAuthToken = url === '/auth/token' && method === 'POST'
+
+  if (!isWebhook && isRateLimited(clientIp)) {
+    res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '60' })
+    res.end(JSON.stringify({ error: 'too many requests' }))
+    return
+  }
+
+  const isAuthorized = isWebhook || (isAuthToken ? authenticateStaticToken(req) : authenticate(req))
+  if (!isAuthorized) {
     recordAuthFailure(clientIp)
     console.warn(`[api] auth failure from ${clientIp} — ${method} ${url}`)
-    if (isRateLimited(clientIp)) {
-      res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '60' })
-      res.end(JSON.stringify({ error: 'too many requests' }))
-      return
-    }
     json(res, 401, { error: 'unauthorized' })
     return
   }

@@ -9,6 +9,7 @@ import os from 'node:os'
 const tmpDir = path.join(os.tmpdir(), `zero-test-api-${process.pid}`)
 process.env.STATE_PATH = path.join(tmpDir, 'state.json')
 process.env.TOKEN = 'test-token-123'
+process.env.JWT_SECRET = 'test-jwt-secret-for-testing'
 process.env.API_PORT = '0' // let OS pick a free port
 process.env.NODE_ENV = 'test'
 process.env.EMAIL = ''
@@ -52,9 +53,18 @@ vi.mock('./proxy.ts', () => ({
 const state = await import('./state.ts')
 const dockerMock = await import('./docker.ts')
 const composeMock = await import('./compose.ts')
+const { signJwt } = await import('./jwt.ts')
 
 // We need to dynamically import api after mocks
 const { startApi } = await import('./api.ts')
+
+const JWT_SECRET = process.env.JWT_SECRET!
+
+function mintTestJwt(expiresInSeconds = 3600): string {
+  return signJwt(JWT_SECRET, { exp: Math.floor(Date.now() / 1000) + expiresInSeconds })
+}
+
+const testJwt = mintTestJwt()
 
 let server: http.Server
 let baseUrl: string
@@ -71,7 +81,7 @@ function request(
     if (token !== undefined) {
       headers['Authorization'] = `Bearer ${token}`
     } else {
-      headers['Authorization'] = `Bearer test-token-123`
+      headers['Authorization'] = `Bearer ${testJwt}`
     }
     const serialized = body ? JSON.stringify(body) : null
     if (serialized) {
@@ -122,14 +132,52 @@ describe('API', () => {
       expect(res.status).toBe(401)
     })
 
-    it('rejects requests with wrong token', async () => {
-      const res = await request('GET', '/apps', undefined, 'wrong-token')
+    it('rejects requests with invalid JWT', async () => {
+      const res = await request('GET', '/apps', undefined, 'invalid-jwt')
       expect(res.status).toBe(401)
     })
 
-    it('allows requests with correct token', async () => {
+    it('rejects requests with expired JWT', async () => {
+      const expired = mintTestJwt(-10)
+      const res = await request('GET', '/apps', undefined, expired)
+      expect(res.status).toBe(401)
+    })
+
+    it('rejects requests with static token (not JWT)', async () => {
+      const res = await request('GET', '/apps', undefined, 'test-token-123')
+      expect(res.status).toBe(401)
+    })
+
+    it('allows requests with valid JWT', async () => {
       const res = await request('GET', '/apps')
       expect(res.status).toBe(200)
+    })
+  })
+
+  describe('POST /auth/token', () => {
+    it('mints a JWT when called with static token', async () => {
+      const res = await request('POST', '/auth/token', undefined, 'test-token-123')
+      expect(res.status).toBe(200)
+      const body = res.body as { token: string }
+      expect(body.token).toBeDefined()
+      expect(body.token.split('.')).toHaveLength(3)
+    })
+
+    it('rejects when called with wrong static token', async () => {
+      const res = await request('POST', '/auth/token', undefined, 'wrong-token')
+      expect(res.status).toBe(401)
+    })
+
+    it('rejects when called with a JWT instead of static token', async () => {
+      const res = await request('POST', '/auth/token', undefined, testJwt)
+      expect(res.status).toBe(401)
+    })
+
+    it('returns a JWT that can authenticate other endpoints', async () => {
+      const mintRes = await request('POST', '/auth/token', undefined, 'test-token-123')
+      const jwt = (mintRes.body as { token: string }).token
+      const appsRes = await request('GET', '/apps', undefined, jwt)
+      expect(appsRes.status).toBe(200)
     })
   })
 
@@ -280,7 +328,7 @@ describe('API', () => {
           url,
           {
             method: 'PATCH',
-            headers: { Authorization: 'Bearer test-token-123', 'Content-Type': 'application/json' }
+            headers: { Authorization: `Bearer ${testJwt}`, 'Content-Type': 'application/json' }
           },
           (res) => {
             let data = ''
