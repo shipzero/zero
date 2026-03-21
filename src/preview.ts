@@ -3,6 +3,7 @@ import type { Preview } from './state.ts'
 import { removeContainer } from './docker.ts'
 import { composeDown, composeDir, removeComposeDir } from './compose.ts'
 import { removeProxyRoute } from './proxy.ts'
+import { clearDeployLogs } from './deploy.ts'
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
@@ -20,6 +21,7 @@ export async function destroyPreview(appName: string, preview: Preview): Promise
     await removeContainer(preview.containerId)
   }
   removePreview(appName, preview.label)
+  clearDeployLogs(appName, `preview/${preview.label}`)
 }
 
 export async function cleanupExpiredPreviews(): Promise<number> {

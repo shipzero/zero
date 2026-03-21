@@ -246,16 +246,17 @@ zero deploy myapp --tag v1.2.3
 
 Available options for `zero add`:
 
-| Flag            | Description                                                       | Default |
-|-----------------|-------------------------------------------------------------------|---------|
-| `--name`        | App name (required)                                               | —       |
-| `--image`       | Docker image reference (required)                                 | —       |
-| `--domain`      | Domain for reverse proxy routing                                  | —       |
-| `--port`        | Internal container port                                           | `3000`  |
-| `--host-port`   | Expose directly on a host port (when no domain is set)            | —       |
-| `--command`     | Container startup command                                         | —       |
-| `--volume`      | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —       |
-| `--health-path` | HTTP health check endpoint                                        | —       |
+| Flag               | Description                                                       | Default |
+|--------------------|-------------------------------------------------------------------|---------|
+| `--name`           | App name (required)                                               | —       |
+| `--image`          | Docker image reference (required)                                 | —       |
+| `--domain`         | Domain for reverse proxy routing                                  | —       |
+| `--port`           | Internal container port                                           | `3000`  |
+| `--host-port`      | Expose directly on a host port (when no domain is set)            | —       |
+| `--command`        | Container startup command                                         | —       |
+| `--volume`         | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —       |
+| `--health-path`    | HTTP health check endpoint                                        | —       |
+| `--health-timeout` | Health check timeout in seconds                                   | `60`    |
 
 Examples:
 
@@ -267,7 +268,7 @@ zero add --name api --image ghcr.io/you/api:latest --domain api.example.com --po
 zero add --name postgres --image postgres:16 --port 5432 --host-port 5432 --volume pgdata:/var/lib/postgresql/data
 
 # App with a custom command and health check
-zero add --name keycloak --image quay.io/keycloak/keycloak:latest --port 8080 --command "start-dev" --health-path /health/ready
+zero add --name keycloak --image quay.io/keycloak/keycloak:latest --port 8080 --command "start" --health-path /health/ready --health-timeout 180
 ```
 
 ### Docker Compose Stacks
@@ -314,8 +315,8 @@ accepts connections.
 **HTTP check** (when `--health-path` is set): zero sends `GET` requests to the specified path. The container is
 considered healthy when it responds with a status code below 500.
 
-Health checks run every 500ms with a 60-second timeout. If the container crashes or exits during the health check, the
-deployment fails immediately and traffic stays on the previous version.
+Health checks run every 500ms with a 60-second timeout (configurable via `--health-timeout`). If the container crashes
+or exits during the health check, the deployment fails immediately and traffic stays on the previous version.
 
 ### Environment Variables
 
@@ -590,9 +591,9 @@ Run `zero` without arguments to see this overview in your terminal.
 ```
 zero <command> [options]
 
-add --name --image [--domain] [--port] [--host-port] [--command] [--volume] [--health-path]
+add --name --image [--domain] [--port] [--host-port] [--command] [--volume] [--health-path] [--health-timeout]
                                         Add a new app (Docker image)
-add --name --compose --service [--domain] [--port] [--host-port] [--health-path] [--repo] [--tag]
+add --name --compose --service [--domain] [--port] [--host-port] [--health-path] [--health-timeout] [--repo] [--tag]
                                         Add a new app (Docker Compose)
 deploy <app> [--tag <tag>]              Deploy or redeploy an app
 deployments <app>                       Show deployment history

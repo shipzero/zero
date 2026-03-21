@@ -276,6 +276,7 @@ interface AddAppRequest {
   command?: string[]
   volumes?: string[]
   healthPath?: string
+  healthTimeout?: number
   env?: Record<string, string>
   composeFile?: string
   entryService?: string
@@ -305,6 +306,7 @@ route('POST', '/apps', async (req, res) => {
     command,
     volumes,
     healthPath,
+    healthTimeout,
     env = {},
     composeFile,
     entryService
@@ -341,6 +343,7 @@ route('POST', '/apps', async (req, res) => {
     command,
     volumes,
     healthPath,
+    healthTimeout,
     trackTag: tag,
     env,
     ...(isCompose ? { composeFile, entryService, repo: body.repo } : {})
@@ -462,7 +465,7 @@ route('POST', '/apps/:name/start', async (_req, res, { name }) => {
     } else {
       await startContainer(deployment.containerId)
     }
-    await waitForHealthy(deployment.port, app.healthPath)
+    await waitForHealthy(deployment.port, app.healthPath, app.healthTimeout)
     routeApp(app, deployment.port)
     json<StartResponse>(res, 200, { message: `started ${name}`, port: deployment.port })
   } catch (err) {

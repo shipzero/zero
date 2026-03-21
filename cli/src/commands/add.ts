@@ -40,6 +40,7 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
   const command = flags['command'] as string | undefined
   const volume = flags['volume'] as string | undefined
   const healthPath = flags['health-path'] as string | undefined
+  const healthTimeout = flags['health-timeout'] ? Number(flags['health-timeout']) * 1000 : undefined
   const composePath = flags['compose'] as string | undefined
   const service = flags['service'] as string | undefined
   const repo = flags['repo'] as string | undefined
@@ -90,6 +91,7 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
         composeFile,
         entryService: service,
         healthPath,
+        healthTimeout,
         repo,
         trackTag: tag
       }),
@@ -117,7 +119,8 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
       hostPort: !domain ? (hostPort ?? resolvedPort) : undefined,
       command: command ? command.split(' ') : undefined,
       volumes: volume ? volume.split(',') : undefined,
-      healthPath
+      healthPath,
+      healthTimeout
     }),
     logError
   )

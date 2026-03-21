@@ -68,7 +68,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 function formatHelp(): string {
   const commands = [
     [
-      'add --name --image [--domain] [--port] [--host-port] [--command] [--volume] [--health-path] [--repo] [--tag]',
+      'add --name --image [--domain] [--port] [--host-port] [--command] [--volume] [--health-path] [--health-timeout] [--repo] [--tag]',
       'Add a new app'
     ],
     ['deploy <app> [--tag <tag>]', 'Trigger deployment'],

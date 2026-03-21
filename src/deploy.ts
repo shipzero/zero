@@ -50,12 +50,18 @@ export function getDeployLogs(appName: string): string[] {
   return deployLogs.get(appName) ?? []
 }
 
+export function clearDeployLogs(appName: string, label?: string): void {
+  const key = label ? `${appName}/${label}` : appName
+  deployLogs.delete(key)
+}
+
 interface ContainerDeployOptions {
   imageWithTag: string
   containerName: string
   internalPort: number
   env: Record<string, string>
   healthPath?: string
+  healthTimeout?: number
   command?: string[]
   volumes?: string[]
   appName: string
@@ -91,7 +97,7 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
   const healthPath = opts.healthPath ?? '/'
   log(appName, `phase 3/3: waiting for healthy on port ${port} (GET ${healthPath})`, label)
   try {
-    await waitForHealthy(port, opts.healthPath, undefined, containerId)
+    await waitForHealthy(port, opts.healthPath, opts.healthTimeout, containerId)
     log(appName, 'container is healthy', label)
   } catch {
     log(appName, `health check failed — container did not respond at http://127.0.0.1:${port}${healthPath}`, label)
@@ -162,6 +168,7 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
     internalPort: app.internalPort,
     env: app.env,
     healthPath: app.healthPath,
+    healthTimeout: app.healthTimeout,
     command: app.command,
     volumes: app.volumes,
     appName
@@ -241,7 +248,7 @@ async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: numb
   const healthPath = app.healthPath ?? '/'
   log(appName, `phase 3/3: waiting for healthy on port ${containerPort} (GET ${healthPath})`, label)
   try {
-    await waitForHealthy(containerPort, app.healthPath)
+    await waitForHealthy(containerPort, app.healthPath, app.healthTimeout)
     log(appName, 'entry service is healthy', label)
   } catch {
     log(
@@ -316,6 +323,7 @@ export async function deployPreview(
       internalPort: app.internalPort,
       env: app.env,
       healthPath: app.healthPath,
+      healthTimeout: app.healthTimeout,
       command: app.command,
       volumes: app.volumes,
       appName,

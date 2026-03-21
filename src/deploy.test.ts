@@ -197,7 +197,7 @@ describe('deploy', () => {
       expect(mockWriteComposeFiles).toHaveBeenCalled()
       expect(mockComposePull).toHaveBeenCalled()
       expect(mockComposeUp).toHaveBeenCalled()
-      expect(mockWaitForHealthy).toHaveBeenCalledWith(4444, undefined)
+      expect(mockWaitForHealthy).toHaveBeenCalledWith(4444, undefined, undefined)
       expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domain: 'stack.com' }), 4444)
     })
 
