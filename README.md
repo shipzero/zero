@@ -152,15 +152,15 @@ zero upgrade --server
 
 Configuration is stored in `/opt/zero/.env`:
 
-| Variable                 | Description                                             | Default        |
-|--------------------------|---------------------------------------------------------|----------------|
-| `TOKEN`                  | Internal auth token (do not share)                      | *(generated)*  |
-| `JWT_SECRET`             | Secret for signing JWT tokens                           | *(generated)*  |
-| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)           | *(server IP)*  |
-| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)             | —              |
-| `API_PORT`               | API server port                                         | `2020`         |
-| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry         | `30`           |
-| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments            | `168` (7 days) |
+| Variable                 | Description                                     | Default        |
+|--------------------------|-------------------------------------------------|----------------|
+| `TOKEN`                  | Internal auth token (do not share)              | *(generated)*  |
+| `JWT_SECRET`             | Secret for signing JWT tokens                   | *(generated)*  |
+| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)   | *(server IP)*  |
+| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —              |
+| `API_PORT`               | API server port                                 | `2020`         |
+| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`           |
+| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments    | `168` (7 days) |
 
 View server logs:
 
@@ -204,7 +204,8 @@ The binary is written to `dist/zero`.
 zero login user@your-server.com
 ```
 
-Authentication uses SSH — if you can SSH into the server, you can use zero. The CLI obtains a short-lived JWT via SSH and stores it locally.
+Authentication uses SSH — if you can SSH into the server, you can use zero. The CLI obtains a short-lived JWT via SSH
+and stores it locally.
 
 Credentials are saved to `~/.zero/config.json`. Verify the connection:
 
@@ -334,6 +335,9 @@ Changes take effect on the next deployment. After updating variables, redeploy:
 zero deploy myapp
 ```
 
+For Compose apps, variables are written as a `.env` file alongside the Compose file. Docker Compose automatically
+substitutes `${VAR}` references in the Compose file with values from this file.
+
 ### Volumes
 
 Volumes are specified during `zero add` as a comma-separated list:
@@ -415,7 +419,8 @@ zero preview rm myapp pr-42
 zero preview rm myapp --all
 ```
 
-Previews expire automatically after their TTL. The expiry is shown as relative time with the exact date and time, e.g. `6d (Mar 27, 2:30 PM)`. Expired previews are cleaned up hourly. Removing an app also removes all its previews.
+Previews expire automatically after their TTL. The expiry is shown as relative time with the exact date and time, e.g.
+`6d (Mar 27, 2:30 PM)`. Expired previews are cleaned up hourly. Removing an app also removes all its previews.
 
 ## Managing Apps
 
@@ -515,8 +520,11 @@ image.
 
 3. Push an image — zero deploys it automatically.
 
-**Tag filtering:** By default, zero deploys any pushed tag. If the app was added with a specific tag (e.g.
-`myapp:latest`), only pushes matching that tag trigger a deployment.
+**Tag filtering:** If the app was added with a specific tag (e.g. `myapp:latest`), only pushes matching that tag trigger
+a production deployment. Non-matching tags automatically create preview deployments (if the app has a domain).
+
+For Compose apps with `--repo`, non-matching tags also trigger preview deployments with tag substitution applied to all
+matching images.
 
 **Webhook security:** Payloads are verified using HMAC-SHA256 signatures (`x-hub-signature-256` header) with timing-safe
 comparison.
