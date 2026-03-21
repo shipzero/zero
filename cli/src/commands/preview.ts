@@ -1,5 +1,4 @@
 import { createClient, unwrap } from '../client.ts'
-import { formatDeployLog } from './deploy.ts'
 import type { PreviewDeployResponse, PreviewSummary, MessageResponse } from '../../../src/types.ts'
 import {
   logInfo,
@@ -37,26 +36,11 @@ async function previewDeploy(positionals: string[], flags: Record<string, string
     process.exit(0)
   })
 
-  const abort = new AbortController()
-
-  client
-    .streamSSE(
-      `/apps/${encodeURIComponent(appName)}/logs`,
-      (line) => {
-        const formatted = formatDeployLog(line)
-        if (formatted) console.log(formatted)
-      },
-      abort.signal
-    )
-    .catch(() => {})
-
   const { data } = await client.post<PreviewDeployResponse>(`/apps/${encodeURIComponent(appName)}/previews`, {
     label,
     tag,
     ...(ttlHours !== undefined ? { ttlHours } : {})
   })
-
-  abort.abort()
 
   const result = data as PreviewDeployResponse
   if (result.success) {
