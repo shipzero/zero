@@ -20,10 +20,11 @@ jobs:
         id: version
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          echo "version=${TAG}+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          if [[ "$TAG" == *-preview.* ]]; then
+          if [[ "$TAG" == *-preview-* ]]; then
+            echo "version=${TAG}" >> "$GITHUB_OUTPUT"
             echo "is_preview=true" >> "$GITHUB_OUTPUT"
           else
+            echo "version=${TAG}+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
             echo "is_preview=false" >> "$GITHUB_OUTPUT"
           fi
 
