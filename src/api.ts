@@ -717,6 +717,16 @@ route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
   }
 })
 
+route('GET', '/apps/:name/deploy-logs', async (_req, res, { name }) => {
+  if (!requireApp(name, res)) return
+
+  startSSE(res)
+
+  const onDeployLog = (line: string) => sendSSE(res, line)
+  deployEvents.on(`log:${name}`, onDeployLog)
+  res.on('close', () => deployEvents.removeListener(`log:${name}`, onDeployLog))
+})
+
 async function isZeroContainerRunning(): Promise<boolean> {
   try {
     const info = await docker.getContainer(ZERO_CONTAINER).inspect()

@@ -51,7 +51,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
 
   client
     .streamSSE(
-      `/apps/${encodeURIComponent(appName)}/logs`,
+      `/apps/${encodeURIComponent(appName)}/deploy-logs`,
       (line) => {
         const formatted = formatDeployLog(line)
         if (formatted) console.log(formatted)
