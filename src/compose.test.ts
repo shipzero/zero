@@ -12,7 +12,7 @@ vi.mock('./state.ts', () => ({
   getRegistryAuths: vi.fn().mockReturnValue({})
 }))
 
-const { composeDir, writeComposeFiles, removeComposeDir } = await import('./compose.ts')
+const { composeDir, writeComposeFiles, removeComposeDir, substituteImageTags } = await import('./compose.ts')
 
 describe('compose', () => {
   beforeEach(() => {
@@ -50,6 +50,40 @@ describe('compose', () => {
       const override = fs.readFileSync(path.join(tmpDir, 'internal', 'docker-compose.override.yml'), 'utf8')
       expect(override).toContain('127.0.0.1:9090:80')
       expect(override).not.toContain('0.0.0.0')
+    })
+  })
+
+  describe('substituteImageTags', () => {
+    const composeFile = [
+      'services:',
+      '  backend:',
+      '    image: ghcr.io/org/project/backend:test',
+      '  frontend:',
+      '    image: ghcr.io/org/project/frontend:test',
+      '  db:',
+      '    image: postgres:16-alpine'
+    ].join('\n')
+
+    it('replaces tags matching the repo prefix', () => {
+      const result = substituteImageTags(composeFile, 'ghcr.io/org/project', 'pr-42')
+      expect(result).toContain('ghcr.io/org/project/backend:pr-42')
+      expect(result).toContain('ghcr.io/org/project/frontend:pr-42')
+    })
+
+    it('does not touch third-party images', () => {
+      const result = substituteImageTags(composeFile, 'ghcr.io/org/project', 'pr-42')
+      expect(result).toContain('postgres:16-alpine')
+    })
+
+    it('handles different tag formats', () => {
+      const content = '    image: ghcr.io/org/project/api:v1.2.3'
+      const result = substituteImageTags(content, 'ghcr.io/org/project', 'latest')
+      expect(result).toContain('ghcr.io/org/project/api:latest')
+    })
+
+    it('returns content unchanged when no images match', () => {
+      const result = substituteImageTags(composeFile, 'ghcr.io/other/repo', 'pr-42')
+      expect(result).toBe(composeFile)
     })
   })
 

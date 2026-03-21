@@ -628,13 +628,48 @@ describe('API', () => {
       expect((res.body as { error: string }).error).toBe('invalid signature')
     })
 
-    it('ignores when tag does not match tracked tag', async () => {
+    it('ignores when tag does not match tracked tag and no domain', async () => {
       const app = state.addApp({ name: 'hook2', image: 'nginx', trackTag: 'stable', internalPort: 80, env: {} })
       const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(200)
       expect((res.body as { message: string }).message).toContain('ignored')
+    })
+
+    it('triggers preview deploy when tag does not match but app has domain', async () => {
+      const app = state.addApp({
+        name: 'hookprev',
+        image: 'nginx',
+        trackTag: 'latest',
+        domain: 'hookprev.example.com',
+        internalPort: 80,
+        env: {}
+      })
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+        push_data: { tag: 'pr-42' }
+      })
+      expect(res.status).toBe(202)
+      expect((res.body as { message: string }).message).toContain('preview')
+    })
+
+    it('triggers compose preview deploy when repo is set and tag does not match', async () => {
+      const app = state.addApp({
+        name: 'hookcompprev',
+        image: '',
+        trackTag: 'test',
+        domain: 'hookcompprev.example.com',
+        internalPort: 80,
+        env: {},
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:test',
+        entryService: 'web',
+        repo: 'ghcr.io/org/app'
+      })
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+        push_data: { tag: 'pr-99' }
+      })
+      expect(res.status).toBe(202)
+      expect((res.body as { message: string }).message).toContain('preview')
     })
 
     it('deploys when trackTag is "any"', async () => {

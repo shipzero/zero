@@ -42,13 +42,14 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
   const healthPath = flags['health-path'] as string | undefined
   const composePath = flags['compose'] as string | undefined
   const service = flags['service'] as string | undefined
+  const repo = flags['repo'] as string | undefined
 
   if (!name) {
     logError(
       'usage: zero add --name <n> --image <img> [--domain <d>] [--port <p>] [--host-port <p>] [--command <cmd>] [--volume <v>] [--health-path <path>]'
     )
     logError(
-      '       zero add --name <n> --compose <file> --service <svc> [--domain <d>] [--port <p>] [--host-port <p>]'
+      '       zero add --name <n> --compose <file> --service <svc> [--domain <d>] [--port <p>] [--host-port <p>] [--repo <r>]'
     )
     process.exit(1)
   }
@@ -87,7 +88,8 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
         hostPort: !domain ? (hostPort ?? resolvedPort) : undefined,
         composeFile,
         entryService: service,
-        healthPath
+        healthPath,
+        repo
       }),
       logError
     )

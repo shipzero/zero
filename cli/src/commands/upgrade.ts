@@ -46,7 +46,7 @@ async function upgradeCli(isForce: boolean, isPreview: boolean): Promise<void> {
 
   const { tag } = fetchLatestRelease(isPreview)
 
-  if (tag === baseVersion(VERSION) && !isForce) {
+  if (tag === baseVersion(VERSION) && !isForce && !isPreview) {
     logInfo(`cli already up to date (${VERSION})`)
     return
   }

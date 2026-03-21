@@ -9,23 +9,78 @@ export function composeDir(appName: string): string {
   return path.join(COMPOSE_BASE_DIR, appName)
 }
 
+/** Extracts service names so the override can set unique container_name per service, avoiding conflicts across deploys and previews. */
+function parseServiceNames(composeContent: string): string[] {
+  const services: string[] = []
+  let inServices = false
+  let serviceIndent = -1
+  for (const line of composeContent.split('\n')) {
+    if (/^services\s*:/.test(line)) {
+      inServices = true
+      serviceIndent = -1
+      continue
+    }
+    if (!inServices) continue
+
+    const stripped = line.replace(/\t/g, '  ')
+    if (stripped.trim() === '' || stripped.trim().startsWith('#')) continue
+    const indent = stripped.search(/\S/)
+    if (indent === 0) break
+
+    if (serviceIndent === -1) serviceIndent = indent
+    if (indent === serviceIndent) {
+      const name = stripped.trim().replace(/:.*$/, '')
+      if (name) services.push(name)
+    }
+  }
+  return services
+}
+
+/** Replaces image tags for all images matching the repo prefix. */
+export function substituteImageTags(composeContent: string, repo: string, tag: string): string {
+  const escaped = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = new RegExp(`(image:\\s*${escaped}/[^:]+):([^\\s]+)`, 'g')
+  return composeContent.replace(pattern, `$1:${tag}`)
+}
+
 /** Writes the compose file and an override that binds the entry service to a host port. */
 export function writeComposeFiles(
   appName: string,
   composeContent: string,
   entryService: string,
   hostPort: number,
-  internalPort: number
+  internalPort: number,
+  env?: Record<string, string>
 ): string {
   const projectDir = composeDir(appName)
   ensureDir(projectDir)
 
   fs.writeFileSync(path.join(projectDir, 'docker-compose.yml'), composeContent, 'utf8')
-  const override =
-    ['services:', `  ${entryService}:`, '    ports:', `      - "127.0.0.1:${hostPort}:${internalPort}"`].join('\n') +
-    '\n'
 
-  fs.writeFileSync(path.join(projectDir, 'docker-compose.override.yml'), override, 'utf8')
+  if (env && Object.keys(env).length > 0) {
+    const envContent =
+      Object.entries(env)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n') + '\n'
+    fs.writeFileSync(path.join(projectDir, '.env'), envContent, 'utf8')
+  }
+
+  const serviceNames = parseServiceNames(composeContent)
+  const overrideLines = ['services:']
+  let entryHandled = false
+  for (const service of serviceNames) {
+    overrideLines.push(`  ${service}:`, `    container_name: ${appName}-${service}`)
+    if (service === entryService) {
+      overrideLines.push('    ports:', `      - "127.0.0.1:${hostPort}:${internalPort}"`)
+      entryHandled = true
+    }
+  }
+  if (!entryHandled) {
+    overrideLines.push(`  ${entryService}:`, `    container_name: ${appName}-${entryService}`)
+    overrideLines.push('    ports:', `      - "127.0.0.1:${hostPort}:${internalPort}"`)
+  }
+
+  fs.writeFileSync(path.join(projectDir, 'docker-compose.override.yml'), overrideLines.join('\n') + '\n', 'utf8')
 
   return projectDir
 }
@@ -51,8 +106,10 @@ export function composeStart(projectDir: string): Promise<void> {
 }
 
 /** Runs `docker compose down --remove-orphans` in the project directory. */
-export function composeDown(projectDir: string): Promise<void> {
-  return runCompose(projectDir, ['down', '--remove-orphans'])
+export function composeDown(projectDir: string, removeVolumes = false): Promise<void> {
+  const args = ['down', '--remove-orphans']
+  if (removeVolumes) args.push('-v')
+  return runCompose(projectDir, args)
 }
 
 /** Streams `docker compose logs -f` as an async generator. */

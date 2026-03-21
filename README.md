@@ -152,15 +152,15 @@ zero upgrade --server
 
 Configuration is stored in `/opt/zero/.env`:
 
-| Variable                 | Description                                             | Default        |
-|--------------------------|---------------------------------------------------------|----------------|
-| `TOKEN`                  | Internal auth token (do not share)                      | *(generated)*  |
-| `JWT_SECRET`             | Secret for signing JWT tokens                           | *(generated)*  |
-| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)           | *(server IP)*  |
-| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)             | —              |
-| `API_PORT`               | API server port                                         | `2020`         |
-| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry         | `30`           |
-| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments            | `168` (7 days) |
+| Variable                 | Description                                     | Default        |
+|--------------------------|-------------------------------------------------|----------------|
+| `TOKEN`                  | Internal auth token (do not share)              | *(generated)*  |
+| `JWT_SECRET`             | Secret for signing JWT tokens                   | *(generated)*  |
+| `DOMAIN`                 | Server domain (used for webhook URLs and TLS)   | *(server IP)*  |
+| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —              |
+| `API_PORT`               | API server port                                 | `2020`         |
+| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`           |
+| `PREVIEW_TTL_HOURS`      | Default time to live for preview deployments    | `168` (7 days) |
 
 View server logs:
 
@@ -204,7 +204,8 @@ The binary is written to `dist/zero`.
 zero login user@your-server.com
 ```
 
-Authentication uses SSH — if you can SSH into the server, you can use zero. The CLI obtains a short-lived JWT via SSH and stores it locally.
+Authentication uses SSH — if you can SSH into the server, you can use zero. The CLI obtains a short-lived JWT via SSH
+and stores it locally.
 
 Credentials are saved to `~/.zero/config.json`. Verify the connection:
 
@@ -278,16 +279,29 @@ zero add --name mystack --compose docker-compose.yml --service web --domain myst
 zero deploy mystack
 ```
 
-| Flag          | Description                                        |
-|---------------|----------------------------------------------------|
-| `--compose`   | Path to a `docker-compose.yml` file (required)     |
-| `--service`   | The entry service that receives traffic (required) |
-| `--domain`    | Domain for reverse proxy routing                   |
-| `--port`      | Internal port the entry service listens on         |
-| `--host-port` | Expose entry service directly on a host port       |
+| Flag          | Description                                                           |
+|---------------|-----------------------------------------------------------------------|
+| `--compose`   | Path to a `docker-compose.yml` file (required)                        |
+| `--service`   | The entry service that receives traffic (required)                    |
+| `--domain`    | Domain for reverse proxy routing                                      |
+| `--port`      | Internal port the entry service listens on                            |
+| `--host-port` | Expose entry service directly on a host port                          |
+| `--repo`      | Image repo prefix for tag substitution (enables `--tag` and webhooks) |
 
 The Compose file is uploaded to the server. On deploy, zero runs `docker compose pull` and `docker compose up -d`, then
 health-checks the entry service before routing traffic.
+
+**Tag substitution with `--repo`:** When `--repo` is set, `zero deploy mystack --tag v2` replaces all image tags
+matching the repo prefix. For example, with `--repo ghcr.io/org/project`:
+
+```
+ghcr.io/org/project/backend:test  → ghcr.io/org/project/backend:v2
+ghcr.io/org/project/frontend:test → ghcr.io/org/project/frontend:v2
+postgres:16-alpine                → postgres:16-alpine  (unchanged)
+```
+
+This also enables automatic preview deployments via webhooks — any non-tracked tag pushed to the registry triggers a
+preview deployment with the tag substituted into all matching images.
 
 ### Health Checks
 
@@ -320,6 +334,9 @@ Changes take effect on the next deployment. After updating variables, redeploy:
 ```bash
 zero deploy myapp
 ```
+
+For Compose apps, variables are written as a `.env` file alongside the Compose file. Docker Compose automatically
+substitutes `${VAR}` references in the Compose file with values from this file.
 
 ### Volumes
 
@@ -402,7 +419,8 @@ zero preview rm myapp pr-42
 zero preview rm myapp --all
 ```
 
-Previews expire automatically after their TTL. The expiry is shown as relative time with the exact date and time, e.g. `6d (Mar 27, 2:30 PM)`. Expired previews are cleaned up hourly. Removing an app also removes all its previews.
+Previews expire automatically after their TTL. The expiry is shown as relative time with the exact date and time, e.g.
+`6d (Mar 27, 2:30 PM)`. Expired previews are cleaned up hourly. Removing an app also removes all its previews.
 
 ## Managing Apps
 
@@ -502,8 +520,11 @@ image.
 
 3. Push an image — zero deploys it automatically.
 
-**Tag filtering:** By default, zero deploys any pushed tag. If the app was added with a specific tag (e.g.
-`myapp:latest`), only pushes matching that tag trigger a deployment.
+**Tag filtering:** If the app was added with a specific tag (e.g. `myapp:latest`), only pushes matching that tag trigger
+a production deployment. Non-matching tags automatically create preview deployments (if the app has a domain).
+
+For Compose apps with `--repo`, non-matching tags also trigger preview deployments with tag substitution applied to all
+matching images.
 
 **Webhook security:** Payloads are verified using HMAC-SHA256 signatures (`x-hub-signature-256` header) with timing-safe
 comparison.
@@ -570,7 +591,7 @@ zero <command> [options]
 
 add --name --image [--domain] [--port] [--host-port] [--command] [--volume] [--health-path]
                                         Add a new app (Docker image)
-add --name --compose --service [--domain] [--port] [--host-port] [--health-path]
+add --name --compose --service [--domain] [--port] [--host-port] [--health-path] [--repo]
                                         Add a new app (Docker Compose)
 deploy <app> [--tag <tag>]              Deploy or redeploy an app
 deployments <app>                       Show deployment history
