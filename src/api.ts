@@ -520,7 +520,7 @@ route('POST', '/upgrade', async (req, res) => {
   console.log(`[upgrade] pulling ${tag ?? 'latest'} image and restarting...`)
 
   const COMPOSE_FILE = '/opt/zero/docker-compose.yml'
-  const swapTag = tag ? `sed -i 's|image:.*|image: ghcr.io/shipzero/zero:${tag}|' ${COMPOSE_FILE} && ` : ''
+  const swapTag = tag ? `sed -i 's|image: ghcr.io/shipzero/zero:.*|image: ghcr.io/shipzero/zero:${tag}|' ${COMPOSE_FILE} && ` : ''
   const pullCmd = `${swapTag}docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d`
 
   try {
@@ -528,7 +528,7 @@ route('POST', '/upgrade', async (req, res) => {
       Image: 'docker:cli',
       Cmd: ['sh', '-c', `sleep 2 && ${pullCmd}`],
       HostConfig: {
-        Binds: ['/var/run/docker.sock:/var/run/docker.sock', '/opt/zero:/opt/zero:ro'],
+        Binds: ['/var/run/docker.sock:/var/run/docker.sock', '/opt/zero:/opt/zero'],
         AutoRemove: true
       }
     })
