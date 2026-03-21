@@ -49,12 +49,21 @@ export function writeComposeFiles(
   composeContent: string,
   entryService: string,
   hostPort: number,
-  internalPort: number
+  internalPort: number,
+  env?: Record<string, string>
 ): string {
   const projectDir = composeDir(appName)
   ensureDir(projectDir)
 
   fs.writeFileSync(path.join(projectDir, 'docker-compose.yml'), composeContent, 'utf8')
+
+  if (env && Object.keys(env).length > 0) {
+    const envContent =
+      Object.entries(env)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n') + '\n'
+    fs.writeFileSync(path.join(projectDir, '.env'), envContent, 'utf8')
+  }
 
   const serviceNames = parseServiceNames(composeContent)
   const overrideLines = ['services:']

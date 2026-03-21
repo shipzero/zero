@@ -192,7 +192,14 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   }
 
   const containerPort = await getFreePort()
-  const projectDir = writeComposeFiles(appName, composeContent, app.entryService!, containerPort, app.internalPort)
+  const projectDir = writeComposeFiles(
+    appName,
+    composeContent,
+    app.entryService!,
+    containerPort,
+    app.internalPort,
+    app.env
+  )
 
   log(appName, 'phase 1/3: pulling images')
   try {
@@ -351,7 +358,8 @@ export async function deployComposePreview(
       composeContent,
       app.entryService!,
       containerPort,
-      app.internalPort
+      app.internalPort,
+      app.env
     )
 
     log(logKey, 'phase 1/3: pulling images')

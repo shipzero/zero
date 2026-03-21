@@ -653,13 +653,17 @@ route('GET', '/apps/:name/previews/:label/metrics', async (_req, res, { name, la
   const preview = requirePreview(name, label, res)
   if (!preview) return
 
-  if (preview.isCompose) {
-    json(res, 400, { error: 'metrics are not available for compose previews' })
+  const containerId = preview.isCompose
+    ? await findComposeContainer(getApp(name)!.entryService!, preview.containerId)
+    : preview.containerId
+
+  if (!containerId) {
+    json(res, 400, { error: 'container not found' })
     return
   }
 
   startSSE(res)
-  await pipeSSE(res, streamStats(preview.containerId))
+  await pipeSSE(res, streamStats(containerId))
 })
 
 route('DELETE', '/apps/:name/previews', async (_req, res, { name }) => {
@@ -743,6 +747,13 @@ route('GET', '/logs', async (_req, res) => {
   sendSSE(res, '[log stream ended]')
 })
 
+async function findComposeContainer(entryService: string, project?: string): Promise<string | null> {
+  const labels = [`com.docker.compose.service=${entryService}`]
+  if (project) labels.push(`com.docker.compose.project=${project}`)
+  const containers = await docker.listContainers({ filters: { label: labels } })
+  return containers[0]?.Id ?? null
+}
+
 route('GET', '/metrics', async (_req, res) => {
   if (!(await isZeroContainerRunning())) {
     json(res, 400, { error: 'server metrics are only available in production (zero container not found)' })
@@ -763,9 +774,7 @@ route('GET', '/apps/:name/metrics', async (_req, res, { name }) => {
     return
   }
 
-  const containerId = isComposeApp(app)
-    ? (await docker.listContainers({ filters: { label: [`com.docker.compose.service=${app.entryService}`] } }))[0]?.Id
-    : deployment.containerId
+  const containerId = isComposeApp(app) ? await findComposeContainer(app.entryService!) : deployment.containerId
 
   if (!containerId) {
     json(res, 400, { error: 'container not found' })
