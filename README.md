@@ -43,22 +43,22 @@ vendor lock-in, no surprise invoices.
 - **Rollback** — instantly revert to the previous deployment
 - **Live metrics** — CPU, memory, and network usage in the terminal
 - **Single binary CLI** — available for Linux, macOS, and Windows
-- **Minimal footprint** — two dependencies (dockerode, acme), runs in a single container
+- **Minimal footprint** — two dependencies (dockerode, acme-client), runs in a single container
 
 ## Comparison
 
 There are excellent self-hosting tools out there. Here's how zero fits in:
 
-|                  | zero                | Coolify                | CapRover          | Dokku                 | Kamal                |
-|------------------|---------------------|------------------------|-------------------|-----------------------|----------------------|
-| Interface        | CLI only            | Web UI                 | Web UI            | CLI                   | CLI                  |
-| Deploy model     | Docker images       | Git/Docker             | Git/Docker        | Git push (Buildpacks) | Docker images        |
-| Reverse proxy    | Built in            | Traefik                | Nginx             | Nginx                 | Traefik              |
-| Orchestration    | Docker              | Docker                 | Docker Swarm      | Docker                | SSH to host          |
-| Server footprint | 1 container         | Multiple services + DB | Multiple services | System packages       | No agent             |
-| Dependencies     | 2 (dockerode, acme) | Many                   | Many              | Many                  | Ruby                 |
-| Compose support  | Yes                 | Yes                    | No                | No                    | Yes (accessories)    |
-| Setup            | One command         | One command            | One command       | `apt install`         | Gem install + config |
+|                  | zero                       | Coolify                | CapRover          | Dokku                 | Kamal                |
+|------------------|----------------------------|------------------------|-------------------|-----------------------|----------------------|
+| Interface        | CLI only                   | Web UI                 | Web UI            | CLI                   | CLI                  |
+| Deploy model     | Docker images              | Git/Docker             | Git/Docker        | Git push (Buildpacks) | Docker images        |
+| Reverse proxy    | Built in                   | Traefik                | Nginx             | Nginx                 | Traefik              |
+| Orchestration    | Docker                     | Docker                 | Docker Swarm      | Docker                | SSH to host          |
+| Server footprint | 1 container                | Multiple services + DB | Multiple services | System packages       | No agent             |
+| Dependencies     | 2 (dockerode, acme-client) | Many                   | Many              | Many                  | Ruby                 |
+| Compose support  | Yes                        | Yes                    | No                | No                    | Yes (accessories)    |
+| Setup            | One command                | One command            | One command       | `apt install`         | Gem install + config |
 
 **zero is for you if** you want the simplest possible path from "I have a server" to "my app is live with HTTPS" —
 without a web UI, without a database, without dozens of moving parts. One container, one CLI, done.
