@@ -43,13 +43,14 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
   const composePath = flags['compose'] as string | undefined
   const service = flags['service'] as string | undefined
   const repo = flags['repo'] as string | undefined
+  const tag = flags['tag'] as string | undefined
 
   if (!name) {
     logError(
       'usage: zero add --name <n> --image <img> [--domain <d>] [--port <p>] [--host-port <p>] [--command <cmd>] [--volume <v>] [--health-path <path>]'
     )
     logError(
-      '       zero add --name <n> --compose <file> --service <svc> [--domain <d>] [--port <p>] [--host-port <p>] [--repo <r>]'
+      '       zero add --name <n> --compose <file> --service <svc> [--domain <d>] [--port <p>] [--host-port <p>] [--repo <r>] [--tag <t>]'
     )
     process.exit(1)
   }
@@ -89,7 +90,8 @@ export async function add(flags: Record<string, string | true>): Promise<void> {
         composeFile,
         entryService: service,
         healthPath,
-        repo
+        repo,
+        trackTag: tag
       }),
       logError
     )

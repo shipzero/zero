@@ -184,11 +184,12 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
 async function deployCompose(appName: string, tag?: string): Promise<DeployResult> {
   const app = getApp(appName)!
 
+  const deployTag = tag ?? (app.trackTag || 'compose')
   log(appName, `── deploy start: compose${tag ? ` (tag: ${tag})` : ''}`)
 
   let composeContent = app.composeFile!
-  if (tag && app.repo) {
-    composeContent = substituteImageTags(composeContent, app.repo, tag)
+  if (deployTag !== 'compose' && app.repo) {
+    composeContent = substituteImageTags(composeContent, app.repo, deployTag)
   }
 
   const containerPort = await getFreePort()
@@ -207,7 +208,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   } catch (err) {
     const message = `pull failed: ${getErrorMessage(err)}`
     log(appName, message)
-    return { success: false, image: 'compose', port: 0, containerId: '', error: message }
+    return { success: false, image: deployTag, port: 0, containerId: '', error: message }
   }
 
   log(appName, 'phase 2/3: starting services')
@@ -216,7 +217,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   } catch (err) {
     const message = `compose up failed: ${getErrorMessage(err)}`
     log(appName, message)
-    return { success: false, image: 'compose', port: containerPort, containerId: '', error: message }
+    return { success: false, image: deployTag, port: containerPort, containerId: '', error: message }
   }
 
   const composeHealthPath = app.healthPath ?? '/'
@@ -235,7 +236,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
     )
     return {
       success: false,
-      image: 'compose',
+      image: deployTag,
       port: containerPort,
       containerId: '',
       error: `health check failed on port ${containerPort}${composeHealthPath}`
@@ -245,7 +246,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   routeApp(app, containerPort)
 
   const deployment = {
-    image: 'compose',
+    image: deployTag,
     containerId: 'compose',
     port: containerPort,
     deployedAt: new Date().toISOString()
@@ -254,7 +255,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
 
   const url = buildUrl(app.domain, app.hostPort ?? containerPort)
   log(appName, `deploy complete — ${url}`)
-  return { success: true, image: 'compose', port: containerPort, containerId: 'compose', url }
+  return { success: true, image: deployTag, port: containerPort, containerId: 'compose', url }
 }
 
 export async function deployPreview(
@@ -412,10 +413,6 @@ export async function deployComposePreview(
 export async function rollback(appName: string): Promise<DeployResult> {
   const app = getApp(appName)
   if (!app) throw new Error(`App "${appName}" not registered`)
-
-  if (isComposeApp(app)) {
-    throw new Error('rollback is not supported for compose apps — redeploy with the desired image tags')
-  }
 
   const target = findRollbackTarget(appName)
   return deploy(appName, target.image)

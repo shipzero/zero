@@ -30,6 +30,7 @@ export interface AppDetail {
   domain?: string
   internalPort: number
   trackTag: string
+  repo?: string
   env: Record<string, string>
   currentImage?: string
   port?: number

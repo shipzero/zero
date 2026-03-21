@@ -2,7 +2,7 @@ import { createClient } from '../client.ts'
 import type { DeployResult } from '../../../src/types.ts'
 import { logInfo, logSuccess, logError, logHint, cyan, dim, green, red } from '../ui.ts'
 
-function formatDeployLog(line: string): string | null {
+export function formatDeployLog(line: string): string | null {
   const stripped = line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
 
   if (stripped.startsWith('── deploy start:')) {
@@ -53,7 +53,6 @@ export async function deploy(positionals: string[], flags: Record<string, string
 
   const abort = new AbortController()
 
-  // Stream logs in the background, deploy blocks until done
   client
     .streamSSE(
       `/apps/${encodeURIComponent(appName)}/logs`,

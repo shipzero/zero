@@ -287,6 +287,7 @@ zero deploy mystack
 | `--port`      | Internal port the entry service listens on                            |
 | `--host-port` | Expose entry service directly on a host port                          |
 | `--repo`      | Image repo prefix for tag substitution (enables `--tag` and webhooks) |
+| `--tag`       | Default image tag for deployments and rollbacks                       |
 
 The Compose file is uploaded to the server. On deploy, zero runs `docker compose pull` and `docker compose up -d`, then
 health-checks the entry service before routing traffic.
@@ -491,8 +492,8 @@ Revert to the previous deployment:
 zero rollback myapp
 ```
 
-zero starts a new container from the previous image and swaps traffic once it's healthy. Rollback is available for
-single-container apps. Compose stacks do not support rollback.
+zero starts a new container from the previous image and swaps traffic once it's healthy. For Compose apps with `--repo`,
+rollback redeploys with the previous tag applied to all matching images.
 
 ### Remove an App
 
@@ -591,7 +592,7 @@ zero <command> [options]
 
 add --name --image [--domain] [--port] [--host-port] [--command] [--volume] [--health-path]
                                         Add a new app (Docker image)
-add --name --compose --service [--domain] [--port] [--host-port] [--health-path] [--repo]
+add --name --compose --service [--domain] [--port] [--host-port] [--health-path] [--repo] [--tag]
                                         Add a new app (Docker Compose)
 deploy <app> [--tag <tag>]              Deploy or redeploy an app
 deployments <app>                       Show deployment history
