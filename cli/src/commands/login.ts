@@ -7,17 +7,17 @@ import { saveConfig } from '../config.ts'
 import { logSuccess, logInfo, logError } from '../ui.ts'
 
 export async function login(positionals: string[], _flags: Record<string, string | true>): Promise<void> {
-  const destination = positionals[0]
+  const ssh = positionals[0]
 
-  if (!destination || !destination.includes('@')) {
+  if (!ssh || !ssh.includes('@')) {
     logError('usage: zero login <user@server>')
     console.error('Example: zero login root@your-server.com')
     process.exit(1)
   }
 
-  const server = destination.split('@').pop()!
+  const server = ssh.split('@').pop()!
 
-  const jwt = await sshMintJwt(destination)
+  const jwt = await sshMintJwt(ssh)
   if (!jwt) {
     process.exit(1)
   }
@@ -28,7 +28,7 @@ export async function login(positionals: string[], _flags: Record<string, string
     process.exit(1)
   }
 
-  saveConfig({ host, token: jwt, destination })
+  saveConfig({ host, token: jwt, ssh })
   ensureGitignore()
   logSuccess(`linked to ${host}`)
 }
@@ -36,11 +36,11 @@ export async function login(positionals: string[], _flags: Record<string, string
 const SSH_COMMAND =
   'source /opt/zero/.env && curl -sf -H "Authorization: Bearer ${TOKEN}" -X POST http://127.0.0.1:2020/auth/token'
 
-function sshExec(destination: string, command: string): Promise<{ stdout: string; ok: boolean }> {
+function sshExec(ssh: string, command: string): Promise<{ stdout: string; ok: boolean }> {
   return new Promise((resolve) => {
-    execFile('ssh', [destination, command], { timeout: 30_000 }, (err, stdout) => {
+    execFile('ssh', [ssh, command], { timeout: 30_000 }, (err, stdout) => {
       if (err) {
-        logError(`SSH connection failed — check that you can ssh to ${destination}`)
+        logError(`SSH connection failed — check that you can ssh to ${ssh}`)
         resolve({ stdout: '', ok: false })
         return
       }
@@ -49,8 +49,8 @@ function sshExec(destination: string, command: string): Promise<{ stdout: string
   })
 }
 
-export async function sshMintJwt(destination: string): Promise<string | null> {
-  const { stdout, ok } = await sshExec(destination, SSH_COMMAND)
+export async function sshMintJwt(ssh: string): Promise<string | null> {
+  const { stdout, ok } = await sshExec(ssh, SSH_COMMAND)
   if (!ok) return null
 
   if (!stdout) {

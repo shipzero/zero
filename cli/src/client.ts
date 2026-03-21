@@ -77,8 +77,8 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
 }
 
 async function refreshToken(config: Config): Promise<boolean> {
-  if (!config.destination) return false
-  const jwt = await sshMintJwt(config.destination)
+  if (!config.ssh) return false
+  const jwt = await sshMintJwt(config.ssh)
   if (!jwt) return false
   config.token = jwt
   saveConfig(config)
