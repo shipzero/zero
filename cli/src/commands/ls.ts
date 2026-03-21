@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppSummary } from '../../../src/types.ts'
-import { dim, logInfo, logError, timeAgo, timeUntil, formatStatus, printTable } from '../ui.ts'
+import { dim, logInfo, logError, timeAgo, timeUntil, formatStatus, printTable, spinner } from '../ui.ts'
 import type { Column } from '../ui.ts'
 
 function formatUrl(domain: string | undefined, hostPort: number | undefined, serverUrl: URL): string {
@@ -11,7 +11,10 @@ function formatUrl(domain: string | undefined, hostPort: number | undefined, ser
 
 export async function ls(): Promise<void> {
   const client = createClient()
-  const data = unwrap(await client.get<AppSummary[]>('/apps'), logError)
+  const spin = spinner('loading apps...')
+  const res = await client.get<AppSummary[]>('/apps')
+  spin.stop()
+  const data = unwrap(res, logError)
 
   if (data.length === 0) {
     logInfo('no apps registered')

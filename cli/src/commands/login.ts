@@ -4,7 +4,7 @@ import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
 import { saveConfig } from '../config.ts'
-import { logSuccess, logInfo, logError } from '../ui.ts'
+import { logSuccess, logInfo, logError, spinner } from '../ui.ts'
 
 export async function login(positionals: string[], _flags: Record<string, string | true>): Promise<void> {
   const ssh = positionals[0]
@@ -17,12 +17,15 @@ export async function login(positionals: string[], _flags: Record<string, string
 
   const server = ssh.split('@').pop()!
 
+  const spin = spinner(`connecting to ${ssh}...`)
   const jwt = await sshMintJwt(ssh)
   if (!jwt) {
+    spin.stop()
     process.exit(1)
   }
 
   const host = await resolveApiUrl(server, jwt)
+  spin.stop()
   if (!host) {
     logError('authentication failed')
     process.exit(1)

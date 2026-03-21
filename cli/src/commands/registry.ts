@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logError, dim } from '../ui.ts'
+import { logSuccess, logInfo, logError, dim, spinner } from '../ui.ts'
 
 export async function registry(
   subcommand: string | null,
@@ -51,7 +51,10 @@ async function registryLogout(positionals: string[]): Promise<void> {
 
 async function registryLs(): Promise<void> {
   const client = createClient()
-  const servers = unwrap(await client.get<string[]>('/registries'), logError)
+  const spin = spinner('loading registries...')
+  const res = await client.get<string[]>('/registries')
+  spin.stop()
+  const servers = unwrap(res, logError)
 
   if (servers.length === 0) {
     logInfo('no registries configured')

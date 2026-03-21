@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logError, confirm, bold, requireAppName } from '../ui.ts'
+import { logSuccess, logError, confirm, bold, requireAppName, spinner } from '../ui.ts'
 
 export async function rm(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const appName = requireAppName(positionals, 'zero rm <app> [--force]')
@@ -16,7 +16,10 @@ export async function rm(positionals: string[], flags: Record<string, string | t
     }
   }
 
-  unwrap(await client.del<MessageResponse>(`/apps/${encodeURIComponent(appName)}`), logError)
+  const spin = spinner(`removing ${appName}...`)
+  const res = await client.del<MessageResponse>(`/apps/${encodeURIComponent(appName)}`)
+  spin.stop()
+  unwrap(res, logError)
 
   logSuccess(`removed ${appName}`)
 }

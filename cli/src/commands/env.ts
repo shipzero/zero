@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logWarn, logError, logHint, bold, requireAppName } from '../ui.ts'
+import { logSuccess, logInfo, logWarn, logError, logHint, bold, requireAppName, spinner } from '../ui.ts'
 
 export async function env(
   subcommand: string | null,
@@ -71,7 +71,10 @@ async function envLs(positionals: string[]): Promise<void> {
   const appName = requireAppName(positionals, 'zero env ls <app>')
 
   const client = createClient()
-  const data = unwrap(await client.get<AppDetail>(`/apps/${encodeURIComponent(appName)}`), logError)
+  const spin = spinner('loading environment...')
+  const res = await client.get<AppDetail>(`/apps/${encodeURIComponent(appName)}`)
+  spin.stop()
+  const data = unwrap(res, logError)
 
   const entries = Object.entries(data.env)
   if (entries.length === 0) {
