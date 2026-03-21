@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { getApp, addDeployment, findRollbackTarget, isComposeApp, getPreview, setPreview } from './state.ts'
+import { getApp, addDeployment, findRollbackTarget, isComposeApp, getPreview, setPreview, AppConfig } from './state.ts'
 import type { Preview } from './state.ts'
 import {
   pullImage,
@@ -118,32 +118,35 @@ export interface DeployResult {
   error?: string
 }
 
+function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  if (locks.has(key)) {
+    throw new Error(`Deploy already in progress for "${key}"`)
+  }
+  locks.add(key)
+  return fn().finally(() => locks.delete(key))
+}
+
 export async function deploy(appName: string, imageWithTag?: string): Promise<DeployResult> {
   const app = getApp(appName)
   if (!app) throw new Error(`App "${appName}" not registered`)
 
-  if (locks.has(appName)) {
-    throw new Error(`Deploy already in progress for "${appName}"`)
-  }
-  locks.add(appName)
-
-  let result: DeployResult
-  try {
+  return withLock(appName, async () => {
     deployLogs.delete(appName)
 
     if (isComposeApp(app)) {
-      result = await deployCompose(appName, imageWithTag)
+      return deployCompose(appName, imageWithTag)
     } else if (!imageWithTag) {
       throw new Error('image is required for single-container deploys')
     } else {
-      result = await deploySingleContainer(appName, imageWithTag)
+      return deploySingleContainer(appName, imageWithTag)
     }
-  } catch (err) {
-    result = { success: false, image: imageWithTag ?? '', port: 0, containerId: '', error: getErrorMessage(err) }
-  } finally {
-    locks.delete(appName)
-  }
-  return result!
+  }).catch((err) => ({
+    success: false,
+    image: imageWithTag ?? '',
+    port: 0,
+    containerId: '',
+    error: getErrorMessage(err)
+  }))
 }
 
 async function deploySingleContainer(appName: string, imageWithTag: string): Promise<DeployResult> {
@@ -181,19 +184,34 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
   return { success: true, image: imageWithTag, port, containerId, url }
 }
 
-async function deployCompose(appName: string, tag?: string): Promise<DeployResult> {
-  const app = getApp(appName)!
+function resolveComposeTag(app: AppConfig, tag?: string): string {
+  return tag ?? (app.trackTag || 'compose')
+}
 
-  log(appName, `── deploy start: compose${tag ? ` (tag: ${tag})` : ''}`)
-
-  let composeContent = app.composeFile!
-  if (tag && app.repo) {
-    composeContent = substituteImageTags(composeContent, app.repo, tag)
+function resolveComposeContent(app: AppConfig, tag: string): string {
+  if (tag !== 'compose' && app.repo) {
+    return substituteImageTags(app.composeFile!, app.repo, tag)
   }
+  return app.composeFile!
+}
+
+interface ComposeDeployContext {
+  app: AppConfig
+  projectName: string
+  logKey: string
+  tag?: string
+}
+
+async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: number; deployTag: string }> {
+  const { app, projectName, logKey, tag } = ctx
+  const deployTag = resolveComposeTag(app, tag)
+  log(logKey, `── deploy start: compose${tag ? ` (tag: ${tag})` : ''}`)
+
+  const composeContent = resolveComposeContent(app, deployTag)
 
   const containerPort = await getFreePort()
   const projectDir = writeComposeFiles(
-    appName,
+    projectName,
     composeContent,
     app.entryService!,
     containerPort,
@@ -201,60 +219,66 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
     app.env
   )
 
-  log(appName, 'phase 1/3: pulling images')
+  log(logKey, 'phase 1/3: pulling images')
   try {
-    await composePull(projectDir, (line) => log(appName, line))
+    await composePull(projectDir, (line) => log(logKey, line))
   } catch (err) {
-    const message = `pull failed: ${getErrorMessage(err)}`
-    log(appName, message)
-    return { success: false, image: 'compose', port: 0, containerId: '', error: message }
+    throw new Error(`pull failed: ${getErrorMessage(err)}`)
   }
 
-  log(appName, 'phase 2/3: starting services')
+  log(logKey, 'phase 2/3: starting services')
   try {
-    await composeUp(projectDir, (line) => log(appName, line))
+    await composeUp(projectDir, (line) => log(logKey, line))
   } catch (err) {
-    const message = `compose up failed: ${getErrorMessage(err)}`
-    log(appName, message)
-    return { success: false, image: 'compose', port: containerPort, containerId: '', error: message }
+    throw new Error(`compose up failed: ${getErrorMessage(err)}`)
   }
 
-  const composeHealthPath = app.healthPath ?? '/'
-  log(appName, `phase 3/3: waiting for healthy on port ${containerPort} (GET ${composeHealthPath})`)
+  const healthPath = app.healthPath ?? '/'
+  log(logKey, `phase 3/3: waiting for healthy on port ${containerPort} (GET ${healthPath})`)
   try {
     await waitForHealthy(containerPort, app.healthPath)
-    log(appName, 'entry service is healthy')
+    log(logKey, 'entry service is healthy')
   } catch {
+    log(logKey, `health check failed — entry service did not respond at http://127.0.0.1:${containerPort}${healthPath}`)
     log(
-      appName,
-      `health check failed — entry service did not respond at http://127.0.0.1:${containerPort}${composeHealthPath}`
+      logKey,
+      `make sure service "${app.entryService}" listens on port ${app.internalPort} and responds to GET ${healthPath}`
     )
-    log(
-      appName,
-      `make sure service "${app.entryService}" listens on port ${app.internalPort} and responds to GET ${composeHealthPath}`
-    )
-    return {
-      success: false,
-      image: 'compose',
-      port: containerPort,
-      containerId: '',
-      error: `health check failed on port ${containerPort}${composeHealthPath}`
+    try {
+      await composeDown(projectDir)
+    } catch {
+      /* best effort */
     }
+    if (projectName !== app.name) removeComposeDir(projectName)
+    throw new Error(`health check failed on port ${containerPort}${healthPath}`)
   }
 
-  routeApp(app, containerPort)
+  return { port: containerPort, deployTag }
+}
+
+async function deployCompose(appName: string, tag?: string): Promise<DeployResult> {
+  const app = getApp(appName)!
+
+  const { port, deployTag } = await runComposeDeploy({
+    app,
+    projectName: appName,
+    logKey: appName,
+    tag
+  })
+
+  routeApp(app, port)
 
   const deployment = {
-    image: 'compose',
+    image: deployTag,
     containerId: 'compose',
-    port: containerPort,
+    port,
     deployedAt: new Date().toISOString()
   }
   addDeployment(appName, deployment)
 
-  const url = buildUrl(app.domain, app.hostPort ?? containerPort)
+  const url = buildUrl(app.domain, app.hostPort ?? port)
   log(appName, `deploy complete — ${url}`)
-  return { success: true, image: 'compose', port: containerPort, containerId: 'compose', url }
+  return { success: true, image: deployTag, port, containerId: 'compose', url }
 }
 
 export async function deployPreview(
@@ -267,13 +291,7 @@ export async function deployPreview(
   const app = getApp(appName)
   if (!app) throw new Error(`App "${appName}" not registered`)
 
-  const lockKey = `${appName}--preview--${label}`
-  if (locks.has(lockKey)) {
-    throw new Error(`Deploy already in progress for preview "${label}"`)
-  }
-  locks.add(lockKey)
-
-  try {
+  return withLock(`${appName}--preview--${label}`, async () => {
     const imageWithTag = `${app.image}:${tag}`
     const logKey = `${appName}/preview/${label}`
 
@@ -309,9 +327,7 @@ export async function deployPreview(
 
     log(logKey, `deploy complete — ${buildDomainUrl(domain)}`)
     return preview
-  } finally {
-    locks.delete(lockKey)
-  }
+  })
 }
 
 export async function deployComposePreview(
@@ -324,13 +340,7 @@ export async function deployComposePreview(
   const app = getApp(appName)
   if (!app) throw new Error(`App "${appName}" not registered`)
 
-  const lockKey = `${appName}--preview--${label}`
-  if (locks.has(lockKey)) {
-    throw new Error(`Deploy already in progress for preview "${label}"`)
-  }
-  locks.add(lockKey)
-
-  try {
+  return withLock(`${appName}--preview--${label}`, async () => {
     const logKey = `${appName}/preview/${label}`
     const previewProjectName = `${appName}-preview-${label}`
 
@@ -345,56 +355,21 @@ export async function deployComposePreview(
       removeComposeDir(previewProjectName)
     }
 
-    log(logKey, `── deploy start: compose preview${tag ? ` (tag: ${tag})` : ''}`)
+    const { port, deployTag } = await runComposeDeploy({
+      app,
+      projectName: previewProjectName,
+      logKey,
+      tag
+    })
 
-    let composeContent = app.composeFile!
-    if (tag && app.repo) {
-      composeContent = substituteImageTags(composeContent, app.repo, tag)
-    }
-
-    const containerPort = await getFreePort()
-    const projectDir = writeComposeFiles(
-      previewProjectName,
-      composeContent,
-      app.entryService!,
-      containerPort,
-      app.internalPort,
-      app.env
-    )
-
-    log(logKey, 'phase 1/3: pulling images')
-    await composePull(projectDir, (line) => log(logKey, line))
-
-    log(logKey, 'phase 2/3: starting services')
-    await composeUp(projectDir, (line) => log(logKey, line))
-
-    const healthPath = app.healthPath ?? '/'
-    log(logKey, `phase 3/3: waiting for healthy on port ${containerPort} (GET ${healthPath})`)
-    try {
-      await waitForHealthy(containerPort, app.healthPath)
-      log(logKey, 'entry service is healthy')
-    } catch {
-      log(
-        logKey,
-        `health check failed — entry service did not respond at http://127.0.0.1:${containerPort}${healthPath}`
-      )
-      try {
-        await composeDown(projectDir)
-      } catch {
-        /* best effort */
-      }
-      removeComposeDir(previewProjectName)
-      throw new Error(`health check failed on port ${containerPort}${healthPath}`)
-    }
-
-    updateProxyRoute(domain, containerPort)
+    updateProxyRoute(domain, port)
 
     const preview: Preview = {
       label,
       domain,
-      image: 'compose',
+      image: deployTag,
       containerId: previewProjectName,
-      port: containerPort,
+      port,
       deployedAt: new Date().toISOString(),
       expiresAt,
       isCompose: true
@@ -403,19 +378,13 @@ export async function deployComposePreview(
 
     log(logKey, `deploy complete — ${buildDomainUrl(domain)}`)
     return preview
-  } finally {
-    locks.delete(lockKey)
-  }
+  })
 }
 
 /** Rollback = redeploy the most recent image that differs from the current one. */
 export async function rollback(appName: string): Promise<DeployResult> {
   const app = getApp(appName)
   if (!app) throw new Error(`App "${appName}" not registered`)
-
-  if (isComposeApp(app)) {
-    throw new Error('rollback is not supported for compose apps — redeploy with the desired image tags')
-  }
 
   const target = findRollbackTarget(appName)
   return deploy(appName, target.image)

@@ -226,23 +226,17 @@ route('GET', '/apps', async (_req, res) => {
       const deployment = getCurrentDeployment(app)
       let status: AppSummary['status'] = 'no deployment'
       if (deployment) {
-        if (isComposeApp(app)) {
-          status = 'running'
-        } else {
-          const state = await getContainerState(deployment.containerId)
-          status = state.running ? 'running' : 'stopped'
-        }
+        status = await resolveContainerStatus(deployment.containerId, isComposeApp(app), app.entryService)
       }
 
       const previews: PreviewSummary[] = await Promise.all(
         getPreviewsForApp(app.name).map(async (preview) => {
-          let previewStatus: 'running' | 'stopped'
-          if (preview.isCompose) {
-            previewStatus = 'running'
-          } else {
-            const previewState = await getContainerState(preview.containerId)
-            previewStatus = previewState.running ? 'running' : 'stopped'
-          }
+          const previewStatus = await resolveContainerStatus(
+            preview.containerId,
+            !!preview.isCompose,
+            app.entryService,
+            preview.containerId
+          )
           return {
             name: app.name,
             label: preview.label,
@@ -286,6 +280,7 @@ interface AddAppRequest {
   composeFile?: string
   entryService?: string
   repo?: string
+  trackTag?: string
 }
 
 interface DeployRequest {
@@ -335,7 +330,7 @@ route('POST', '/apps', async (req, res) => {
     return
   }
 
-  const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image ?? '')
+  const { image, tag } = isCompose ? { image: '', tag: body.trackTag ?? '' } : parseImageRef(body.image ?? '')
 
   const app = addApp({
     name,
@@ -369,6 +364,7 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
     domain: app.domain,
     internalPort: app.internalPort,
     trackTag: app.trackTag,
+    repo: app.repo,
     env: maskValues(app.env),
     currentImage: deployment?.image,
     port: deployment?.port,
@@ -388,7 +384,7 @@ route('POST', '/apps/:name/deploy', async (req, res, { name }) => {
 
   let imageWithTag: string | undefined
   if (isComposeApp(app)) {
-    imageWithTag = tag
+    imageWithTag = tag || app.trackTag || undefined
   } else {
     imageWithTag = `${app.image}:${tag ?? app.trackTag}`
   }
@@ -400,10 +396,6 @@ route('POST', '/apps/:name/deploy', async (req, res, { name }) => {
 route('GET', '/apps/:name/rollback-target', async (_req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
-  if (isComposeApp(app)) {
-    json(res, 400, { error: 'rollback is not supported for compose apps' })
-    return
-  }
   try {
     const target = findRollbackTarget(name)
     json(res, 200, { image: target.image, deployedAt: target.deployedAt })
@@ -524,9 +516,8 @@ route('POST', '/upgrade', async (req, res) => {
   console.log(`[upgrade] pulling ${tag ?? 'latest'} image and restarting...`)
 
   const COMPOSE_FILE = '/opt/zero/docker-compose.yml'
-  const swapTag = tag
-    ? `sed -i 's|image: ghcr.io/shipzero/zero:.*|image: ghcr.io/shipzero/zero:${tag}|' ${COMPOSE_FILE} && `
-    : ''
+  const effectiveTag = tag ?? 'latest'
+  const swapTag = `sed -i 's|image: ghcr.io/shipzero/zero:.*|image: ghcr.io/shipzero/zero:${effectiveTag}|' ${COMPOSE_FILE} && `
   const pullCmd = `${swapTag}docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d`
 
   try {
@@ -608,13 +599,12 @@ route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
 
   const previews: PreviewSummary[] = await Promise.all(
     getPreviewsForApp(name).map(async (preview) => {
-      let status: PreviewSummary['status']
-      if (preview.isCompose) {
-        status = 'running'
-      } else {
-        const state = await getContainerState(preview.containerId)
-        status = state.running ? 'running' : 'stopped'
-      }
+      const status = await resolveContainerStatus(
+        preview.containerId,
+        !!preview.isCompose,
+        parent.entryService,
+        preview.containerId
+      )
       return {
         name: parent.name,
         label: preview.label,
@@ -754,6 +744,20 @@ async function findComposeContainer(entryService: string, project?: string): Pro
   return containers[0]?.Id ?? null
 }
 
+async function resolveContainerStatus(
+  containerId: string,
+  isCompose: boolean,
+  entryService?: string,
+  project?: string
+): Promise<'running' | 'stopped'> {
+  if (isCompose) {
+    const id = await findComposeContainer(entryService!, project)
+    return id ? 'running' : 'stopped'
+  }
+  const state = await getContainerState(containerId)
+  return state.running ? 'running' : 'stopped'
+}
+
 route('GET', '/metrics', async (_req, res) => {
   if (!(await isZeroContainerRunning())) {
     json(res, 400, { error: 'server metrics are only available in production (zero container not found)' })
@@ -855,14 +859,18 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   }
 
   if (isPreviewCandidate) {
+    if (isCompose && !hasRepo) {
+      json(res, 200, { message: `ignored: compose app without --repo cannot create previews for tag "${tag}"` })
+      return
+    }
     const previewDomain = buildPreviewDomain(app.domain!, tag)
     const expiresAt = previewExpiresAt(PREVIEW_TTL_HOURS)
     json(res, 202, { message: 'preview deploy triggered', tag })
-    if (isCompose && hasRepo) {
+    if (isCompose) {
       deployComposePreview(app.name, tag, previewDomain, expiresAt, tag).catch((err) =>
         console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
       )
-    } else if (!isCompose) {
+    } else {
       deployPreview(app.name, tag, tag, previewDomain, expiresAt).catch((err) =>
         console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
       )

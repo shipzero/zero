@@ -1,4 +1,5 @@
 import { createClient, unwrap } from '../client.ts'
+import { formatDeployLog } from './deploy.ts'
 import type { PreviewDeployResponse, PreviewSummary, MessageResponse } from '../../../src/types.ts'
 import {
   logInfo,
@@ -12,7 +13,8 @@ import {
   timeAgo,
   timeUntil,
   formatStatus,
-  printTable
+  printTable,
+  requireAppName
 } from '../ui.ts'
 
 async function previewDeploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
@@ -35,11 +37,26 @@ async function previewDeploy(positionals: string[], flags: Record<string, string
     process.exit(0)
   })
 
+  const abort = new AbortController()
+
+  client
+    .streamSSE(
+      `/apps/${encodeURIComponent(appName)}/logs`,
+      (line) => {
+        const formatted = formatDeployLog(line)
+        if (formatted) console.log(formatted)
+      },
+      abort.signal
+    )
+    .catch(() => {})
+
   const { data } = await client.post<PreviewDeployResponse>(`/apps/${encodeURIComponent(appName)}/previews`, {
     label,
     tag,
     ...(ttlHours !== undefined ? { ttlHours } : {})
   })
+
+  abort.abort()
 
   const result = data as PreviewDeployResponse
   if (result.success) {
@@ -52,11 +69,7 @@ async function previewDeploy(positionals: string[], flags: Record<string, string
 }
 
 async function previewLs(positionals: string[]): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero preview ls <app>')
-    process.exit(1)
-  }
+  const appName = requireAppName(positionals, 'zero preview ls <app>')
 
   const client = createClient()
   const data = unwrap(await client.get<PreviewSummary[]>(`/apps/${encodeURIComponent(appName)}/previews`), logError)
@@ -90,11 +103,10 @@ async function previewLs(positionals: string[]): Promise<void> {
 }
 
 async function previewRm(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero preview rm <app> <label> [--force] | zero preview rm <app> --all [--force]')
-    process.exit(1)
-  }
+  const appName = requireAppName(
+    positionals,
+    'zero preview rm <app> <label> [--force] | zero preview rm <app> --all [--force]'
+  )
 
   const client = createClient()
   const isAll = !!flags['all']

@@ -1,13 +1,9 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, StopResponse } from '../../../src/types.ts'
-import { logSuccess, logError, logHint, confirm, bold } from '../ui.ts'
+import { logSuccess, logError, logHint, confirm, bold, requireAppName } from '../ui.ts'
 
 export async function stop(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const appName = positionals[0]
-  if (!appName) {
-    logError('usage: zero stop <app> [--force]')
-    process.exit(1)
-  }
+  const appName = requireAppName(positionals, 'zero stop <app> [--force]')
 
   const client = createClient()
 

@@ -28,7 +28,8 @@ vi.mock('./docker.ts', () => ({
 vi.mock('./compose.ts', () => ({
   writeComposeFiles: (...args: unknown[]) => mockWriteComposeFiles(...args),
   composePull: (...args: unknown[]) => mockComposePull(...args),
-  composeUp: (...args: unknown[]) => mockComposeUp(...args)
+  composeUp: (...args: unknown[]) => mockComposeUp(...args),
+  substituteImageTags: (content: string, _repo: string, tag: string) => content.replace(/:[\w.-]+/g, `:${tag}`)
 }))
 
 vi.mock('./proxy.ts', () => ({
@@ -297,18 +298,23 @@ describe('deploy', () => {
       await expect(rollback('ghost')).rejects.toThrow('not registered')
     })
 
-    it('throws for compose apps', async () => {
+    it('rolls back compose apps to previous tag', async () => {
       state.addApp({
         name: 'stack',
         image: '',
-        trackTag: '',
+        trackTag: 'latest',
         internalPort: 80,
         env: {},
-        composeFile: 'version: "3"',
-        entryService: 'web'
+        composeFile: 'services:\n  web:\n    image: nginx',
+        entryService: 'web',
+        repo: 'nginx'
       })
+      state.addDeployment('stack', { image: 'v1', containerId: 'compose', port: 3001, deployedAt: '2024-01-01' })
+      state.addDeployment('stack', { image: 'v2', containerId: 'compose', port: 3002, deployedAt: '2024-01-02' })
 
-      await expect(rollback('stack')).rejects.toThrow('not supported for compose')
+      const result = await rollback('stack')
+      expect(result.success).toBe(true)
+      expect(result.image).toBe('v1')
     })
 
     it('throws when no rollback target exists', async () => {
