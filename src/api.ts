@@ -905,6 +905,21 @@ function extractTag(payload: Record<string, unknown>): string | null {
 
 const authFailures = new Map<string, number[]>()
 
+function cleanupAuthFailures() {
+  const now = Date.now()
+  for (const [ip, attempts] of authFailures) {
+    const recent = attempts.filter((t) => now - t < AUTH_WINDOW_MS)
+    if (recent.length === 0) {
+      authFailures.delete(ip)
+    } else {
+      authFailures.set(ip, recent)
+    }
+  }
+}
+
+const authCleanupTimer = setInterval(cleanupAuthFailures, AUTH_WINDOW_MS)
+authCleanupTimer.unref()
+
 function isRateLimited(ip: string): boolean {
   const now = Date.now()
   const attempts = authFailures.get(ip) ?? []
