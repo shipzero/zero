@@ -1,23 +1,22 @@
+import net from 'node:net'
 import tls from 'node:tls'
 import http from 'node:http'
 import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge } from './certs.ts'
 import { isTLSEnabled } from './url.ts'
 import { DEV_PORT } from './env.ts'
 
-const REQUEST_TIMEOUT_MS = 30_000
-const HEADERS_TIMEOUT_MS = 10_000
+const REQUEST_TIMEOUT_MS = 30_000 // 30 seconds
+const HEADERS_TIMEOUT_MS = 10_000 // 10 seconds
 const MAX_BODY_BYTES = 100 * 1024 * 1024 // 100 MB
 const MAX_CONNECTIONS = 1024
+const WS_IDLE_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 const HOP_BY_HOP_HEADERS = new Set([
-  'connection',
   'keep-alive',
   'proxy-authenticate',
   'proxy-authorization',
   'te',
-  'trailer',
-  'transfer-encoding',
-  'upgrade'
+  'trailer'
 ])
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -142,6 +141,46 @@ function proxyRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   forwardTo(req, res, port)
 }
 
+function proxyUpgrade(req: http.IncomingMessage, clientSocket: net.Socket, head: Buffer) {
+  const host = (req.headers.host ?? '').split(':')[0]
+  const port = routes.get(host)
+
+  if (!port) {
+    clientSocket.destroy()
+    return
+  }
+
+  const clientIp = req.socket.remoteAddress ?? ''
+  console.log(`[proxy] ${clientIp} UPGRADE ${req.headers.host}${req.url}`)
+
+  const upstream = net.connect(port, '127.0.0.1', () => {
+    const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`
+    const headers = Object.entries(req.headers)
+      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join('\r\n')
+
+    upstream.write(reqLine + headers + '\r\n\r\n')
+    if (head.length > 0) upstream.write(head)
+
+    upstream.pipe(clientSocket)
+    clientSocket.pipe(upstream)
+  })
+
+  function resetIdleTimeout(socket: net.Socket) {
+    socket.setTimeout(WS_IDLE_TIMEOUT_MS, () => {
+      clientSocket.destroy()
+      upstream.destroy()
+    })
+  }
+
+  resetIdleTimeout(clientSocket)
+  clientSocket.on('data', () => resetIdleTimeout(clientSocket))
+  upstream.on('data', () => resetIdleTimeout(clientSocket))
+
+  upstream.on('error', () => clientSocket.destroy())
+  clientSocket.on('error', () => upstream.destroy())
+}
+
 const portListeners = new Map<number, { server: http.Server; targetPort: number }>()
 
 function updatePortRoute(hostPort: number, targetPort: number) {
@@ -156,6 +195,7 @@ function updatePortRoute(hostPort: number, targetPort: number) {
   const server = http.createServer((req, res) => {
     forwardTo(req, res, entry.targetPort)
   })
+  server.on('upgrade', proxyUpgrade)
   applyServerLimits(server)
   entry.server = server
 
@@ -220,6 +260,7 @@ export function startTLSProxy() {
 
   // Non-listening HTTP server to parse decrypted TLS sockets as HTTP requests
   const httpHandler = http.createServer((req, res) => proxyRequest(req, res))
+  httpHandler.on('upgrade', proxyUpgrade)
   applyServerLimits(httpHandler)
 
   server.on('secureConnection', (socket) => {
@@ -246,6 +287,7 @@ export function startHTTPProxy() {
     proxyRequest(req, res)
   })
 
+  server.on('upgrade', proxyUpgrade)
   applyServerLimits(server)
   server.listen(80, () => console.log('[proxy] HTTP listening on :80'))
   return server
@@ -253,6 +295,7 @@ export function startHTTPProxy() {
 
 export function startDevProxy() {
   const server = http.createServer((req, res) => proxyRequest(req, res))
+  server.on('upgrade', proxyUpgrade)
   applyServerLimits(server)
 
   server.listen(DEV_PORT, () => console.log(`[proxy] dev mode — HTTP listening on :${DEV_PORT}`))

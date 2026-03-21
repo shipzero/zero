@@ -54,7 +54,12 @@ function request<T = unknown>(config: Config, opts: RequestOptions): Promise<Api
         res.on('data', (c) => chunks.push(c))
         res.on('end', () => {
           const raw = Buffer.concat(chunks).toString()
-          const data = raw ? JSON.parse(raw) : null
+          let data: T | ErrorResponse | null = null
+          try {
+            data = raw ? JSON.parse(raw) : null
+          } catch {
+            data = { error: raw || `HTTP ${res.statusCode}` } as ErrorResponse
+          }
           resolve({ status: res.statusCode ?? 0, data: data as T })
         })
       }
