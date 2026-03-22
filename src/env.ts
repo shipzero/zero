@@ -11,6 +11,7 @@ export const CERT_RENEW_BEFORE_DAYS = Number(process.env.CERT_RENEW_BEFORE_DAYS 
 export const CERT_RENEW_INTERVAL_MS = Number(process.env.CERT_RENEW_INTERVAL_MS ?? 12 * 60 * 60 * 1000)
 export const COMPOSE_BASE_DIR = process.env.COMPOSE_DIR ?? (IS_DEV ? '.zero/compose' : '/var/lib/zero/compose')
 import { parseDuration } from './duration.ts'
+import { parseSize } from './size.ts'
 
 function safeParseDuration(value: string, fallback: string): number {
   try {
@@ -22,3 +23,14 @@ function safeParseDuration(value: string, fallback: string): number {
 }
 
 export const PREVIEW_TTL_MS = safeParseDuration(process.env.PREVIEW_TTL ?? '7d', '7d')
+
+function safeParseSize(value: string, fallback: string): number {
+  try {
+    return parseSize(value)
+  } catch {
+    console.error(`[config] invalid MAX_BODY_SIZE "${value}", falling back to ${fallback}`)
+    return parseSize(fallback)
+  }
+}
+
+export const MAX_BODY_BYTES = safeParseSize(process.env.MAX_BODY_SIZE ?? '100m', '100m')

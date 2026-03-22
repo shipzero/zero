@@ -161,6 +161,7 @@ Configuration is stored in `/opt/zero/.env`:
 | `API_PORT`               | API server port                                 | `2020`        |
 | `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`          |
 | `PREVIEW_TTL`            | Default time to live for preview deployments    | `7d`          |
+| `MAX_BODY_SIZE`          | Maximum request body size for the reverse proxy | `100m`        |
 
 View server logs:
 
@@ -577,7 +578,7 @@ header.
 - Apps without a domain can be exposed directly via `--host-port`
 - Security headers added automatically: `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`
 - Forwarding headers set: `X-Forwarded-For`, `X-Real-IP`, `X-Forwarded-Proto`
-- Request timeout: 60s, max body size: 100 MB
+- Request timeout: 60s, max body size: 100 MB (configurable via `MAX_BODY_SIZE`)
 
 ### Certificate Management
 

@@ -4,6 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/main.ts",
-    "build": "bun build src/main.ts --compile --outfile ../dist/zero"
+    "build": "bun build src/main.ts --compile --outfile ../dist/zero",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.0"
   }
 }

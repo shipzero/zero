@@ -3,12 +3,12 @@ import tls from 'node:tls'
 import http from 'node:http'
 import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge } from './certs.ts'
 import { isTLSEnabled } from './url.ts'
-import { DEV_PORT, API_PORT } from './env.ts'
+import { DEV_PORT, API_PORT, MAX_BODY_BYTES } from './env.ts'
 
 const REQUEST_TIMEOUT_MS = 60_000 // 60 seconds
 const HEADERS_TIMEOUT_MS = 10_000 // 10 seconds
-const MAX_BODY_BYTES = 100 * 1024 * 1024 // 100 MB
 const MAX_CONNECTIONS = 1024
+const MAX_CONNECTIONS_PER_IP = 128
 const WS_IDLE_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 const HOP_BY_HOP_HEADERS = new Set(['keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer'])
@@ -17,6 +17,32 @@ const SECURITY_HEADERS: Record<string, string> = {
   'strict-transport-security': 'max-age=63072000; includeSubDomains',
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'SAMEORIGIN'
+}
+
+const connectionsPerIp = new Map<string, number>()
+
+function trackConnectionsPerIp(server: net.Server | tls.Server): void {
+  server.on('connection', (socket: net.Socket) => {
+    const ip = socket.remoteAddress ?? ''
+    const current = connectionsPerIp.get(ip) ?? 0
+
+    if (current >= MAX_CONNECTIONS_PER_IP) {
+      console.warn(`[proxy] per-IP limit exceeded for ${ip} (${current} connections)`)
+      socket.destroy()
+      return
+    }
+
+    connectionsPerIp.set(ip, current + 1)
+
+    socket.once('close', () => {
+      const count = connectionsPerIp.get(ip) ?? 1
+      if (count <= 1) {
+        connectionsPerIp.delete(ip)
+      } else {
+        connectionsPerIp.set(ip, count - 1)
+      }
+    })
+  })
 }
 
 const routes = new Map<string, number>()
@@ -192,6 +218,7 @@ function updatePortRoute(hostPort: number, targetPort: number) {
   })
   server.on('upgrade', proxyUpgrade)
   applyServerLimits(server)
+  trackConnectionsPerIp(server)
   entry.server = server
 
   server.on('error', (err) => {
@@ -262,6 +289,7 @@ export function startTLSProxy() {
     httpHandler.emit('connection', socket)
   })
 
+  trackConnectionsPerIp(server)
   server.listen(443, () => console.log('[proxy] TLS listening on :443'))
   return server
 }
@@ -284,6 +312,7 @@ export function startHTTPProxy() {
 
   server.on('upgrade', proxyUpgrade)
   applyServerLimits(server)
+  trackConnectionsPerIp(server)
   server.listen(80, () => console.log('[proxy] HTTP listening on :80'))
   return server
 }
@@ -292,6 +321,7 @@ export function startDevProxy() {
   const server = http.createServer((req, res) => proxyRequest(req, res))
   server.on('upgrade', proxyUpgrade)
   applyServerLimits(server)
+  trackConnectionsPerIp(server)
 
   server.listen(DEV_PORT, () => console.log(`[proxy] dev mode — HTTP listening on :${DEV_PORT}`))
   return server
