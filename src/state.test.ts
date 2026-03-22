@@ -270,7 +270,7 @@ describe('state', () => {
 
   describe('preview helpers', () => {
     it('buildPreviewDomain builds correct subdomain', () => {
-      expect(state.buildPreviewDomain('myapp.example.com', 'pr-42')).toBe('pr-42.myapp.example.com')
+      expect(state.buildPreviewDomain('myapp.example.com', 'pr-42')).toBe('preview-pr-42.myapp.example.com')
     })
 
     it('setPreview and getPreview work correctly', () => {

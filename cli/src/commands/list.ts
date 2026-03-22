@@ -15,7 +15,7 @@ function formatUrl(
   return '—'
 }
 
-export async function ls(): Promise<void> {
+export async function list(): Promise<void> {
   const client = createClient()
   const spin = spinner('loading apps...')
   const res = await client.get<AppSummary[]>('/apps')
@@ -23,7 +23,7 @@ export async function ls(): Promise<void> {
   const data = unwrap(res, logError)
 
   if (data.length === 0) {
-    logInfo('no apps registered')
+    logInfo('No apps registered')
     return
   }
 

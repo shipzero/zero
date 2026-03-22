@@ -1,78 +1,20 @@
 import { createClient, unwrap } from '../client.ts'
-import { formatDeployLog } from './deploy.ts'
 import type { PreviewSummary, MessageResponse } from '../../../src/types.ts'
 import {
   logInfo,
   logSuccess,
   logError,
-  logHint,
   bold,
   dim,
-  cyan,
   confirm,
   timeAgo,
   timeUntil,
   formatStatus,
   printTable,
   requireAppName,
-  spinner
+  spinner,
+  printCommandHelp
 } from '../ui.ts'
-
-async function previewDeploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const appName = positionals[0]
-  const tag = flags['tag'] as string | undefined
-  if (!appName || !tag) {
-    logError('usage: zero preview deploy <app> --tag <tag> [--label <label>] [--ttl <duration>]')
-    process.exit(1)
-  }
-
-  const label = (flags['label'] as string | undefined) ?? tag
-  const ttl = flags['ttl'] as string | undefined
-  const client = createClient()
-
-  logInfo(`deploying preview ${bold(label)} for ${bold(appName)}...`)
-
-  process.on('SIGINT', () => {
-    console.log(dim('\n[disconnected — deploy continues on the server]'))
-    process.exit(0)
-  })
-
-  interface PreviewEvent {
-    event: string
-    message?: string
-    success?: boolean
-    url?: string
-    error?: string
-  }
-
-  let result: PreviewEvent | undefined
-
-  await client.postSSE(
-    `/apps/${encodeURIComponent(appName)}/previews`,
-    { label, tag, ...(ttl ? { ttl } : {}) },
-    (raw) => {
-      const event = JSON.parse(raw) as PreviewEvent
-
-      if (event.event === 'log' && event.message) {
-        const formatted = formatDeployLog(event.message)
-        if (formatted) console.log(formatted)
-        return
-      }
-
-      if (event.event === 'complete') {
-        result = event
-      }
-    }
-  )
-
-  if (result?.success) {
-    logSuccess(`preview deployed: ${cyan(result.url ?? '')}`)
-    logHint(`remove with: zero preview rm ${appName} ${label}`)
-  } else {
-    logError(result?.error ?? 'preview deploy failed')
-    process.exit(1)
-  }
-}
 
 async function previewLs(positionals: string[]): Promise<void> {
   const appName = requireAppName(positionals, 'zero preview ls <app>')
@@ -84,7 +26,7 @@ async function previewLs(positionals: string[]): Promise<void> {
   const data = unwrap(res, logError)
 
   if (data.length === 0) {
-    logInfo(`no previews for ${appName}`)
+    logInfo(`No previews for ${appName}`)
     return
   }
 
@@ -122,7 +64,7 @@ async function previewRm(positionals: string[], flags: Record<string, string | t
   const label = positionals[1]
 
   if (!isAll && !label) {
-    logError('usage: zero preview rm <app> <label> [--force] | zero preview rm <app> --all [--force]')
+    logError('Usage: zero preview rm <app> <label> [--force] | zero preview rm <app> --all [--force]')
     process.exit(1)
   }
 
@@ -152,17 +94,28 @@ export async function preview(
   flags: Record<string, string | true>
 ): Promise<void> {
   switch (subcommand) {
-    case 'deploy':
-      await previewDeploy(positionals, flags)
-      break
+    case 'list':
     case 'ls':
       await previewLs(positionals)
       break
+    case 'remove':
     case 'rm':
       await previewRm(positionals, flags)
       break
     default:
-      logError('usage: zero preview <deploy|ls|rm> ...')
+      printCommandHelp(
+        'zero preview <subcommand> <app> [args]',
+        [
+          ['--force', 'Skip confirmation prompt'],
+          ['--all', 'Remove all previews']
+        ],
+        [
+          'zero deploy myapp --preview pr-42        Deploy a preview',
+          'zero preview list myapp                  List previews',
+          'zero preview remove myapp pr-42          Remove a preview',
+          'zero preview remove myapp --all          Remove all previews'
+        ]
+      )
       process.exit(1)
   }
 }

@@ -19,7 +19,7 @@ export async function rollback(positionals: string[], flags: Record<string, stri
     )
 
     const ago = timeAgo(target.deployedAt)
-    const ok = await confirm(`roll back ${bold(appName)} to ${bold(target.image)} ${dim(`(deployed ${ago})`)}?`)
+    const ok = await confirm(`Roll back ${bold(appName)} to ${bold(target.image)} ${dim(`(deployed ${ago})`)}?`)
     if (!ok) {
       process.exit(0)
     }
@@ -30,6 +30,6 @@ export async function rollback(positionals: string[], flags: Record<string, stri
   spin.stop()
   const data = unwrap(res, logError)
 
-  logSuccess(`rolled back ${appName} to ${data.image}`)
-  logHint(`view logs: zero logs ${appName}`)
+  logSuccess(`Rolled back ${appName} to ${data.image}`)
+  logHint(`View logs: zero logs ${appName}`)
 }

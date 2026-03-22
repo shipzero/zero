@@ -310,6 +310,8 @@ interface DeployPayload {
   composeFile?: string
   entryService?: string
   repo?: string
+  preview?: string
+  ttl?: string
 }
 
 route('POST', '/deploy', async (req, res) => {
@@ -370,13 +372,6 @@ route('POST', '/deploy', async (req, res) => {
     isNew = true
   }
 
-  let imageWithTag: string | undefined
-  if (isComposeApp(app)) {
-    imageWithTag = body.tag || app.trackTag || undefined
-  } else {
-    imageWithTag = `${app.image}:${body.tag ?? app.trackTag}`
-  }
-
   startSSE(res)
   sendSSE(
     res,
@@ -390,6 +385,62 @@ route('POST', '/deploy', async (req, res) => {
 
   const onDeployLog = (line: string) => sendSSE(res, JSON.stringify({ event: 'log', message: line }))
   deployEvents.on(`log:${appName}`, onDeployLog)
+
+  if (body.preview) {
+    if (!app.domain) {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(res, JSON.stringify({ event: 'complete', success: false, error: 'app must have a domain for previews' }))
+      res.end()
+      return
+    }
+
+    const label = body.preview
+    const tag = body.tag ?? label
+    let ttlMs: number
+    try {
+      ttlMs = body.ttl ? parseDuration(body.ttl) : PREVIEW_TTL_MS
+    } catch {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(res, JSON.stringify({ event: 'complete', success: false, error: `invalid ttl "${body.ttl}"` }))
+      res.end()
+      return
+    }
+
+    const previewDomain = buildPreviewDomain(app.domain, label)
+    const expiresAt = previewExpiresAt(ttlMs)
+
+    try {
+      if (isComposeApp(app)) {
+        await deployComposePreview(appName, label, previewDomain, expiresAt, tag)
+      } else {
+        await deployPreview(appName, label, tag, previewDomain, expiresAt)
+      }
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(res, JSON.stringify({
+        event: 'complete',
+        success: true,
+        appName,
+        label,
+        url: buildDomainUrl(previewDomain)
+      }))
+    } catch (err) {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(res, JSON.stringify({
+        event: 'complete',
+        success: false,
+        error: getErrorMessage(err)
+      }))
+    }
+    res.end()
+    return
+  }
+
+  let imageWithTag: string | undefined
+  if (isComposeApp(app)) {
+    imageWithTag = body.tag || app.trackTag || undefined
+  } else {
+    imageWithTag = `${app.image}:${body.tag ?? app.trackTag}`
+  }
 
   const result = await deploy(appName, imageWithTag)
 
@@ -615,7 +666,7 @@ route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
   json<MessageResponse>(res, 200, { message: 'env removed — redeploy to apply' })
 })
 
-route('POST', '/apps/:name/webhooks/reset', async (_req, res, { name }) => {
+route('POST', '/apps/:name/webhook', async (_req, res, { name }) => {
   if (!requireApp(name, res)) return
   const secret = resetWebhookSecret(name)
   json(res, 200, { webhookSecret: secret, webhookUrl: buildWebhookUrl(secret) })

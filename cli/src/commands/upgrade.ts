@@ -13,24 +13,24 @@ export async function upgrade(flags: Record<string, string | true>): Promise<voi
   const shouldUpgradeServer = flags['server'] === true || flags['all'] === true
   const shouldUpgradeCli = flags['server'] !== true || flags['all'] === true
   const isForce = flags['force'] === true
-  const isPreview = flags['preview'] === true
+  const isCanary = flags['canary'] === true
 
   if (shouldUpgradeCli) {
-    await upgradeCli(isForce, isPreview)
+    await upgradeCli(isForce, isCanary)
   }
 
   if (shouldUpgradeServer) {
-    await upgradeServer(isPreview)
+    await upgradeServer(isCanary)
   }
 }
 
-function fetchLatestRelease(isPreview: boolean): { tag: string } {
-  if (isPreview) {
+function fetchLatestRelease(isCanary: boolean): { tag: string } {
+  if (isCanary) {
     const json = execSync(`curl -fsSL https://api.github.com/repos/${REPO}/releases`, { encoding: 'utf8' })
     const releases = JSON.parse(json) as Array<{ tag_name: string; prerelease: boolean }>
     const preview = releases.find((r) => r.prerelease)
     if (!preview) {
-      logError('no preview release found')
+      logError('No canary release found')
       process.exit(1)
     }
     return { tag: preview.tag_name }
@@ -41,13 +41,13 @@ function fetchLatestRelease(isPreview: boolean): { tag: string } {
   return { tag: latest.tag_name }
 }
 
-async function upgradeCli(isForce: boolean, isPreview: boolean): Promise<void> {
+async function upgradeCli(isForce: boolean, isCanary: boolean): Promise<void> {
   const platform = process.platform === 'darwin' ? 'zero-macos' : 'zero-linux'
 
-  const { tag } = fetchLatestRelease(isPreview)
+  const { tag } = fetchLatestRelease(isCanary)
 
-  if (tag === baseVersion(VERSION) && !isForce && !isPreview) {
-    logInfo(`cli already up to date (${VERSION})`)
+  if (tag === baseVersion(VERSION) && !isForce && !isCanary) {
+    logInfo(`CLI already up to date (${VERSION})`)
     return
   }
 
@@ -65,11 +65,11 @@ async function upgradeCli(isForce: boolean, isPreview: boolean): Promise<void> {
     { stdio: 'inherit' }
   )
 
-  logSuccess(`cli upgraded to ${tag}`)
+  logSuccess(`CLI upgraded to ${tag}`)
 }
 
-async function upgradeServer(isPreview: boolean): Promise<void> {
-  const { tag } = fetchLatestRelease(isPreview)
+async function upgradeServer(isCanary: boolean): Promise<void> {
+  const { tag } = fetchLatestRelease(isCanary)
   const client = createClient()
   const spin = spinner(`upgrading server to ${tag}...`)
   const res = await client.post<MessageResponse>('/upgrade', { tag })

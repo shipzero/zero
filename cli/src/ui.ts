@@ -151,10 +151,29 @@ export function spinner(message: string): { stop: (finalMessage?: string) => voi
   }
 }
 
+export function printCommandHelp(usage: string, options?: Array<[string, string]>, examples?: string[]): void {
+  console.log(`\n  Usage: ${usage}\n`)
+  if (options && options.length > 0) {
+    const maxFlag = Math.max(...options.map(([flag]) => flag.length))
+    console.log('  Options:')
+    for (const [flag, desc] of options) {
+      console.log(`    ${cyan(flag.padEnd(maxFlag))}  ${dim(desc)}`)
+    }
+    console.log()
+  }
+  if (examples && examples.length > 0) {
+    console.log('  Examples:')
+    for (const ex of examples) {
+      console.log(`    ${dim(ex)}`)
+    }
+    console.log()
+  }
+}
+
 export function requireAppName(positionals: string[], usage: string): string {
   const appName = positionals[0]
   if (!appName) {
-    logError(`usage: ${usage}`)
+    logError(`Usage: ${usage}`)
     process.exit(1)
   }
   return appName

@@ -2,8 +2,8 @@ import { createClient, unwrap } from '../client.ts'
 import type { DeploymentInfo } from '../../../src/types.ts'
 import { dim, green, logInfo, logError, printTable, requireAppName, spinner } from '../ui.ts'
 
-export async function deployments(positionals: string[]): Promise<void> {
-  const appName = requireAppName(positionals, 'zero deployments <app>')
+export async function history(positionals: string[]): Promise<void> {
+  const appName = requireAppName(positionals, 'zero history <app>')
 
   const client = createClient()
   const spin = spinner('loading deployments...')
@@ -12,7 +12,7 @@ export async function deployments(positionals: string[]): Promise<void> {
   const data = unwrap(res, logError)
 
   if (data.length === 0) {
-    logInfo('no deployments')
+    logInfo('No deployments')
     return
   }
 

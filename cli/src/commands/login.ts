@@ -10,7 +10,7 @@ export async function login(positionals: string[], _flags: Record<string, string
   const ssh = positionals[0]
 
   if (!ssh || !ssh.includes('@')) {
-    logError('usage: zero login <user@server>')
+    logError('Usage: zero login <user@server>')
     console.error('Example: zero login root@your-server.com')
     process.exit(1)
   }
@@ -27,13 +27,13 @@ export async function login(positionals: string[], _flags: Record<string, string
   const host = await resolveApiUrl(server, jwt)
   spin.stop()
   if (!host) {
-    logError('authentication failed')
+    logError('Authentication failed')
     process.exit(1)
   }
 
   saveConfig({ host, token: jwt, ssh })
   ensureGitignore()
-  logSuccess(`linked to ${host}`)
+  logSuccess(`Linked to ${host}`)
 }
 
 const SSH_COMMAND =
@@ -57,7 +57,7 @@ export async function sshMintJwt(ssh: string): Promise<string | null> {
   if (!ok) return null
 
   if (!stdout) {
-    logError('failed to obtain token — is zero running on the server?')
+    logError('Failed to obtain token — is zero running on the server?')
     return null
   }
 
@@ -68,7 +68,7 @@ export async function sshMintJwt(ssh: string): Promise<string | null> {
     // not JSON
   }
 
-  logError('unexpected response from server')
+  logError('Unexpected response from server')
   return null
 }
 
@@ -117,5 +117,5 @@ function ensureGitignore(): void {
   if (content.includes('.zero')) return
 
   fs.appendFileSync(gitignorePath, '\n# zero\n.zero/\n')
-  logInfo('added .zero/ to .gitignore')
+  logInfo('Added .zero/ to .gitignore')
 }

@@ -53,7 +53,7 @@ export function isComposeApp(app: AppConfig): boolean {
 }
 
 export function buildPreviewDomain(parentDomain: string, label: string): string {
-  return `${label}.${parentDomain}`
+  return `preview-${label}.${parentDomain}`
 }
 
 export function getPreview(appName: string, label: string): Preview | undefined {

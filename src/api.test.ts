@@ -586,12 +586,12 @@ describe('API', () => {
     })
   })
 
-  describe('POST /apps/:name/webhooks/reset', () => {
+  describe('POST /apps/:name/webhook', () => {
     it('resets webhook secret and returns new URL', async () => {
       await request('POST', '/apps', { name: 'hookapp', image: 'nginx:latest' })
       const oldSecret = state.getApp('hookapp')!.webhookSecret
 
-      const res = await request('POST', '/apps/hookapp/webhooks/reset')
+      const res = await request('POST', '/apps/hookapp/webhook')
       expect(res.status).toBe(200)
 
       const body = res.body as { webhookSecret: string; webhookUrl: string }
@@ -601,7 +601,7 @@ describe('API', () => {
     })
 
     it('returns 404 for unknown app', async () => {
-      const res = await request('POST', '/apps/nope/webhooks/reset')
+      const res = await request('POST', '/apps/nope/webhook')
       expect(res.status).toBe(404)
     })
   })
@@ -741,11 +741,11 @@ describe('API', () => {
       const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
       expect(complete.name).toBe('prev')
       expect(complete.label).toBe('pr-1')
-      expect(complete.domain).toBe('pr-1.prev.example.com')
+      expect(complete.domain).toBe('preview-pr-1.prev.example.com')
       expect(complete.success).toBe(true)
       const preview = state.getApp('prev')?.previews['pr-1']
       expect(preview).toBeDefined()
-      expect(preview!.domain).toBe('pr-1.prev.example.com')
+      expect(preview!.domain).toBe('preview-pr-1.prev.example.com')
     })
 
     it('redeploys existing preview', async () => {
@@ -795,7 +795,7 @@ describe('API', () => {
       const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
       expect(complete.name).toBe('compprev')
       expect(complete.label).toBe('pr-1')
-      expect(complete.domain).toBe('pr-1.compprev.example.com')
+      expect(complete.domain).toBe('preview-pr-1.compprev.example.com')
       expect(complete.success).toBe(true)
       const preview = state.getApp('compprev')?.previews['pr-1']
       expect(preview).toBeDefined()

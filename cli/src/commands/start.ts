@@ -11,5 +11,5 @@ export async function start(positionals: string[]): Promise<void> {
   spin.stop()
   unwrap(res, logError)
 
-  logSuccess(`started ${appName}`)
+  logSuccess(`Started ${appName}`)
 }

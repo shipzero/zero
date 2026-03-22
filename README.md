@@ -134,8 +134,8 @@ All options:
 
 ```bash
 zero env set myapp DATABASE_URL=postgres://localhost/mydb SECRET_KEY=abc123
-zero env ls myapp
-zero env rm myapp SECRET_KEY
+zero env list myapp
+zero env remove myapp SECRET_KEY
 ```
 
 Changes take effect on the next `zero deploy myapp`.
@@ -152,7 +152,7 @@ Format: `source:destination[:mode]`
 
 ```bash
 zero registry login ghcr.io --user <username> --password <token>
-zero registry ls
+zero registry list
 zero registry logout ghcr.io
 ```
 
@@ -206,14 +206,14 @@ Starts a new container from the previous image and swaps traffic once healthy.
 ```bash
 zero stop myapp              # stop container, traffic returns 502
 zero start myapp             # restart and health-check before routing
-zero rm myapp                # remove app and all its containers
+zero remove myapp             # remove app and all its containers
 ```
 
 ### Deployment history
 
 ```bash
-zero deployments myapp
-zero ls                      # list all apps with status, URL, image
+zero history myapp
+zero list                     # list all apps with status, URL, image
 ```
 
 ## Preview deployments
@@ -221,16 +221,16 @@ zero ls                      # list all apps with status, URL, image
 Spin up a temporary version of any app:
 
 ```bash
-zero preview deploy myapp --tag pr-42
-# => https://pr-42.myapp.your-server.com
+zero deploy myapp --preview pr-42
+# => https://preview-pr-42.myapp.your-server.com
 ```
 
 Previews expire automatically (default: 7 days). One command, temporary URL, automatic cleanup.
 
 ```bash
-zero preview deploy myapp --tag feat-branch --label feat-1 --ttl 24h
-zero preview ls myapp
-zero preview rm myapp pr-42
+zero deploy myapp --preview feat-1 --tag feat-branch --ttl 24h
+zero preview list myapp
+zero preview remove myapp pr-42
 ```
 
 Previews get their own subdomain, logs, and metrics:
@@ -245,7 +245,7 @@ zero metrics myapp --preview pr-42
 Every app gets a unique webhook URL. Push an image to your registry, zero deploys it automatically.
 
 ```bash
-zero webhook reset myapp     # get the webhook URL
+zero webhook url myapp        # show and rotate webhook URL
 ```
 
 Add the URL as a webhook in GitHub Container Registry or Docker Hub. Payloads are verified using HMAC-SHA256.
@@ -330,38 +330,23 @@ No Nginx. No Traefik. zero includes a built-in reverse proxy:
 ```
 zero <command> [options]
 
-deploy <image> [options]                Deploy (infers name, domain, and port)
-deploy <app> [--tag <tag>]              Redeploy an existing app
-deploy --compose <file> --service <svc> --name <n> [options]
-                                        Deploy a Compose stack
-  Options: [--name] [--domain] [--port] [--host-port] [--tag] [--command] [--volume] [--health-path] [--health-timeout]
-deployments <app>                       Show deployment history
-env ls <app>                            List environment variables
-env set <app> KEY=val [KEY=val ...]     Set environment variables
-env rm <app> KEY [KEY ...]              Remove environment variables
+deploy <image-or-app> [options]         Deploy an app (creates if new)
+env <set|list|remove> <app> [args]       Manage environment variables
+history <app>                           Show deployment history
+list                                    List all apps
 login <user@server>                     Authenticate via SSH
-logs <app> [--preview <label>] | --server
-                                        Stream app or preview logs
-ls                                      List all apps (including previews)
-metrics <app> [--preview <label>] | --server
-                                        Show live resource usage
-preview deploy <app> --tag <tag> [--label] [--ttl]
-                                        Deploy a preview
-preview ls <app>                        List previews for an app
-preview rm <app> <label> [--force]      Remove a preview
-preview rm <app> --all [--force]        Remove all previews
-registry login <server> --user --password
-                                        Add registry credentials
-registry logout <server>                Remove registry credentials
-registry ls                             List configured registries
-rm <app> [--force]                      Remove an app and its containers
+logs <app> [--preview <label>]          Stream app logs
+metrics <app> [--preview <label>]       Show live resource usage
+preview <list|remove> <app> [label]      Manage preview deployments
+registry <login|logout|list> [server]   Manage registry credentials
+remove <app> [--force]                  Remove an app and its containers
 rollback <app> [--force]                Roll back to previous deployment
-start <app>                             Start a stopped container
+start <app>                             Start a stopped app
 status                                  Show server connection info
-stop <app> [--force]                    Stop a running container
-upgrade [--server] [--all] [--force]    Upgrade CLI and/or server
+stop <app> [--force]                    Stop a running app
+upgrade [--server] [--all]              Upgrade CLI and/or server
 version                                 Show CLI and server version
-webhook reset <app>                     Reset webhook secret
+webhook url <app>                       Show and rotate webhook URL
 ```
 
 ## Sponsors

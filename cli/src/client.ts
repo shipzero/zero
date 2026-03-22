@@ -18,7 +18,7 @@ interface ApiResponse<T = unknown> {
 
 export function unwrap<T>(response: ApiResponse<T>, logError: (msg: string) => void): T {
   if (response.status === 401) {
-    logError('session expired — run: zero login user@server')
+    logError('Session expired — run: zero login user@server')
     process.exit(1)
   }
   if (response.status >= 400) {

@@ -16,6 +16,6 @@ export async function status(): Promise<void> {
     logInfo(`apps: ${Array.isArray(apps) ? apps.length : 0}`)
   } catch {
     spin.stop()
-    logError('server unreachable')
+    logError('Server unreachable')
   }
 }
