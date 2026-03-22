@@ -14,7 +14,7 @@ export async function registry(
       return registryLogout(positionals)
     case 'list':
     case 'ls':
-      return registryLs()
+      return registryList()
     default:
       printCommandHelp(
         'zero registry <subcommand> [args]',
@@ -59,7 +59,7 @@ async function registryLogout(positionals: string[]): Promise<void> {
   logSuccess(`Logged out from ${server}`)
 }
 
-async function registryLs(): Promise<void> {
+async function registryList(): Promise<void> {
   const client = createClient()
   const spin = spinner('loading registries...')
   const res = await client.get<string[]>('/registries')
