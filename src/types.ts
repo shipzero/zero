@@ -28,7 +28,7 @@ export interface AppDetail {
   name: string
   image: string
   domain?: string
-  internalPort: number
+  internalPort?: number
   trackTag: string
   repo?: string
   env: Record<string, string>
@@ -106,6 +106,7 @@ export interface PreviewSummary {
 
 export interface DeploymentInfo {
   image: string
+  digest?: string
   containerId: string
   port: number
   deployedAt: string

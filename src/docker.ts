@@ -40,6 +40,30 @@ export async function pullImage(image: string, onProgress?: (status: string) => 
   console.log(`[docker] pulled ${image}`)
 }
 
+export interface ImageInspection {
+  exposedPorts: number[]
+  digest?: string
+}
+
+/** Inspects a pulled image for EXPOSE ports and registry digest. */
+export async function inspectImage(imageRef: string): Promise<ImageInspection> {
+  try {
+    const data = await docker.getImage(imageRef).inspect()
+
+    const exposedPorts = Object.keys(data.Config?.ExposedPorts ?? {})
+      .map((key) => parseInt(key, 10))
+      .filter((port) => !isNaN(port))
+      .sort((a, b) => a - b)
+
+    const repoDigest = (data.RepoDigests ?? [])[0]
+    const digest = repoDigest?.split('@')[1]
+
+    return { exposedPorts, digest }
+  } catch {
+    return { exposedPorts: [] }
+  }
+}
+
 export interface RunOpts {
   image: string
   appName: string

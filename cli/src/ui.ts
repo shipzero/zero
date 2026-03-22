@@ -197,3 +197,28 @@ export async function confirm(message: string): Promise<boolean> {
     })
   })
 }
+
+export async function printDnsTable(domain: string, serverHost: string): Promise<void> {
+  const dns = await import('node:dns/promises')
+  const hostname = new URL(serverHost).hostname
+  let ip = hostname
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+    try {
+      const addresses = await dns.resolve4(hostname)
+      ip = addresses[0]
+    } catch {}
+  }
+
+  const typeWidth = 4
+  const nameWidth = Math.max(4, domain.length, `*.${domain}`.length)
+
+  console.log()
+  console.log(bold('  DNS:'))
+  console.log(
+    `  ${'A'.padEnd(typeWidth)}  ${domain.padEnd(nameWidth)}  ${ip}  ${dim('(required — makes the app reachable)')}`
+  )
+  console.log(
+    `  ${'A'.padEnd(typeWidth)}  ${`*.${domain}`.padEnd(nameWidth)}  ${ip}  ${dim('(recommended — enables preview subdomains)')}`
+  )
+  console.log()
+}

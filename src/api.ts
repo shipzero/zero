@@ -36,7 +36,7 @@ import {
 import { composeDir, composeDown, composeStop, composeStart, composeLogs, removeComposeDir } from './compose.ts'
 import { routeApp, unrouteApp } from './proxy.ts'
 import { destroyPreview } from './preview.ts'
-import { isTLSEnabled, buildDomainUrl } from './url.ts'
+import { isTLSEnabled, buildDomainUrl, buildWebhookUrl, hasDomain } from './url.ts'
 import { IS_DEV, TOKEN, JWT_SECRET, DOMAIN, API_PORT, PREVIEW_TTL_MS } from './env.ts'
 import { signJwt, verifyJwt } from './jwt.ts'
 import { VERSION } from './version.ts'
@@ -52,7 +52,6 @@ import type {
   PreviewSummary
 } from './types.ts'
 
-const WEBHOOK_HOST = DOMAIN || 'localhost'
 const ZERO_CONTAINER = 'zero'
 const BEARER_PREFIX = 'Bearer '
 const MAX_BODY_SIZE = 1024 * 1024
@@ -60,8 +59,12 @@ const JWT_TTL_SECONDS = 24 * 60 * 60
 const AUTH_WINDOW_MS = 60_000
 const MAX_AUTH_FAILURES = 10
 
-function webhookUrl(secret: string): string {
-  return `${buildDomainUrl(WEBHOOK_HOST)}/webhooks/${secret}`
+function inferNameFromImage(imageRef: string): string {
+  const colonIdx = imageRef.lastIndexOf(':')
+  const hasTag = colonIdx > 0 && !imageRef.substring(colonIdx).includes('/')
+  const withoutTag = hasTag ? imageRef.substring(0, colonIdx) : imageRef
+  const segments = withoutTag.split('/')
+  return segments[segments.length - 1]
 }
 
 function parseImageRef(ref: string): { image: string; tag: string } {
@@ -260,7 +263,7 @@ route('GET', '/apps', async (_req, res) => {
         port: deployment?.port,
         deployedAt: deployment?.deployedAt,
         status,
-        webhookUrl: webhookUrl(app.webhookSecret),
+        webhookUrl: buildWebhookUrl(app.webhookSecret),
         previews
       }
     })
@@ -293,6 +296,108 @@ interface UpdateEnvRequest {
   [key: string]: string
 }
 
+interface DeployPayload {
+  image?: string
+  name?: string
+  domain?: string
+  port?: number
+  hostPort?: number
+  command?: string[]
+  volumes?: string[]
+  healthPath?: string
+  healthTimeout?: string
+  tag?: string
+  composeFile?: string
+  entryService?: string
+  repo?: string
+}
+
+route('POST', '/deploy', async (req, res) => {
+  const body = parseJSON<DeployPayload>((await readBody(req)).toString())
+  if (!body) {
+    json(res, 400, { error: 'invalid JSON' })
+    return
+  }
+
+  if (!body.image && !body.name) {
+    json(res, 400, { error: 'image or name required' })
+    return
+  }
+
+  if (body.healthTimeout) {
+    try {
+      parseDuration(body.healthTimeout)
+    } catch {
+      json(res, 400, { error: `invalid healthTimeout "${body.healthTimeout}" — use e.g. 30s, 3m` })
+      return
+    }
+  }
+
+  const appName = body.name ?? inferNameFromImage(body.image!)
+  let app = getApp(appName)
+  let isNew = false
+
+  if (!app) {
+    if (!body.image) {
+      json(res, 404, { error: `app "${appName}" not found` })
+      return
+    }
+
+    const isCompose = !!body.composeFile
+    if (isCompose && !body.entryService) {
+      json(res, 400, { error: 'entryService required for compose apps' })
+      return
+    }
+
+    const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image)
+
+    const domain = body.domain ?? (hasDomain() ? `${appName}.${DOMAIN}` : undefined)
+
+    app = addApp({
+      name: appName,
+      image,
+      domain,
+      internalPort: isCompose ? (body.port ?? 80) : body.port,
+      hostPort: body.hostPort,
+      command: body.command,
+      volumes: body.volumes,
+      healthPath: body.healthPath,
+      healthTimeout: body.healthTimeout,
+      trackTag: tag,
+      env: {},
+      ...(isCompose ? { composeFile: body.composeFile, entryService: body.entryService, repo: body.repo } : {})
+    })
+    isNew = true
+  }
+
+  let imageWithTag: string | undefined
+  if (isComposeApp(app)) {
+    imageWithTag = body.tag || app.trackTag || undefined
+  } else {
+    imageWithTag = `${app.image}:${body.tag ?? app.trackTag}`
+  }
+
+  startSSE(res)
+  sendSSE(
+    res,
+    JSON.stringify({
+      event: 'accepted',
+      appName,
+      isNew,
+      ...(isNew ? { webhookUrl: buildWebhookUrl(app.webhookSecret) } : {})
+    })
+  )
+
+  const onDeployLog = (line: string) => sendSSE(res, JSON.stringify({ event: 'log', message: line }))
+  deployEvents.on(`log:${appName}`, onDeployLog)
+
+  const result = await deploy(appName, imageWithTag)
+
+  deployEvents.removeListener(`log:${appName}`, onDeployLog)
+  sendSSE(res, JSON.stringify({ event: 'complete', ...result, appName, isNew }))
+  res.end()
+})
+
 route('POST', '/apps', async (req, res) => {
   const body = parseJSON<AddAppRequest>((await readBody(req)).toString())
   if (!body) {
@@ -302,7 +407,6 @@ route('POST', '/apps', async (req, res) => {
   const {
     name,
     domain,
-    internalPort = 3000,
     hostPort,
     command,
     volumes,
@@ -312,6 +416,9 @@ route('POST', '/apps', async (req, res) => {
     composeFile,
     entryService
   } = body
+
+  const isCompose = !!composeFile
+  const internalPort = isCompose ? (body.internalPort ?? 80) : body.internalPort
 
   if (!name) {
     json(res, 400, { error: 'name required' })
@@ -327,7 +434,6 @@ route('POST', '/apps', async (req, res) => {
     }
   }
 
-  const isCompose = !!composeFile
   if (isCompose && !entryService) {
     json(res, 400, { error: 'entryService required for compose apps' })
     return
@@ -362,7 +468,7 @@ route('POST', '/apps', async (req, res) => {
   json<AddAppResponse>(res, 201, {
     name: app.name,
     webhookSecret: app.webhookSecret,
-    webhookUrl: webhookUrl(app.webhookSecret)
+    webhookUrl: buildWebhookUrl(app.webhookSecret)
   })
 })
 
@@ -383,7 +489,7 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
     port: deployment?.port,
     deployedAt: deployment?.deployedAt,
     deployments: app.deployments.length,
-    webhookUrl: webhookUrl(app.webhookSecret)
+    webhookUrl: buildWebhookUrl(app.webhookSecret)
   })
 })
 
@@ -512,7 +618,7 @@ route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
 route('POST', '/apps/:name/webhooks/reset', async (_req, res, { name }) => {
   if (!requireApp(name, res)) return
   const secret = resetWebhookSecret(name)
-  json(res, 200, { webhookSecret: secret, webhookUrl: webhookUrl(secret) })
+  json(res, 200, { webhookSecret: secret, webhookUrl: buildWebhookUrl(secret) })
 })
 
 route('POST', '/upgrade', async (req, res) => {
@@ -591,29 +697,44 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   const previewDomain = buildPreviewDomain(parent.domain, label)
   const expiresAt = previewExpiresAt(ttlMs)
 
+  startSSE(res)
+  const onDeployLog = (line: string) => sendSSE(res, JSON.stringify({ event: 'log', message: line }))
+  deployEvents.on(`log:${name}`, onDeployLog)
+
   try {
     if (isCompose) {
       await deployComposePreview(name, label, previewDomain, expiresAt, body?.tag)
     } else {
       await deployPreview(name, label, body!.tag!, previewDomain, expiresAt)
     }
-    json<PreviewDeployResponse>(res, 201, {
-      name,
-      label,
-      domain: previewDomain,
-      url: buildDomainUrl(previewDomain),
-      success: true
-    })
+    deployEvents.removeListener(`log:${name}`, onDeployLog)
+    sendSSE(
+      res,
+      JSON.stringify({
+        event: 'complete',
+        name,
+        label,
+        domain: previewDomain,
+        url: buildDomainUrl(previewDomain),
+        success: true
+      })
+    )
   } catch (err) {
-    json<PreviewDeployResponse>(res, 500, {
-      name,
-      label,
-      domain: previewDomain,
-      url: buildDomainUrl(previewDomain),
-      success: false,
-      error: getErrorMessage(err)
-    })
+    deployEvents.removeListener(`log:${name}`, onDeployLog)
+    sendSSE(
+      res,
+      JSON.stringify({
+        event: 'complete',
+        name,
+        label,
+        domain: previewDomain,
+        url: buildDomainUrl(previewDomain),
+        success: false,
+        error: getErrorMessage(err)
+      })
+    )
   }
+  res.end()
 })
 
 route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
@@ -738,16 +859,6 @@ route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
       await pipeSSE(res, streamLogs(deployment.containerId))
     }
   }
-})
-
-route('GET', '/apps/:name/deploy-logs', async (_req, res, { name }) => {
-  if (!requireApp(name, res)) return
-
-  startSSE(res)
-
-  const onDeployLog = (line: string) => sendSSE(res, line)
-  deployEvents.on(`log:${name}`, onDeployLog)
-  res.on('close', () => deployEvents.removeListener(`log:${name}`, onDeployLog))
 })
 
 async function isZeroContainerRunning(): Promise<boolean> {

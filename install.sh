@@ -134,5 +134,12 @@ elif [ "$IS_IP_ONLY" = true ]; then
 else
   log "TLS:    disabled (set EMAIL in ${INSTALL_DIR}/.env to enable)"
 fi
+if [ "$IS_IP_ONLY" = false ]; then
+  echo ""
+  log "DNS:"
+  log "  A     ${DOMAIN}            ${SERVER_IP}  (required — makes zero reachable)"
+  log "  A     *.${DOMAIN}          ${SERVER_IP}  (recommended — enables automatic app and preview subdomains)"
+  echo ""
+fi
 log "Config: ${INSTALL_DIR}/.env"
 log "Logs:   docker compose -f ${INSTALL_DIR}/docker-compose.yml logs -f"

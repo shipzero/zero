@@ -120,6 +120,62 @@ function createClient() {
       return requestWithRefresh<T>(config, { method: 'DELETE', path, body })
     },
 
+    postSSE(path: string, body: unknown, onData: (line: string) => void): Promise<void> {
+      return new Promise((resolve, reject) => {
+        const url = new URL(config.host)
+        const isHttps = url.protocol === 'https:'
+        const transport = isHttps ? https : http
+        const payload = JSON.stringify(body)
+
+        const req = transport.request(
+          {
+            hostname: url.hostname,
+            port: url.port || (isHttps ? 443 : 80),
+            path,
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${config.token}`,
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(payload)
+            }
+          },
+          (res) => {
+            if (res.statusCode !== 200) {
+              const chunks: Buffer[] = []
+              res.on('data', (c) => chunks.push(c))
+              res.on('end', () => {
+                const raw = Buffer.concat(chunks).toString()
+                let message = raw
+                try {
+                  const parsed = JSON.parse(raw)
+                  if (parsed.error) message = parsed.error
+                } catch {}
+                reject(new Error(message))
+              })
+              return
+            }
+
+            let buffer = ''
+            res.on('data', (chunk: Buffer) => {
+              buffer += chunk.toString()
+              const lines = buffer.split('\n')
+              buffer = lines.pop() ?? ''
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  onData(line.slice(6))
+                }
+              }
+            })
+            res.on('end', () => resolve())
+          }
+        )
+
+        req.on('error', reject)
+        req.write(payload)
+        req.end()
+      })
+    },
+
     streamSSE(path: string, onData: (line: string) => void, signal?: AbortSignal): Promise<void> {
       return new Promise((resolve, reject) => {
         const url = new URL(config.host)

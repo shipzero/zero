@@ -17,87 +17,188 @@ vi.mock('../ui.ts', async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>
   return {
     ...original,
-    spinner: () => ({ stop: vi.fn() })
+    spinner: () => ({ stop: vi.fn() }),
+    printDnsTable: vi.fn().mockResolvedValue(undefined)
   }
 })
 
+function makePostSSE(events: Array<{ event: string; [key: string]: unknown }>) {
+  return (_path: string, _body: unknown, onData: (line: string) => void) => {
+    for (const event of events) {
+      onData(JSON.stringify(event))
+    }
+    return Promise.resolve()
+  }
+}
+
 const mockClient = {
+  config: { host: 'http://localhost:2020', token: 'test' },
   post: vi.fn(),
+  postSSE: vi.fn().mockImplementation(
+    makePostSSE([
+      { event: 'accepted', appName: 'myapp', isNew: false },
+      { event: 'log', message: 'pulling image done' },
+      { event: 'log', message: 'health check passed' },
+      { event: 'complete', success: true, url: 'http://localhost:3000', appName: 'myapp', isNew: false }
+    ])
+  ),
   streamSSE: vi.fn().mockResolvedValue(undefined)
 }
 
-const { formatDeployLog, deploy } = await import('./deploy.ts')
+const { formatDeployLog, isImageReference, inferNameFromImage, deploy } = await import('./deploy.ts')
 
-describe('formatDeployLog', () => {
-  it('formats deploy start line', () => {
-    const result = formatDeployLog('2026-01-01T00:00:00.000Z ── deploy start: nginx:latest')
-    expect(result).toContain('deploying')
-    expect(result).toContain('nginx:latest')
+describe('isImageReference', () => {
+  it('detects image with registry path', () => {
+    expect(isImageReference('ghcr.io/you/myapp:latest')).toBe(true)
   })
 
-  it('formats phase line', () => {
-    const result = formatDeployLog('phase 1/4: pulling image')
-    expect(result).toContain('[1/4]')
+  it('detects image with tag only', () => {
+    expect(isImageReference('nginx:alpine')).toBe(true)
+  })
+
+  it('detects image with path but no tag', () => {
+    expect(isImageReference('ghcr.io/you/myapp')).toBe(true)
+  })
+
+  it('returns false for plain app name', () => {
+    expect(isImageReference('myapp')).toBe(false)
+  })
+})
+
+describe('inferNameFromImage', () => {
+  it('extracts name from registry image', () => {
+    expect(inferNameFromImage('ghcr.io/you/myapp:latest')).toBe('myapp')
+  })
+
+  it('extracts name from docker hub image', () => {
+    expect(inferNameFromImage('nginx:alpine')).toBe('nginx')
+  })
+
+  it('extracts name from deep path', () => {
+    expect(inferNameFromImage('ghcr.io/org/project/backend:v2')).toBe('backend')
+  })
+
+  it('handles image without tag', () => {
+    expect(inferNameFromImage('ghcr.io/you/myapp')).toBe('myapp')
+  })
+
+  it('handles registry with port', () => {
+    expect(inferNameFromImage('localhost:5000/myapp:latest')).toBe('myapp')
+  })
+})
+
+describe('formatDeployLog', () => {
+  it('hides deploying line', () => {
+    expect(formatDeployLog('deploying nginx:latest')).toBeNull()
+  })
+
+  it('shows pulling image done as success', () => {
+    const result = formatDeployLog('pulling image done')
     expect(result).toContain('pulling image')
   })
 
-  it('formats healthy line', () => {
-    const result = formatDeployLog('container is healthy')
-    expect(result).toContain('container is healthy')
+  it('shows starting container done as success', () => {
+    const result = formatDeployLog('starting container done')
+    expect(result).toContain('starting container')
   })
 
-  it('returns null for deploy complete', () => {
-    expect(formatDeployLog('deploy complete')).toBeNull()
+  it('shows detected port', () => {
+    const result = formatDeployLog('detected port: 8080')
+    expect(result).toContain('detected port: 8080')
+  })
+
+  it('shows default port', () => {
+    const result = formatDeployLog('using default port: 3000')
+    expect(result).toContain('using default port: 3000')
+  })
+
+  it('shows health check passed', () => {
+    const result = formatDeployLog('health check passed')
+    expect(result).toContain('health check passed')
+  })
+
+  it('hides app is live line (shown from complete event instead)', () => {
+    expect(formatDeployLog('your app is live: https://myapp.example.com')).toBeNull()
   })
 
   it('formats error line', () => {
-    const result = formatDeployLog('deploy failed: image not found')
-    expect(result).toContain('deploy failed: image not found')
+    const result = formatDeployLog('health check failed — container did not respond on port 3000')
+    expect(result).toContain('health check failed')
   })
 
-  it('formats unknown lines as dim', () => {
-    const result = formatDeployLog('some log output')
-    expect(result).toContain('some log output')
+  it('hides docker pull progress', () => {
+    expect(formatDeployLog('Pulling fs layer')).toBeNull()
   })
 })
 
 describe('deploy command', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('posts to deploy endpoint', async () => {
-    mockClient.post.mockResolvedValue({
-      status: 200,
-      data: { success: true, image: 'nginx:latest' }
-    })
+  it('sends image to POST /deploy for new app', async () => {
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'myapp', isNew: true },
+        { event: 'complete', success: true, url: 'http://localhost:3000', appName: 'myapp', isNew: true }
+      ])
+    )
+
+    await deploy(['ghcr.io/you/myapp:latest'], {})
+
+    expect(mockClient.postSSE).toHaveBeenCalledWith(
+      '/deploy',
+      expect.objectContaining({ image: 'ghcr.io/you/myapp:latest', name: 'myapp' }),
+      expect.any(Function)
+    )
+  })
+
+  it('sends app name to POST /deploy for existing app', async () => {
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'myapp', isNew: false },
+        { event: 'complete', success: true, appName: 'myapp', isNew: false }
+      ])
+    )
 
     await deploy(['myapp'], {})
 
-    expect(mockClient.post).toHaveBeenCalledWith('/apps/myapp/deploy', undefined)
+    expect(mockClient.postSSE).toHaveBeenCalledWith(
+      '/deploy',
+      expect.objectContaining({ name: 'myapp' }),
+      expect.any(Function)
+    )
   })
 
   it('includes tag when provided', async () => {
-    mockClient.post.mockResolvedValue({
-      status: 200,
-      data: { success: true, image: 'nginx:v2' }
-    })
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'myapp', isNew: false },
+        { event: 'complete', success: true, appName: 'myapp', isNew: false }
+      ])
+    )
 
     await deploy(['myapp'], { tag: 'v2' })
 
-    expect(mockClient.post).toHaveBeenCalledWith('/apps/myapp/deploy', { tag: 'v2' })
+    expect(mockClient.postSSE).toHaveBeenCalledWith(
+      '/deploy',
+      expect.objectContaining({ name: 'myapp', tag: 'v2' }),
+      expect.any(Function)
+    )
   })
 
-  it('streams deploy logs via SSE', async () => {
-    mockClient.post.mockResolvedValue({
-      status: 200,
-      data: { success: true, image: 'nginx:latest' }
-    })
+  it('uses --name flag over inferred name', async () => {
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'web', isNew: true },
+        { event: 'complete', success: true, appName: 'web', isNew: true }
+      ])
+    )
 
-    await deploy(['myapp'], {})
+    await deploy(['nginx:latest'], { name: 'web' })
 
-    expect(mockClient.streamSSE).toHaveBeenCalledWith(
-      '/apps/myapp/deploy-logs',
-      expect.any(Function),
-      expect.any(Object)
+    expect(mockClient.postSSE).toHaveBeenCalledWith(
+      '/deploy',
+      expect.objectContaining({ name: 'web' }),
+      expect.any(Function)
     )
   })
 
@@ -106,10 +207,12 @@ describe('deploy command', () => {
       throw new Error('process.exit')
     })
 
-    mockClient.post.mockResolvedValue({
-      status: 200,
-      data: { success: false, error: 'image not found' }
-    })
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'myapp', isNew: false },
+        { event: 'complete', success: false, error: 'image not found', appName: 'myapp', isNew: false }
+      ])
+    )
 
     await expect(deploy(['myapp'], {})).rejects.toThrow('process.exit')
     expect(mockExit).toHaveBeenCalledWith(1)

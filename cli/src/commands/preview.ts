@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import { formatDeployLog } from './deploy.ts'
-import type { PreviewDeployResponse, PreviewSummary, MessageResponse } from '../../../src/types.ts'
+import type { PreviewSummary, MessageResponse } from '../../../src/types.ts'
 import {
   logInfo,
   logSuccess,
@@ -31,40 +31,45 @@ async function previewDeploy(positionals: string[], flags: Record<string, string
   const client = createClient()
 
   logInfo(`deploying preview ${bold(label)} for ${bold(appName)}...`)
-  logHint('ctrl+c to disconnect (deploy will continue in background)')
 
   process.on('SIGINT', () => {
     console.log(dim('\n[disconnected — deploy continues on the server]'))
     process.exit(0)
   })
 
-  const abort = new AbortController()
+  interface PreviewEvent {
+    event: string
+    message?: string
+    success?: boolean
+    url?: string
+    error?: string
+  }
 
-  client
-    .streamSSE(
-      `/apps/${encodeURIComponent(appName)}/deploy-logs`,
-      (line) => {
-        const formatted = formatDeployLog(line)
+  let result: PreviewEvent | undefined
+
+  await client.postSSE(
+    `/apps/${encodeURIComponent(appName)}/previews`,
+    { label, tag, ...(ttl ? { ttl } : {}) },
+    (raw) => {
+      const event = JSON.parse(raw) as PreviewEvent
+
+      if (event.event === 'log' && event.message) {
+        const formatted = formatDeployLog(event.message)
         if (formatted) console.log(formatted)
-      },
-      abort.signal
-    )
-    .catch(() => {})
+        return
+      }
 
-  const { data } = await client.post<PreviewDeployResponse>(`/apps/${encodeURIComponent(appName)}/previews`, {
-    label,
-    tag,
-    ...(ttl ? { ttl } : {})
-  })
+      if (event.event === 'complete') {
+        result = event
+      }
+    }
+  )
 
-  abort.abort()
-
-  const result = data as PreviewDeployResponse
-  if (result.success) {
-    logSuccess(`preview deployed: ${cyan(result.url)}`)
+  if (result?.success) {
+    logSuccess(`preview deployed: ${cyan(result.url ?? '')}`)
     logHint(`remove with: zero preview rm ${appName} ${label}`)
   } else {
-    logError(result.error ?? 'preview deploy failed')
+    logError(result?.error ?? 'preview deploy failed')
     process.exit(1)
   }
 }

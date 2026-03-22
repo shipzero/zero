@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import { login } from './commands/login.ts'
-import { add } from './commands/add.ts'
 import { ls } from './commands/ls.ts'
 import { deploy } from './commands/deploy.ts'
 import { logs } from './commands/logs.ts'
@@ -67,11 +66,9 @@ function parseArgs(argv: string[]): ParsedArgs {
 
 function formatHelp(): string {
   const commands = [
-    [
-      'add --name --image [--domain] [--port] [--host-port] [--repo] [--tag] [--command] [--volume] [--health-path] [--health-timeout]',
-      'Add a new app'
-    ],
-    ['deploy <app> [--tag <tag>]', 'Trigger deployment'],
+    ['deploy <image> [options]', 'Deploy (infers name, domain, and port)'],
+    ['deploy <app> [--tag <tag>]', 'Redeploy an existing app'],
+    ['deploy --compose <file> --service <svc> --name <n> [options]', 'Deploy a Compose stack'],
     ['deployments <app>', 'Show deployment history'],
     ['env ls <app>', 'List environment variables'],
     ['env rm <app> KEY [KEY ...]', 'Remove environment variables'],
@@ -115,9 +112,6 @@ async function main() {
 
   try {
     switch (parsed.command) {
-      case 'add':
-        await add(parsed.flags)
-        break
       case 'deploy':
         await deploy(parsed.positionals, parsed.flags)
         break

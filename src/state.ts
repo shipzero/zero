@@ -6,6 +6,7 @@ const MAX_DEPLOYMENTS = 10
 
 export interface Deployment {
   image: string
+  digest?: string
   containerId: string
   port: number
   deployedAt: string
@@ -32,7 +33,7 @@ export interface AppConfig {
   image: string
   trackTag: string
   domain?: string
-  internalPort: number
+  internalPort?: number
   hostPort?: number
   webhookSecret: string
   command?: string[]
@@ -153,6 +154,13 @@ export function resetWebhookSecret(appName: string): string {
   return app.webhookSecret
 }
 
+export function updateInternalPort(appName: string, port: number): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`app "${appName}" not found`)
+  app.internalPort = port
+  saveState()
+}
+
 export function updateEnv(appName: string, env: Record<string, string>): void {
   const app = _state.apps[appName]
   if (!app) throw new Error(`app "${appName}" not found`)
@@ -217,8 +225,9 @@ export function findRollbackTarget(appName: string): Deployment {
   const app = _state.apps[appName]
   if (!app) throw new Error(`app "${appName}" not found`)
 
-  const currentImage = app.deployments[0]?.image
-  const target = app.deployments.find((deployment) => deployment.image !== currentImage)
+  const current = app.deployments[0]
+  const currentId = current?.digest ?? current?.image
+  const target = app.deployments.find((d) => (d.digest ?? d.image) !== currentId)
   if (!target) {
     throw new Error('no previous deployment with a different image to roll back to')
   }

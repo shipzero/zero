@@ -8,6 +8,7 @@ process.env.STATE_PATH = path.join(tmpDir, 'state.json')
 process.env.EMAIL = ''
 
 const mockPullImage = vi.fn().mockResolvedValue(undefined)
+const mockInspectImage = vi.fn().mockResolvedValue({ exposedPorts: [], digest: 'sha256:abc123' })
 const mockRunContainer = vi.fn().mockResolvedValue('new-container-id')
 const mockRemoveContainer = vi.fn().mockResolvedValue(undefined)
 const mockWaitForHealthy = vi.fn().mockResolvedValue(undefined)
@@ -19,6 +20,7 @@ const mockComposeUp = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('./docker.ts', () => ({
   pullImage: (...args: unknown[]) => mockPullImage(...args),
+  inspectImage: (...args: unknown[]) => mockInspectImage(...args),
   runContainer: (...args: unknown[]) => mockRunContainer(...args),
   removeContainer: (...args: unknown[]) => mockRemoveContainer(...args),
   waitForHealthy: (...args: unknown[]) => mockWaitForHealthy(...args),
@@ -246,8 +248,8 @@ describe('deploy', () => {
 
       const logs = getDeployLogs('web')
       expect(logs.length).toBeGreaterThan(0)
-      expect(logs.some((l) => l.includes('deploy start'))).toBe(true)
-      expect(logs.some((l) => l.includes('deploy complete'))).toBe(true)
+      expect(logs.some((l) => l.includes('deploying'))).toBe(true)
+      expect(logs.some((l) => l.includes('your app is live'))).toBe(true)
     })
 
     it('clears logs at the start of a new deploy', async () => {
@@ -276,7 +278,7 @@ describe('deploy', () => {
       await deploy('web', 'nginx:latest')
 
       expect(received.length).toBeGreaterThan(0)
-      expect(received.some((l) => l.includes('deploy start'))).toBe(true)
+      expect(received.some((l) => l.includes('deploying'))).toBe(true)
 
       deployEvents.removeAllListeners('log:web')
     })

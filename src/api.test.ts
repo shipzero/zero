@@ -19,6 +19,7 @@ import { vi } from 'vitest'
 vi.mock('./docker.ts', () => ({
   docker: {},
   pullImage: vi.fn().mockResolvedValue(undefined),
+  inspectImage: vi.fn().mockResolvedValue({ exposedPorts: [], digest: 'sha256:mock' }),
   runContainer: vi.fn().mockResolvedValue('mock-container-id'),
   removeContainer: vi.fn().mockResolvedValue(undefined),
   stopContainer: vi.fn().mockResolvedValue(undefined),
@@ -103,6 +104,41 @@ function request(
     })
     req.on('error', reject)
     if (serialized) req.write(serialized)
+    req.end()
+  })
+}
+
+function requestSSE(
+  path: string,
+  body: unknown
+): Promise<{ status: number; events: Array<{ event: string; [key: string]: unknown }> }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, baseUrl)
+    const serialized = JSON.stringify(body)
+    const req = http.request(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${testJwt}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(serialized).toString()
+        }
+      },
+      (res) => {
+        let data = ''
+        res.on('data', (chunk) => (data += chunk))
+        res.on('end', () => {
+          const events = data
+            .split('\n')
+            .filter((line) => line.startsWith('data: '))
+            .map((line) => JSON.parse(line.slice(6)))
+          resolve({ status: res.statusCode!, events })
+        })
+      }
+    )
+    req.on('error', reject)
+    req.write(serialized)
     req.end()
   })
 }
@@ -700,13 +736,13 @@ describe('API', () => {
   describe('POST /apps/:name/previews', () => {
     it('creates a preview deployment', async () => {
       await request('POST', '/apps', { name: 'prev', image: 'nginx:latest', domain: 'prev.example.com' })
-      const res = await request('POST', '/apps/prev/previews', { label: 'pr-1', tag: 'pr-1' })
-      expect(res.status).toBe(201)
-      const body = res.body as { name: string; label: string; domain: string; url: string; success: boolean }
-      expect(body.name).toBe('prev')
-      expect(body.label).toBe('pr-1')
-      expect(body.domain).toBe('pr-1.prev.example.com')
-      expect(body.success).toBe(true)
+      const res = await requestSSE('/apps/prev/previews', { label: 'pr-1', tag: 'pr-1' })
+      expect(res.status).toBe(200)
+      const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
+      expect(complete.name).toBe('prev')
+      expect(complete.label).toBe('pr-1')
+      expect(complete.domain).toBe('pr-1.prev.example.com')
+      expect(complete.success).toBe(true)
       const preview = state.getApp('prev')?.previews['pr-1']
       expect(preview).toBeDefined()
       expect(preview!.domain).toBe('pr-1.prev.example.com')
@@ -714,10 +750,11 @@ describe('API', () => {
 
     it('redeploys existing preview', async () => {
       await request('POST', '/apps', { name: 'prev2', image: 'nginx:latest', domain: 'prev2.example.com' })
-      await request('POST', '/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2' })
-      const res = await request('POST', '/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2-updated' })
-      expect(res.status).toBe(201)
-      expect((res.body as { success: boolean }).success).toBe(true)
+      await requestSSE('/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2' })
+      const res = await requestSSE('/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2-updated' })
+      expect(res.status).toBe(200)
+      const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
+      expect(complete.success).toBe(true)
       const preview = state.getApp('prev2')?.previews['pr-2']
       expect(preview!.image).toBe('nginx:pr-2-updated')
     })
@@ -738,7 +775,7 @@ describe('API', () => {
 
     it('sets TTL on preview', async () => {
       await request('POST', '/apps', { name: 'prev6', image: 'nginx:latest', domain: 'prev6.example.com' })
-      await request('POST', '/apps/prev6/previews', { label: 'pr-6', tag: 'pr-6', ttl: '24h' })
+      await requestSSE('/apps/prev6/previews', { label: 'pr-6', tag: 'pr-6', ttl: '24h' })
       const preview = state.getApp('prev6')?.previews['pr-6']
       expect(preview?.expiresAt).toBeDefined()
       const expiresAt = new Date(preview!.expiresAt).getTime()
@@ -753,13 +790,13 @@ describe('API', () => {
         entryService: 'web',
         domain: 'compprev.example.com'
       })
-      const res = await request('POST', '/apps/compprev/previews', { label: 'pr-1' })
-      expect(res.status).toBe(201)
-      const body = res.body as { name: string; label: string; domain: string; success: boolean }
-      expect(body.name).toBe('compprev')
-      expect(body.label).toBe('pr-1')
-      expect(body.domain).toBe('pr-1.compprev.example.com')
-      expect(body.success).toBe(true)
+      const res = await requestSSE('/apps/compprev/previews', { label: 'pr-1' })
+      expect(res.status).toBe(200)
+      const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
+      expect(complete.name).toBe('compprev')
+      expect(complete.label).toBe('pr-1')
+      expect(complete.domain).toBe('pr-1.compprev.example.com')
+      expect(complete.success).toBe(true)
       const preview = state.getApp('compprev')?.previews['pr-1']
       expect(preview).toBeDefined()
       expect(preview!.isCompose).toBe(true)
@@ -772,8 +809,8 @@ describe('API', () => {
         entryService: 'web',
         domain: 'compnotag.example.com'
       })
-      const res = await request('POST', '/apps/compnotag/previews', { label: 'pr-1' })
-      expect(res.status).toBe(201)
+      const res = await requestSSE('/apps/compnotag/previews', { label: 'pr-1' })
+      expect(res.status).toBe(200)
     })
 
     it('stores tag in compose preview image field', async () => {
@@ -785,7 +822,7 @@ describe('API', () => {
         repo: 'ghcr.io/org/app',
         trackTag: 'latest'
       })
-      await request('POST', '/apps/comptag/previews', { label: 'pr-5', tag: 'pr-5' })
+      await requestSSE('/apps/comptag/previews', { label: 'pr-5', tag: 'pr-5' })
       const preview = state.getApp('comptag')?.previews['pr-5']
       expect(preview!.image).toBe('pr-5')
     })
@@ -808,8 +845,8 @@ describe('API', () => {
   describe('GET /apps/:name/previews', () => {
     it('lists previews for an app', async () => {
       await request('POST', '/apps', { name: 'pls', image: 'nginx:latest', domain: 'pls.example.com' })
-      await request('POST', '/apps/pls/previews', { label: 'pr-1', tag: 'pr-1' })
-      await request('POST', '/apps/pls/previews', { label: 'pr-2', tag: 'pr-2' })
+      await requestSSE('/apps/pls/previews', { label: 'pr-1', tag: 'pr-1' })
+      await requestSSE('/apps/pls/previews', { label: 'pr-2', tag: 'pr-2' })
 
       const res = await request('GET', '/apps/pls/previews')
       expect(res.status).toBe(200)
@@ -834,7 +871,7 @@ describe('API', () => {
   describe('DELETE /apps/:name/previews/:label', () => {
     it('removes a specific preview', async () => {
       await request('POST', '/apps', { name: 'pdel', image: 'nginx:latest', domain: 'pdel.example.com' })
-      await request('POST', '/apps/pdel/previews', { label: 'pr-1', tag: 'pr-1' })
+      await requestSSE('/apps/pdel/previews', { label: 'pr-1', tag: 'pr-1' })
 
       const res = await request('DELETE', '/apps/pdel/previews/pr-1')
       expect(res.status).toBe(200)
@@ -877,8 +914,8 @@ describe('API', () => {
   describe('DELETE /apps/:name/previews', () => {
     it('removes all previews for an app', async () => {
       await request('POST', '/apps', { name: 'pdelall', image: 'nginx:latest', domain: 'pdelall.example.com' })
-      await request('POST', '/apps/pdelall/previews', { label: 'pr-1', tag: 'pr-1' })
-      await request('POST', '/apps/pdelall/previews', { label: 'pr-2', tag: 'pr-2' })
+      await requestSSE('/apps/pdelall/previews', { label: 'pr-1', tag: 'pr-1' })
+      await requestSSE('/apps/pdelall/previews', { label: 'pr-2', tag: 'pr-2' })
 
       const res = await request('DELETE', '/apps/pdelall/previews')
       expect(res.status).toBe(200)
@@ -888,7 +925,7 @@ describe('API', () => {
 
     it('deleting parent also removes previews', async () => {
       await request('POST', '/apps', { name: 'pparent', image: 'nginx:latest', domain: 'pparent.example.com' })
-      await request('POST', '/apps/pparent/previews', { label: 'pr-1', tag: 'pr-1' })
+      await requestSSE('/apps/pparent/previews', { label: 'pr-1', tag: 'pr-1' })
 
       await request('DELETE', '/apps/pparent')
       expect(state.getApp('pparent')).toBeUndefined()
@@ -898,7 +935,7 @@ describe('API', () => {
   describe('GET /apps includes previews inline', () => {
     it('previews do not appear as separate apps', async () => {
       await request('POST', '/apps', { name: 'pvis', image: 'nginx:latest', domain: 'pvis.example.com' })
-      await request('POST', '/apps/pvis/previews', { label: 'pr-1', tag: 'pr-1' })
+      await requestSSE('/apps/pvis/previews', { label: 'pr-1', tag: 'pr-1' })
 
       const res = await request('GET', '/apps')
       expect(res.status).toBe(200)
@@ -915,6 +952,58 @@ describe('API', () => {
       const apps = res.body as Array<{ name: string; previews: unknown[] }>
       const app = apps.find((a) => a.name === 'noprev')
       expect(app?.previews).toEqual([])
+    })
+  })
+
+  describe('POST /deploy', () => {
+    it('creates and deploys a new app from image', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/org/newapp:v1' })
+      expect(res.status).toBe(200)
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      const complete = res.events.find((e) => e.event === 'complete')
+      expect(accepted?.appName).toBe('newapp')
+      expect(accepted?.isNew).toBe(true)
+      expect(accepted?.webhookUrl).toBeDefined()
+      expect(complete?.success).toBe(true)
+    })
+
+    it('deploys existing app by name', async () => {
+      await request('POST', '/apps', { name: 'existing', image: 'nginx:latest' })
+      const res = await requestSSE('/deploy', { name: 'existing' })
+      expect(res.status).toBe(200)
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      const complete = res.events.find((e) => e.event === 'complete')
+      expect(accepted?.appName).toBe('existing')
+      expect(accepted?.isNew).toBe(false)
+      expect(complete?.success).toBe(true)
+    })
+
+    it('streams log events during deploy', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/user/logtest:latest' })
+      const logs = res.events.filter((e) => e.event === 'log')
+      expect(logs.length).toBeGreaterThan(0)
+    })
+
+    it('infers name from image', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/user/myapi:latest' })
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      expect(accepted?.appName).toBe('myapi')
+    })
+
+    it('uses explicit name over inferred', async () => {
+      const res = await requestSSE('/deploy', { image: 'nginx:latest', name: 'web' })
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      expect(accepted?.appName).toBe('web')
+    })
+
+    it('returns 400 without image or name', async () => {
+      const res = await request('POST', '/deploy', {})
+      expect(res.status).toBe(400)
+    })
+
+    it('returns 404 for unknown app name without image', async () => {
+      const res = await request('POST', '/deploy', { name: 'doesnotexist' })
+      expect(res.status).toBe(404)
     })
   })
 
