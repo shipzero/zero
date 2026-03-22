@@ -341,7 +341,7 @@ route('POST', '/deploy', async (req, res) => {
 
   if (!app) {
     if (!body.image) {
-      json(res, 404, { error: `app "${appName}" not found` })
+      json(res, 404, { error: `App "${appName}" not found` })
       return
     }
 
@@ -501,7 +501,7 @@ route('POST', '/apps', async (req, res) => {
   }
 
   if (getApp(name)) {
-    json(res, 409, { error: `app "${name}" already exists` })
+    json(res, 409, { error: `App "${name}" already exists` })
     return
   }
 

@@ -125,7 +125,7 @@ describe('state', () => {
     })
 
     it('throws for non-existent app', () => {
-      expect(() => state.updateEnv('nope', { X: '1' })).toThrow('app "nope" not found')
+      expect(() => state.updateEnv('nope', { X: '1' })).toThrow('App "nope" not found')
     })
   })
 
