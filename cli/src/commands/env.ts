@@ -1,6 +1,16 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logWarn, logError, logHint, bold, requireAppName, spinner, printCommandHelp } from '../ui.ts'
+import {
+  logSuccess,
+  logInfo,
+  logWarn,
+  logError,
+  logHint,
+  bold,
+  requireAppName,
+  spinner,
+  printCommandHelp
+} from '../ui.ts'
 
 export async function env(
   subcommand: string | null,
@@ -10,19 +20,15 @@ export async function env(
   if (subcommand === 'set') {
     await envSet(positionals)
   } else if (subcommand === 'list' || subcommand === 'ls') {
-    await envLs(positionals)
+    await envList(positionals)
   } else if (subcommand === 'remove' || subcommand === 'rm') {
-    await envRm(positionals)
+    await envRemove(positionals)
   } else {
-    printCommandHelp(
-      'zero env <subcommand> <app> [args]',
-      undefined,
-      [
-        'zero env set myapp KEY=val [KEY=val ...]',
-        'zero env list myapp',
-        'zero env remove myapp KEY [KEY ...]'
-      ]
-    )
+    printCommandHelp('zero env <subcommand> <app> [args]', undefined, [
+      'zero env set myapp KEY=val [KEY=val ...]',
+      'zero env list myapp',
+      'zero env remove myapp KEY [KEY ...]'
+    ])
     process.exit(1)
   }
 }
@@ -55,12 +61,12 @@ async function envSet(positionals: string[]): Promise<void> {
   logHint(`run: zero deploy ${appName}`)
 }
 
-async function envRm(positionals: string[]): Promise<void> {
+async function envRemove(positionals: string[]): Promise<void> {
   const appName = positionals[0]
   const keys = positionals.slice(1)
 
   if (!appName || keys.length === 0) {
-    logError('Usage: zero env rm <app> KEY [KEY ...]')
+    logError('Usage: zero env remove <app> KEY [KEY ...]')
     process.exit(1)
   }
 
@@ -73,8 +79,8 @@ async function envRm(positionals: string[]): Promise<void> {
   logHint(`run: zero deploy ${appName}`)
 }
 
-async function envLs(positionals: string[]): Promise<void> {
-  const appName = requireAppName(positionals, 'zero env ls <app>')
+async function envList(positionals: string[]): Promise<void> {
+  const appName = requireAppName(positionals, 'zero env list <app>')
 
   const client = createClient()
   const spin = spinner('loading environment...')

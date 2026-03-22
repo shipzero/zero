@@ -16,8 +16,8 @@ import {
   printCommandHelp
 } from '../ui.ts'
 
-async function previewLs(positionals: string[]): Promise<void> {
-  const appName = requireAppName(positionals, 'zero preview ls <app>')
+async function previewList(positionals: string[]): Promise<void> {
+  const appName = requireAppName(positionals, 'zero preview list <app>')
 
   const client = createClient()
   const spin = spinner('loading previews...')
@@ -53,10 +53,10 @@ async function previewLs(positionals: string[]): Promise<void> {
   )
 }
 
-async function previewRm(positionals: string[], flags: Record<string, string | true>): Promise<void> {
+async function previewRemove(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const appName = requireAppName(
     positionals,
-    'zero preview rm <app> <label> [--force] | zero preview rm <app> --all [--force]'
+    'zero preview remove <app> <label> [--force] | zero preview remove <app> --all [--force]'
   )
 
   const client = createClient()
@@ -64,7 +64,7 @@ async function previewRm(positionals: string[], flags: Record<string, string | t
   const label = positionals[1]
 
   if (!isAll && !label) {
-    logError('Usage: zero preview rm <app> <label> [--force] | zero preview rm <app> --all [--force]')
+    logError('Usage: zero preview remove <app> <label> [--force] | zero preview remove <app> --all [--force]')
     process.exit(1)
   }
 
@@ -96,11 +96,11 @@ export async function preview(
   switch (subcommand) {
     case 'list':
     case 'ls':
-      await previewLs(positionals)
+      await previewList(positionals)
       break
     case 'remove':
     case 'rm':
-      await previewRm(positionals, flags)
+      await previewRemove(positionals, flags)
       break
     default:
       printCommandHelp(

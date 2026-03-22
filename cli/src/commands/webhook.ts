@@ -22,10 +22,7 @@ async function webhookUrl(positionals: string[]): Promise<void> {
   if (!ok) process.exit(0)
 
   const client = createClient()
-  const data = unwrap(
-    await client.post<WebhookResponse>(`/apps/${encodeURIComponent(appName)}/webhook`),
-    logError
-  )
+  const data = unwrap(await client.post<WebhookResponse>(`/apps/${encodeURIComponent(appName)}/webhook`), logError)
 
   logSuccess(`Webhook secret rotated for ${appName}`)
   console.log(`  url: ${data.webhookUrl}`)

@@ -1,6 +1,17 @@
 import fs from 'node:fs'
 import { createClient } from '../client.ts'
-import { logInfo, logSuccess, logError, logHint, cyan, dim, green, red, printDnsTable, printCommandHelp } from '../ui.ts'
+import {
+  logInfo,
+  logSuccess,
+  logError,
+  logHint,
+  cyan,
+  dim,
+  green,
+  red,
+  printDnsTable,
+  printCommandHelp
+} from '../ui.ts'
 
 function isLocalDomain(domain: string): boolean {
   return domain === 'localhost' || domain.endsWith('.localhost') || /^\d+\.\d+\.\d+\.\d+/.test(domain)

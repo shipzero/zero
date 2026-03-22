@@ -416,20 +416,26 @@ route('POST', '/deploy', async (req, res) => {
         await deployPreview(appName, label, tag, previewDomain, expiresAt)
       }
       deployEvents.removeListener(`log:${appName}`, onDeployLog)
-      sendSSE(res, JSON.stringify({
-        event: 'complete',
-        success: true,
-        appName,
-        label,
-        url: buildDomainUrl(previewDomain)
-      }))
+      sendSSE(
+        res,
+        JSON.stringify({
+          event: 'complete',
+          success: true,
+          appName,
+          label,
+          url: buildDomainUrl(previewDomain)
+        })
+      )
     } catch (err) {
       deployEvents.removeListener(`log:${appName}`, onDeployLog)
-      sendSSE(res, JSON.stringify({
-        event: 'complete',
-        success: false,
-        error: getErrorMessage(err)
-      }))
+      sendSSE(
+        res,
+        JSON.stringify({
+          event: 'complete',
+          success: false,
+          error: getErrorMessage(err)
+        })
+      )
     }
     res.end()
     return
