@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process'
 import { createClient, unwrap, type MessageResponse } from '../client.ts'
 import { VERSION } from '../version.ts'
-import { logSuccess, logInfo, logError } from '../ui.ts'
+import { logSuccess, logInfo, logError, spinner } from '../ui.ts'
 
 const REPO = 'shipzero/zero'
 
@@ -70,10 +70,11 @@ async function upgradeCli(isForce: boolean, isPreview: boolean): Promise<void> {
 
 async function upgradeServer(isPreview: boolean): Promise<void> {
   const { tag } = fetchLatestRelease(isPreview)
-  logInfo(`upgrading server to ${tag}...`)
-
   const client = createClient()
-  const data = unwrap(await client.post<MessageResponse>('/upgrade', { tag }), logError)
+  const spin = spinner(`upgrading server to ${tag}...`)
+  const res = await client.post<MessageResponse>('/upgrade', { tag })
+  spin.stop()
+  const data = unwrap(res, logError)
 
   logSuccess(data.message)
 }

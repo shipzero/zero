@@ -125,6 +125,32 @@ export function printTable(columns: Column[], rows: Record<string, string>[]): v
   }
 }
 
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+export function spinner(message: string): { stop: (finalMessage?: string) => void } {
+  if (!process.stdout.isTTY) {
+    console.log(`${blue('ℹ')} ${message}`)
+    return {
+      stop: (msg) => {
+        if (msg) console.log(msg)
+      }
+    }
+  }
+
+  let frame = 0
+  const timer = setInterval(() => {
+    process.stdout.write(`\r${cyan(SPINNER_FRAMES[frame++ % SPINNER_FRAMES.length])} ${message}`)
+  }, 80)
+
+  return {
+    stop(finalMessage?: string) {
+      clearInterval(timer)
+      process.stdout.write('\r\x1b[2K')
+      if (finalMessage) console.log(finalMessage)
+    }
+  }
+}
+
 export function requireAppName(positionals: string[], usage: string): string {
   const appName = positionals[0]
   if (!appName) {

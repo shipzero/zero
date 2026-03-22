@@ -14,7 +14,8 @@ import {
   timeUntil,
   formatStatus,
   printTable,
-  requireAppName
+  requireAppName,
+  spinner
 } from '../ui.ts'
 
 async function previewDeploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
@@ -72,7 +73,10 @@ async function previewLs(positionals: string[]): Promise<void> {
   const appName = requireAppName(positionals, 'zero preview ls <app>')
 
   const client = createClient()
-  const data = unwrap(await client.get<PreviewSummary[]>(`/apps/${encodeURIComponent(appName)}/previews`), logError)
+  const spin = spinner('loading previews...')
+  const res = await client.get<PreviewSummary[]>(`/apps/${encodeURIComponent(appName)}/previews`)
+  spin.stop()
+  const data = unwrap(res, logError)
 
   if (data.length === 0) {
     logInfo(`no previews for ${appName}`)

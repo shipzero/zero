@@ -195,7 +195,7 @@ function authenticate(req: http.IncomingMessage): boolean {
 function requireApp(name: string, res: http.ServerResponse): AppConfig | null {
   const app = getApp(name)
   if (!app) {
-    json(res, 404, { error: 'not found' })
+    json(res, 404, { error: 'app not found' })
     return null
   }
   return app

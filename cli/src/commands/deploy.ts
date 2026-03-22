@@ -72,7 +72,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
     logSuccess(`deploy complete${result.url ? `: ${cyan(result.url)}` : ''}`)
     logHint(`view logs: zero logs ${appName}`)
   } else {
-    logError('deploy failed')
+    logError(result.error ?? 'deploy failed')
     process.exit(1)
   }
 }
