@@ -671,7 +671,7 @@ describe('API', () => {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(200)
-      expect((res.body as { message: string }).message).toContain('ignored')
+      expect((res.body as { message: string }).message).toContain('Ignored')
     })
 
     it('triggers preview deploy when tag does not match but app has domain', async () => {
@@ -687,7 +687,7 @@ describe('API', () => {
         push_data: { tag: 'pr-42' }
       })
       expect(res.status).toBe(202)
-      expect((res.body as { message: string }).message).toContain('preview')
+      expect((res.body as { message: string }).message).toContain('Preview')
     })
 
     it('triggers compose preview deploy when repo is set and tag does not match', async () => {
@@ -706,7 +706,7 @@ describe('API', () => {
         push_data: { tag: 'pr-99' }
       })
       expect(res.status).toBe(202)
-      expect((res.body as { message: string }).message).toContain('preview')
+      expect((res.body as { message: string }).message).toContain('Preview')
     })
 
     it('deploys when trackTag is "any"', async () => {

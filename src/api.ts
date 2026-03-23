@@ -619,7 +619,7 @@ route('POST', '/apps/:name/stop', async (_req, res, { name }) => {
   } else {
     await stopContainer(deployment.containerId)
   }
-  json<StopResponse>(res, 200, { message: `stopped ${name}`, containerId: deployment.containerId })
+  json<StopResponse>(res, 200, { message: `Stopped ${name}`, containerId: deployment.containerId })
 })
 
 route('POST', '/apps/:name/start', async (_req, res, { name }) => {
@@ -644,7 +644,7 @@ route('POST', '/apps/:name/start', async (_req, res, { name }) => {
       app.healthTimeout ? parseDuration(app.healthTimeout) : undefined
     )
     routeApp(app, deployment.port)
-    json<StartResponse>(res, 200, { message: `started ${name}`, port: deployment.port })
+    json<StartResponse>(res, 200, { message: `Started ${name}`, port: deployment.port })
   } catch (err) {
     json(res, 500, { error: getErrorMessage(err) })
   }
@@ -658,7 +658,7 @@ route('PATCH', '/apps/:name/env', async (req, res, { name }) => {
     return
   }
   updateEnv(name, env)
-  json<MessageResponse>(res, 200, { message: 'env updated — redeploy to apply' })
+  json<MessageResponse>(res, 200, { message: 'Env updated — redeploy to apply' })
 })
 
 route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
@@ -669,7 +669,7 @@ route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
     return
   }
   removeEnv(name, keys)
-  json<MessageResponse>(res, 200, { message: 'env removed — redeploy to apply' })
+  json<MessageResponse>(res, 200, { message: 'Env removed — redeploy to apply' })
 })
 
 route('POST', '/apps/:name/webhook', async (_req, res, { name }) => {
@@ -693,7 +693,7 @@ route('POST', '/upgrade', async (req, res) => {
     return
   }
 
-  console.log(`[upgrade] pulling ${tag ?? 'latest'} image and restarting...`)
+  console.log(`[upgrade] Pulling ${tag ?? 'latest'} image and restarting...`)
 
   const COMPOSE_FILE = '/opt/zero/docker-compose.yml'
   const effectiveTag = tag ?? 'latest'
@@ -710,9 +710,9 @@ route('POST', '/upgrade', async (req, res) => {
       }
     })
     await upgrader.start()
-    json<MessageResponse>(res, 200, { message: `upgrade started (${tag ?? 'latest'}) — zero will restart` })
+    json<MessageResponse>(res, 200, { message: `Upgrade started (${tag ?? 'latest'}) — zero will restart` })
   } catch (err) {
-    console.error('[upgrade] Failed:', err)
+    console.error('[upgrade] Upgrade failed:', err)
     json(res, 500, { error: getErrorMessage(err) })
   }
 })
@@ -825,7 +825,7 @@ route('DELETE', '/apps/:name/previews/:label', async (_req, res, { name, label }
   if (!preview) return
 
   await destroyPreview(name, preview)
-  json<MessageResponse>(res, 200, { message: `preview ${label} removed` })
+  json<MessageResponse>(res, 200, { message: `Preview ${label} removed` })
 })
 
 route('GET', '/apps/:name/previews/:label/logs', async (_req, res, { name, label }) => {
@@ -865,7 +865,7 @@ route('DELETE', '/apps/:name/previews', async (_req, res, { name }) => {
   for (const preview of previews) {
     await destroyPreview(name, preview)
   }
-  json<MessageResponse>(res, 200, { message: `removed ${previews.length} preview(s)` })
+  json<MessageResponse>(res, 200, { message: `Removed ${previews.length} preview(s)` })
 })
 
 async function removeAppWithContainers(app: AppConfig): Promise<void> {
@@ -895,7 +895,7 @@ route('DELETE', '/apps/:name', async (_req, res, { name }) => {
   if (!app) return
 
   await removeAppWithContainers(app)
-  json<MessageResponse>(res, 200, { message: 'removed' })
+  json<MessageResponse>(res, 200, { message: 'Removed' })
 })
 
 route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
@@ -1003,7 +1003,7 @@ route('POST', '/registries', async (req, res) => {
     return
   }
   setRegistryAuth(body.server, { username: body.username, password: body.password })
-  json<MessageResponse>(res, 200, { message: `registry ${body.server} saved` })
+  json<MessageResponse>(res, 200, { message: `Registry ${body.server} saved` })
 })
 
 route('DELETE', '/registries/:server', async (_req, res, { server }) => {
@@ -1011,7 +1011,7 @@ route('DELETE', '/registries/:server', async (_req, res, { server }) => {
     json(res, 404, { error: `No credentials for ${server}` })
     return
   }
-  json<MessageResponse>(res, 200, { message: `registry ${server} removed` })
+  json<MessageResponse>(res, 200, { message: `Registry ${server} removed` })
 })
 
 route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
@@ -1045,7 +1045,7 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
 
   const tag = extractTag(payload)
   if (!tag) {
-    json(res, 200, { message: 'ignored: no tag' })
+    json(res, 200, { message: 'Ignored: no tag' })
     return
   }
 
@@ -1055,18 +1055,18 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   const isPreviewCandidate = !isTrackedTag && app.domain
 
   if (!isTrackedTag && !isPreviewCandidate) {
-    json(res, 200, { message: `ignored: tag "${tag}" != tracked "${app.trackTag}"` })
+    json(res, 200, { message: `Ignored: tag "${tag}" != tracked "${app.trackTag}"` })
     return
   }
 
   if (isPreviewCandidate) {
     if (isCompose && !hasRepo) {
-      json(res, 200, { message: `ignored: compose app without --repo cannot create previews for tag "${tag}"` })
+      json(res, 200, { message: `Ignored: compose app without --repo cannot create previews for tag "${tag}"` })
       return
     }
     const previewDomain = buildPreviewDomain(app.domain!, tag)
     const expiresAt = previewExpiresAt(PREVIEW_TTL_MS)
-    json(res, 202, { message: 'preview deploy triggered', tag })
+    json(res, 202, { message: 'Preview deploy triggered', tag })
     if (isCompose) {
       deployComposePreview(app.name, tag, previewDomain, expiresAt, tag).catch((err) =>
         console.error(`[webhook] Preview ${app.name}/${tag}: ${err}`)
@@ -1080,11 +1080,11 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   }
 
   if (isCompose) {
-    json(res, 202, { message: 'deploy triggered', tag })
+    json(res, 202, { message: 'Deploy triggered', tag })
     deploy(app.name, hasRepo ? tag : undefined).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
   } else {
     const image = `${app.image}:${tag}`
-    json(res, 202, { message: 'deploy triggered', image })
+    json(res, 202, { message: 'Deploy triggered', image })
     deploy(app.name, image).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
   }
 })
@@ -1152,7 +1152,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   const isAuthorized = isWebhook || (isAuthToken ? authenticateStaticToken(req) : authenticate(req))
   if (!isAuthorized) {
     recordAuthFailure(clientIp)
-    console.warn(`[api] Auth failure from ${clientIp} — ${method} ${url}`)
+    console.warn(`[api] Auth failure from ${clientIp}: ${method} ${url}`)
     json(res, 401, { error: 'Unauthorized' })
     return
   }
@@ -1176,6 +1176,6 @@ function listenOn(server: http.Server, port: number, host?: string): Promise<voi
 export async function startApi() {
   const server = http.createServer(handleRequest)
   await listenOn(server, API_PORT, '127.0.0.1')
-  console.log(`[api] listening on 127.0.0.1:${API_PORT} (proxied via :${isTLSEnabled() ? 443 : 80})`)
+  console.log(`[api] Listening on 127.0.0.1:${API_PORT} (proxied via :${isTLSEnabled() ? 443 : 80})`)
   return server
 }
