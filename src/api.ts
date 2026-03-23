@@ -45,7 +45,6 @@ import type {
   VersionResponse,
   AppSummary,
   AppDetail,
-  AddAppResponse,
   StopResponse,
   StartResponse,
   PreviewSummary
@@ -270,23 +269,6 @@ route('GET', '/apps', async (_req, res) => {
   json(res, 200, apps)
 })
 
-interface AddAppRequest {
-  name?: string
-  image?: string
-  domain?: string
-  internalPort?: number
-  hostPort?: number
-  command?: string[]
-  volumes?: string[]
-  healthPath?: string
-  healthTimeout?: string
-  env?: Record<string, string>
-  composeFile?: string
-  entryService?: string
-  imagePrefix?: string
-  trackTag?: string
-}
-
 interface DeployRequest {
   tag?: string
 }
@@ -472,80 +454,6 @@ route('POST', '/deploy', async (req, res) => {
   deployEvents.removeListener(`log:${appName}`, onDeployLog)
   sendSSE(res, JSON.stringify({ event: 'complete', ...result, appName, isNew }))
   res.end()
-})
-
-route('POST', '/apps', async (req, res) => {
-  const body = parseJSON<AddAppRequest>((await readBody(req)).toString())
-  if (!body) {
-    json(res, 400, { error: 'Invalid JSON' })
-    return
-  }
-  const {
-    name,
-    domain,
-    hostPort,
-    command,
-    volumes,
-    healthPath,
-    healthTimeout,
-    env = {},
-    composeFile,
-    entryService
-  } = body
-
-  const isCompose = !!composeFile
-  const internalPort = isCompose ? (body.internalPort ?? 80) : body.internalPort
-
-  if (!name) {
-    json(res, 400, { error: '--name required' })
-    return
-  }
-
-  if (healthTimeout) {
-    try {
-      parseDuration(healthTimeout)
-    } catch {
-      json(res, 400, { error: `Invalid --health-timeout "${healthTimeout}" — use e.g. 30s, 3m` })
-      return
-    }
-  }
-
-  if (isCompose && !entryService) {
-    json(res, 400, { error: '--service required for Compose apps' })
-    return
-  }
-  if (!isCompose && !body.image) {
-    json(res, 400, { error: 'Image required (or use --compose for Compose apps)' })
-    return
-  }
-
-  if (getApp(name)) {
-    json(res, 409, { error: `App "${name}" already exists` })
-    return
-  }
-
-  const { image, tag } = isCompose ? { image: '', tag: body.trackTag ?? '' } : parseImageRef(body.image ?? '')
-
-  const app = addApp({
-    name,
-    image,
-    domain,
-    internalPort,
-    hostPort,
-    command,
-    volumes,
-    healthPath,
-    healthTimeout,
-    trackTag: tag,
-    env,
-    ...(isCompose ? { composeFile, entryService, imagePrefix: body.imagePrefix } : {})
-  })
-
-  json<AddAppResponse>(res, 201, {
-    name: app.name,
-    webhookSecret: app.webhookSecret,
-    webhookUrl: buildWebhookUrl(app.webhookSecret)
-  })
 })
 
 route('GET', '/apps/:name', async (_req, res, { name }) => {

@@ -39,21 +39,6 @@ export interface AppDetail {
   webhookUrl: string
 }
 
-export interface AddAppResponse {
-  name: string
-  webhookSecret: string
-  webhookUrl: string
-}
-
-export interface DeployResult {
-  success: boolean
-  image: string
-  port: number
-  containerId: string
-  url?: string
-  error?: string
-}
-
 export interface RollbackResponse {
   success: boolean
   image: string
@@ -83,15 +68,6 @@ export interface ContainerStats {
   memoryLimit: number
   networkRx: number
   networkTx: number
-}
-
-export interface PreviewDeployResponse {
-  name: string
-  label: string
-  domain: string
-  url: string
-  success: boolean
-  error?: string
 }
 
 export interface PreviewSummary {
