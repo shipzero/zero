@@ -13,7 +13,7 @@ export interface VersionResponse {
 export interface AppSummary {
   name: string
   image: string
-  domain?: string
+  domains: string[]
   hostPort?: number
   trackTag: string
   currentImage?: string
@@ -27,7 +27,7 @@ export interface AppSummary {
 export interface AppDetail {
   name: string
   image: string
-  domain?: string
+  domains: string[]
   internalPort?: number
   trackTag: string
   imagePrefix?: string

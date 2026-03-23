@@ -9,8 +9,8 @@
 
 ```bash
 # Install server and CLI
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/install.sh | sudo bash
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/cli/install.sh | bash
+curl -fsSL https://shipzero.sh/install.sh | sudo bash
+curl -fsSL https://shipzero.sh/cli/install.sh | bash
 
 # Deploy
 zero login root@your-server.com
@@ -53,7 +53,7 @@ look at [Coolify](https://coolify.io) or [CapRover](https://caprover.com).
 Any Linux VPS (Hetzner, DigitalOcean, etc.) with root access:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/install.sh | sudo bash
+curl -fsSL https://shipzero.sh/install.sh | sudo bash
 ```
 
 The installer sets up Docker, prompts for your domain and email (for TLS), and starts zero.
@@ -61,7 +61,7 @@ The installer sets up Docker, prompts for your domain and email (for TLS), and s
 ### 2. Install the CLI
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/cli/install.sh | bash
+curl -fsSL https://shipzero.sh/cli/install.sh | bash
 ```
 
 ### 3. Connect
@@ -231,6 +231,18 @@ zero stop myapp              # stop container, traffic returns 502
 zero start myapp             # restart and health-check before routing
 zero remove myapp             # remove app and all its containers
 ```
+
+### Domains
+
+Apps can have multiple domains. The first domain is the primary (used for preview subdomains).
+
+```bash
+zero domain add myapp staging.myapp.com     # add a domain (no redeploy needed)
+zero domain list myapp                      # list all domains
+zero domain remove myapp staging.myapp.com  # remove a domain
+```
+
+The `--domain` flag on `zero deploy` sets the initial domain when creating an app. Use `zero domain add` for additional domains.
 
 ### Deployment history
 

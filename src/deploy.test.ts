@@ -51,7 +51,7 @@ describe('deploy', () => {
 
   describe('deploy() — single container', () => {
     it('runs all four phases and returns success', async () => {
-      state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, domain: 'web.com', env: {} })
+      state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, domains: ['web.com'], env: {} })
 
       const result = await deploy('web', 'nginx:latest')
 
@@ -69,7 +69,7 @@ describe('deploy', () => {
         })
       )
       expect(mockWaitForHealthy).toHaveBeenCalledWith(4444, undefined, undefined, 'new-container-id')
-      expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domain: 'web.com' }), 4444)
+      expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domains: ['web.com'] }), 4444)
     })
 
     it('records deployment in state', async () => {
@@ -185,7 +185,7 @@ describe('deploy', () => {
         image: '',
         trackTag: '',
         internalPort: 80,
-        domain: 'stack.com',
+        domains: ['stack.com'],
         env: {},
         composeFile: 'version: "3"',
         entryService: 'web'
@@ -200,7 +200,7 @@ describe('deploy', () => {
       expect(mockComposePull).toHaveBeenCalled()
       expect(mockComposeUp).toHaveBeenCalled()
       expect(mockWaitForHealthy).toHaveBeenCalledWith(4444, undefined, undefined)
-      expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domain: 'stack.com' }), 4444)
+      expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domains: ['stack.com'] }), 4444)
     })
 
     it('returns failure when compose pull fails', async () => {

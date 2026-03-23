@@ -33,7 +33,7 @@ interface PreviewDeployRequest {
 route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   const parent = requireApp(name, res)
   if (!parent) return
-  if (!parent.domain) {
+  if (parent.domains.length === 0) {
     json(res, 400, { error: 'Parent app must have a domain for preview subdomains' })
     return
   }
@@ -62,7 +62,7 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
     json(res, 400, { error: `Invalid --ttl "${body?.ttl}" — use e.g. 24h, 7d` })
     return
   }
-  const previewDomain = buildPreviewDomain(parent.domain, label)
+  const previewDomain = buildPreviewDomain(parent.domains[0], label)
   const expiresAt = previewExpiresAt(ttlMs)
 
   startSSE(res)

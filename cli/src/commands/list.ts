@@ -34,7 +34,7 @@ export async function list(): Promise<void> {
     rows.push({
       name: app.name,
       status: formatStatus(app.status),
-      url: formatUrl(app.domain, app.hostPort, app.port, serverUrl),
+      url: formatUrl(app.domains[0], app.hostPort, app.port, serverUrl),
       image: app.currentImage ?? '—',
       deployed: dim(app.deployedAt ? timeAgo(app.deployedAt) : '—'),
       expires: ''

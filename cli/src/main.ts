@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { domain } from './commands/domain.ts'
 import { login } from './commands/login.ts'
 import { list } from './commands/list.ts'
 import { deploy } from './commands/deploy.ts'
@@ -48,7 +49,10 @@ function parseArgs(argv: string[]): ParsedArgs {
           flags[arg.slice(2)] = true
         }
       }
-    } else if (isFirstPositional && (command === 'env' || command === 'registry' || command === 'webhook')) {
+    } else if (
+      isFirstPositional &&
+      (command === 'domain' || command === 'env' || command === 'registry' || command === 'webhook')
+    ) {
       subcommand = arg
       isFirstPositional = false
     } else {
@@ -63,6 +67,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 function formatHelp(): string {
   const commands = [
     ['deploy <image-or-app> [options]', 'Deploy an app (creates if new)'],
+    ['domain <add|remove|list> <app> [domain]', 'Manage app domains'],
     ['env <set|list|remove> <app> [args]', 'Manage environment variables'],
     ['history <app>', 'Show deployment history'],
     ['list', 'List all apps'],
@@ -103,6 +108,9 @@ async function main() {
       case 'history':
       case 'deployments':
         await history(parsed.positionals)
+        break
+      case 'domain':
+        await domain(parsed.subcommand, parsed.positionals, parsed.flags)
         break
       case 'env':
         await env(parsed.subcommand, parsed.positionals, parsed.flags)

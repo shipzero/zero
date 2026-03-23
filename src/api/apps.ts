@@ -101,7 +101,7 @@ route('GET', '/apps', async (_req, res) => {
       return {
         name: app.name,
         image: app.image,
-        domain: app.domain,
+        domains: app.domains,
         hostPort: app.hostPort,
         trackTag: app.trackTag,
         currentImage: deployment?.image,
@@ -156,11 +156,12 @@ route('POST', '/deploy', async (req, res) => {
     const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image!)
 
     const domain = body.domain ?? (hasDomain() ? `${appName}.${DOMAIN}` : undefined)
+    const domains = domain ? [domain] : []
 
     app = addApp({
       name: appName,
       image,
-      domain,
+      domains,
       internalPort: isCompose ? (body.port ?? 80) : body.port,
       hostPort: body.hostPort,
       command: body.command,
@@ -194,7 +195,7 @@ route('POST', '/deploy', async (req, res) => {
 
   try {
     if (body.preview) {
-      if (!app.domain) {
+      if (app.domains.length === 0) {
         sendSSE(
           res,
           JSON.stringify({ event: 'complete', success: false, error: 'App must have a domain for previews' })
@@ -228,7 +229,7 @@ route('POST', '/deploy', async (req, res) => {
         return
       }
 
-      const previewDomain = buildPreviewDomain(app.domain, label)
+      const previewDomain = buildPreviewDomain(app.domains[0], label)
       const expiresAt = previewExpiresAt(ttlMs)
 
       try {
@@ -277,7 +278,7 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
   json<AppDetail>(res, 200, {
     name: app.name,
     image: app.image,
-    domain: app.domain,
+    domains: app.domains,
     internalPort: app.internalPort,
     trackTag: app.trackTag,
     imagePrefix: app.imagePrefix,
