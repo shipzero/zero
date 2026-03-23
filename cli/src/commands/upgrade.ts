@@ -27,8 +27,8 @@ export async function upgrade(flags: Record<string, string | true>): Promise<voi
 function fetchLatestRelease(isCanary: boolean): { tag: string } {
   if (isCanary) {
     const json = execSync(`curl -fsSL https://api.github.com/repos/${REPO}/releases`, { encoding: 'utf8' })
-    const releases = JSON.parse(json) as Array<{ tag_name: string; prerelease: boolean }>
-    const preview = releases.find((r) => r.prerelease)
+    const releases = JSON.parse(json) as Array<{ tag_name: string; prerelease: boolean; created_at: string }>
+    const preview = releases.filter((r) => r.prerelease).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
     if (!preview) {
       logError('No canary release found')
       process.exit(1)
