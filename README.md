@@ -9,8 +9,12 @@
 
 ```bash
 zero deploy ghcr.io/shipzero/demo:latest
-# => https://demo.example.com
+# 🚀 Your app is live: https://demo.example.com
 ```
+
+Platforms like Vercel and Railway have great DX — but they're expensive, lock you in, and don't support arbitrary Docker images. Self-hosting is flexible and cheap, but getting a container live with HTTPS means wiring up nginx, Certbot, deploy scripts, and hoping nothing breaks.
+
+zero closes that gap. You point it at a Docker image, and it handles everything else — port detection, domain routing, TLS, health checks, zero-downtime swaps. Zero config files. Zero moving parts. Just one command and your app is live.
 
 ## Quickstart
 
