@@ -55,6 +55,6 @@ if [[ ":$PATH:" != *":${INSTALL_DIR}:"* ]]; then
 fi
 
 echo "  Get started:"
-echo "    zero login user@your-server.com"
+echo "    zero login user@example.com"
 echo "    zero deploy ghcr.io/shipzero/demo:latest"
 echo ""

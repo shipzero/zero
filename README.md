@@ -3,54 +3,20 @@
 </p>
 
 <p align="center">
-  From Docker image to live HTTPS app in minutes.<br>
-  On your own server. No platform overhead.
+  The fastest way to ship containers to your own server.<br>
+  One command. Automatic HTTPS. Zero config.
 </p>
 
 ```bash
-# Install server and CLI
-curl -fsSL https://shipzero.sh/install.sh | sudo bash
-curl -fsSL https://shipzero.sh/cli/install.sh | bash
-
-# Deploy
-zero login root@your-server.com
 zero deploy ghcr.io/shipzero/demo:latest
-# => https://demo.your-server.com
+# => https://demo.example.com
 ```
-
-## Why zero
-
-You want to deploy a Docker image. You don't want to configure nginx, manage TLS certificates, write YAML pipelines,
-or pay $20/month per app on a managed platform.
-
-zero is the simplest way to get from "I have a server" to "my app is live with HTTPS":
-
-- **One command to deploy** — name, port, domain, and TLS are inferred automatically
-- **Zero-downtime** — new containers are health-checked before traffic is swapped
-- **HTTPS just works** — Let's Encrypt certificates provisioned and renewed automatically
-- **No nginx. No Traefik.** — reverse proxy is built in
-- **Rollback instantly** — revert to the previous deployment with one command
-- **Preview deployments** — spin up a temporary version of any app with one command
-- **Webhooks** — push an image to your registry, zero deploys it automatically
-- **Live metrics** — CPU, memory, and network usage in the terminal
-
-Two dependencies. One container. No database. No web UI.
-
-## What zero is not
-
-- Not a Kubernetes replacement
-- Not a multi-node orchestrator
-- Not a multi-tenant platform
-- Not a CI/CD pipeline
-
-zero is a single-host deployment engine for trusted environments. If you need multi-node, RBAC, or a web dashboard,
-look at [Coolify](https://coolify.io) or [CapRover](https://caprover.com).
 
 ## Quickstart
 
 ### 1. Set up the server
 
-Any Linux VPS (Hetzner, DigitalOcean, etc.) with root access:
+Any Linux VPS with root access:
 
 ```bash
 curl -fsSL https://shipzero.sh/install.sh | sudo bash
@@ -67,7 +33,7 @@ curl -fsSL https://shipzero.sh/cli/install.sh | bash
 ### 3. Connect
 
 ```bash
-zero login root@your-server.com
+zero login root@example.com
 ```
 
 Authentication uses SSH — if you can SSH into the server, you can use zero.
@@ -78,16 +44,27 @@ Authentication uses SSH — if you can SSH into the server, you can use zero.
 zero deploy ghcr.io/shipzero/demo:latest
 ```
 
-That's it. zero infers the app name from the image, detects the port from `EXPOSE`, assigns a subdomain under
-your server domain, provisions a TLS certificate, and routes traffic.
+That's it. zero figures out the port, assigns a domain, provisions a TLS certificate, and routes traffic.
 
 ```
-✓ pulling image
-✓ starting container
-✓ detected port: 3000
-✓ health check passed
-✓ Your app is live: https://demo.your-server.com
+✓ Pulling image
+✓ Starting container
+✓ Detected port: 3000
+✓ Health check passed
+✓ Your app is live: https://demo.example.com
 ```
+
+## Features
+
+- **HTTPS by default** — certificates happen automatically
+- **Zero-downtime** — traffic switches only after the new version is healthy
+- **Preview deployments** — `zero deploy myapp --preview pr-42`
+- **One-command rollback** — `zero rollback myapp`
+- **Webhooks** — push to your registry, zero deploys it
+- **No reverse proxy config** — routing is built in
+- **Live metrics** — CPU, memory, and network in the terminal
+
+Two dependencies. One container. No database. No web UI. No YAML.
 
 ## Deploying
 
@@ -170,7 +147,7 @@ zero registry logout ghcr.io
 
 ### Docker Compose
 
-If you need more than one container, you can use Docker Compose:
+For multi-container apps:
 
 ```bash
 zero deploy --compose docker-compose.yml --service web --name mystack --domain mystack.example.com --port 3000
@@ -186,16 +163,15 @@ zero deploy --compose docker-compose.yml --service web --name mystack --domain m
 The Compose file is uploaded to the server. On deploy, zero pulls images, starts services, and health-checks the
 entry service before routing traffic.
 
-**`--image-prefix` explained:** When you pass `--image-prefix ghcr.io/shipzero/demo`, zero replaces the tag of every
-image in your Compose file that starts with `ghcr.io/shipzero/demo`. This is what makes `--tag`, webhooks, and preview
-deployments work — without it, zero wouldn't know which images to update.
+**`--image-prefix` explained:** When you pass `--image-prefix ghcr.io/you/mystack`, zero replaces the tag of every
+image in your Compose file that starts with that prefix. This is what makes `--tag`, webhooks, and preview
+deployments work for Compose apps.
 
 ```bash
-# Deploy with tag substitution and previews enabled
 zero deploy --compose docker-compose.yml --service web --name mystack --image-prefix ghcr.io/you/mystack
 
 # Now these work:
-zero deploy mystack --tag v2               # updates all ghcr.io/you/mystack/* images to :v2
+zero deploy mystack --tag v2               # updates all matching images to :v2
 zero deploy mystack --preview pr-21        # preview with tag :pr-21
 ```
 
@@ -232,7 +208,7 @@ Starts a new container from the previous image and swaps traffic once healthy.
 ```bash
 zero stop myapp              # stop container, traffic returns 502
 zero start myapp             # restart and health-check before routing
-zero remove myapp             # remove app and all its containers
+zero remove myapp            # remove app and all its containers
 ```
 
 ### Domains
@@ -260,14 +236,13 @@ Spin up a temporary version of any app:
 
 ```bash
 zero deploy myapp --preview pr-21
-# => https://preview-pr-21.myapp.your-server.com
+# => https://preview-pr-21.myapp.example.com
 ```
 
-Previews expire automatically (default: 7 days). One command, temporary URL, automatic cleanup.
+Previews expire automatically (default: 7 days). One flag, temporary URL, automatic cleanup.
 
 ```bash
 zero deploy myapp --preview feat-1 --tag feat-branch --ttl 24h
-zero history myapp                                               # shows deploys + previews
 zero logs myapp --preview pr-21
 zero metrics myapp --preview pr-21
 zero remove myapp --preview pr-21
@@ -278,65 +253,12 @@ zero remove myapp --preview pr-21
 Every app gets a unique webhook URL. Push an image to your registry, zero deploys it automatically.
 
 ```bash
-zero webhook url myapp        # show and rotate webhook URL
+zero webhook url myapp
 ```
 
-Add the URL as a webhook in GitHub Container Registry or Docker Hub. Payloads are verified using HMAC-SHA256.
+Add the URL as a webhook in GitHub Container Registry or Docker Hub. Payloads are verified with HMAC-SHA256.
 
 Non-matching tags automatically create preview deployments when the app has a domain.
-
-## Setup reference
-
-### Server requirements
-
-- Linux server (Ubuntu 22.04+ recommended)
-- Root access
-- A domain pointing to your server (recommended for HTTPS and automatic subdomains)
-
-### Server configuration
-
-Configuration is stored in `/opt/zero/.env`:
-
-| Variable                 | Description                                     | Default       |
-| ------------------------ | ----------------------------------------------- | ------------- |
-| `TOKEN`                  | Internal auth token (do not share)              | _(generated)_ |
-| `JWT_SECRET`             | Secret for signing JWT tokens                   | _(generated)_ |
-| `DOMAIN`                 | Server domain (used for app subdomains and TLS) | _(server IP)_ |
-| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —             |
-| `API_PORT`               | API server port                                 | `2020`        |
-| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`          |
-| `PREVIEW_TTL`            | Default time to live for preview deployments    | `7d`          |
-| `MAX_BODY_SIZE`          | Maximum request body size for the reverse proxy | `100m`        |
-
-### Upgrade
-
-```bash
-zero upgrade --server        # Upgrade remotely via CLI
-zero upgrade --canary        # Install canary (pre-release) version
-```
-
-Or re-run the install script on the server.
-
-### TLS and HTTPS
-
-zero provisions and renews TLS certificates via Let's Encrypt automatically when `EMAIL` is set and `DOMAIN` is a
-real domain (not an IP). Certificates are provisioned on first deploy and renewed within 30 days of expiry. HTTP
-requests are redirected to HTTPS (301).
-
-### Uninstall
-
-Server:
-
-```bash
-docker compose -f /opt/zero/docker-compose.yml down
-rm -rf /opt/zero /var/lib/zero
-```
-
-CLI:
-
-```bash
-rm -rf ~/.zero
-```
 
 ## How it works
 
@@ -359,30 +281,87 @@ No nginx. No Traefik. zero includes a built-in reverse proxy:
 - Forwarding headers: `X-Forwarded-For`, `X-Real-IP`, `X-Forwarded-Proto`
 - Request timeout: 60s, max body size: 100 MB (configurable via `MAX_BODY_SIZE`)
 
+## Scope
+
+zero is a single-server deployment engine. One server, any number of apps.
+If you need multi-node orchestration, team RBAC, or a web dashboard, zero is not the right tool.
+
+## Setup reference
+
+### Server requirements
+
+- Linux server (Ubuntu 22.04+ recommended)
+- Root access
+- A domain pointing to your server (for HTTPS and automatic subdomains)
+
+### Server configuration
+
+Configuration is stored in `/opt/zero/.env`:
+
+| Variable                 | Description                                     | Default       |
+| ------------------------ | ----------------------------------------------- | ------------- |
+| `TOKEN`                  | Internal auth token (do not share)              | _(generated)_ |
+| `JWT_SECRET`             | Secret for signing JWT tokens                   | _(generated)_ |
+| `DOMAIN`                 | Server domain (used for app subdomains and TLS) | _(server IP)_ |
+| `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —             |
+| `API_PORT`               | API server port                                 | `2020`        |
+| `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`          |
+| `PREVIEW_TTL`            | Default time to live for preview deployments    | `7d`          |
+| `MAX_BODY_SIZE`          | Maximum request body size for the reverse proxy | `100m`        |
+
+### Upgrade
+
+```bash
+zero upgrade --server        # upgrade remotely via CLI
+zero upgrade --canary        # install canary (pre-release) version
+```
+
+Or re-run the install script on the server.
+
+### TLS
+
+zero provisions and renews TLS certificates via Let's Encrypt automatically when `EMAIL` is set and `DOMAIN` is a
+real domain (not an IP). Certificates are provisioned on first deploy and renewed within 30 days of expiry. HTTP
+requests are redirected to HTTPS.
+
+### Uninstall
+
+Server:
+
+```bash
+docker compose -f /opt/zero/docker-compose.yml down
+rm -rf /opt/zero /var/lib/zero
+```
+
+CLI:
+
+```bash
+rm -rf ~/.zero
+```
+
 ## CLI Reference
 
 ```
 zero <command> [options]
 
-deploy <image-or-app> [options]         Deploy an app (creates if new)
-env <set|list|remove> <app> [args]       Manage environment variables
-history <app>                           Show deployment history
-list                                    List all apps
-login <user@server>                     Authenticate via SSH
+deploy <image-or-app> [options]              Deploy an app (creates if new)
+domain <add|remove|list> <app> [domain]      Manage app domains
+env <set|list|remove> <app> [args]           Manage environment variables
+history <app>                                Show deployment history
+list                                         List all apps
+login <user@server>                          Authenticate via SSH
 logs <app|--server> [--tail <n>] [--preview <label>]
-                                        Stream app or server logs
-metrics <app|--server> [--preview <label>]
-                                        Show live resource usage
-registry <login|logout|list> [server]   Manage registry credentials
-remove <app> [--preview <label>] [--force]
-                                        Remove an app or preview
-rollback <app> [--force]                Roll back to previous deployment
-start <app>                             Start a stopped app
-status                                  Show server connection info
-stop <app> [--force]                    Stop a running app
-upgrade [--server] [--all]              Upgrade CLI and/or server
-version                                 Show CLI and server version
-webhook url <app>                       Show and rotate webhook URL
+                                             Stream app or server logs
+metrics <app|--server> [--preview <label>]   Show live resource usage
+registry <login|logout|list> [server]        Manage registry credentials
+remove <app> [--preview <label>] [--force]   Remove an app or preview
+rollback <app> [--force]                     Roll back to previous deployment
+start <app>                                  Start a stopped app
+status                                       Show server connection info
+stop <app> [--force]                         Stop a running app
+upgrade [--server] [--all]                   Upgrade CLI and/or server
+version                                      Show CLI and server version
+webhook url <app>                            Show and rotate webhook URL
 ```
 
 ## Sponsors

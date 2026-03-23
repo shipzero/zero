@@ -11,7 +11,7 @@ export async function login(positionals: string[], _flags: Record<string, string
 
   if (!ssh || !ssh.includes('@')) {
     logError('Usage: zero login <user@server>')
-    console.error('Example: zero login root@your-server.com')
+    console.error('Example: zero login root@example.com')
     process.exit(1)
   }
 
