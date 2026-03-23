@@ -105,7 +105,7 @@ function dockerStatusCode(err: unknown): number | undefined {
   return (err as { statusCode?: number }).statusCode
 }
 
-export async function stopContainer(containerId: string, gracefulMs = 30_000): Promise<void> {
+export async function stopContainer(containerId: string, gracefulMs = 10_000): Promise<void> {
   try {
     const container = docker.getContainer(containerId)
     await container.stop({ t: Math.floor(gracefulMs / 1000) })
@@ -116,7 +116,7 @@ export async function stopContainer(containerId: string, gracefulMs = 30_000): P
   }
 }
 
-export async function removeContainer(containerId: string, gracefulMs = 30_000): Promise<void> {
+export async function removeContainer(containerId: string, gracefulMs = 10_000): Promise<void> {
   try {
     const container = docker.getContainer(containerId)
     await container.stop({ t: Math.floor(gracefulMs / 1000) })

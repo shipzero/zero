@@ -1,11 +1,22 @@
 import { createClient, unwrap } from '../client.ts'
-import { logSuccess, logError, logWarn, logInfo, dim, requireAppName, spinner, printCommandHelp } from '../ui.ts'
+import {
+  logSuccess,
+  logError,
+  logWarn,
+  logInfo,
+  dim,
+  confirm,
+  requireAppName,
+  spinner,
+  printCommandHelp
+} from '../ui.ts'
 
 interface DomainsResponse {
   domains: string[]
   added?: string
   removed?: string
   hostPort?: number
+  removedHostPort?: number
 }
 
 export async function domain(
@@ -47,9 +58,20 @@ async function domainAdd(positionals: string[]): Promise<void> {
     domain: domainName
   })
   spin.stop()
-  unwrap(res, logError)
+  const data = unwrap(res, logError)
 
   logSuccess(`Added ${domainName} to ${appName}`)
+
+  if (data.removedHostPort) {
+    logInfo(`Removed auto-assigned port ${data.removedHostPort}`)
+  } else if (data.hostPort) {
+    logWarn(`App is also exposed on port ${data.hostPort} (plain HTTP)`)
+    const ok = await confirm('Remove the host port?')
+    if (ok) {
+      await client.del(`/apps/${encodeURIComponent(appName)}/host-port`)
+      logSuccess(`Removed host port ${data.hostPort}`)
+    }
+  }
 }
 
 async function domainRemove(positionals: string[]): Promise<void> {

@@ -7,6 +7,7 @@ import {
   updateEnv,
   removeEnv,
   removeApp,
+  clearHostPort,
   resetWebhookSecret,
   getCurrentDeployment,
   findRollbackTarget,
@@ -17,7 +18,7 @@ import {
 import { deploy, deployPreview, deployComposePreview, rollback, deployEvents } from '../deploy.ts'
 import { streamLogs, streamStats, stopContainer, startContainer, waitForHealthy, removeContainer } from '../docker.ts'
 import { composeDir, composeDown, composeStop, composeStart, composeLogs, removeComposeDir } from '../compose.ts'
-import { routeApp, unrouteApp } from '../proxy.ts'
+import { routeApp, unrouteApp, removePortRoute } from '../proxy.ts'
 import { destroyPreview } from '../preview.ts'
 import { buildDomainUrl, buildWebhookUrl, hasDomain } from '../url.ts'
 import { DOMAIN, PREVIEW_TTL_MS } from '../env.ts'
@@ -475,6 +476,21 @@ async function removeAppWithContainers(app: AppConfig): Promise<void> {
 
   removeApp(app.name)
 }
+
+route('DELETE', '/apps/:name/host-port', async (_req, res, { name }) => {
+  const app = requireApp(name, res)
+  if (!app) return
+
+  if (!app.hostPort) {
+    json(res, 400, { error: 'No host port configured' })
+    return
+  }
+
+  removePortRoute(app.hostPort)
+  clearHostPort(name)
+
+  json<MessageResponse>(res, 200, { message: 'Host port removed' })
+})
 
 route('DELETE', '/apps/:name', async (_req, res, { name }) => {
   const app = requireApp(name, res)

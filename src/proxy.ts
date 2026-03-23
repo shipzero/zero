@@ -236,7 +236,7 @@ function updatePortRoute(hostPort: number, targetPort: number) {
   portListeners.set(hostPort, entry)
 }
 
-function removePortRoute(hostPort: number) {
+export function removePortRoute(hostPort: number) {
   const entry = portListeners.get(hostPort)
   if (!entry) return
   entry.server.close()

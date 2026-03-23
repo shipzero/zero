@@ -36,6 +36,7 @@ export interface AppConfig {
   domains: string[]
   internalPort?: number
   hostPort?: number
+  isAutoHostPort?: boolean
   webhookSecret: string
   command?: string[]
   volumes?: string[]
@@ -123,10 +124,19 @@ export function resetWebhookSecret(appName: string): string {
   return app.webhookSecret
 }
 
-export function updateHostPort(appName: string, port: number): void {
+export function updateHostPort(appName: string, port: number, isAuto = false): void {
   const app = _state.apps[appName]
   if (!app) throw new Error(`App "${appName}" not found`)
   app.hostPort = port
+  app.isAutoHostPort = isAuto || undefined
+  saveState()
+}
+
+export function clearHostPort(appName: string): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+  delete app.hostPort
+  delete app.isAutoHostPort
   saveState()
 }
 

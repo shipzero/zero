@@ -1,5 +1,12 @@
-import { addDomain, removeDomain, getCurrentDeployment, getPreviewsForApp, updateHostPort } from '../state.ts'
-import { updateProxyRoute, removeProxyRoute, routeApp } from '../proxy.ts'
+import {
+  addDomain,
+  removeDomain,
+  clearHostPort,
+  getCurrentDeployment,
+  getPreviewsForApp,
+  updateHostPort
+} from '../state.ts'
+import { updateProxyRoute, removeProxyRoute, removePortRoute, routeApp } from '../proxy.ts'
 import { obtainCert } from '../certs.ts'
 import { getFreePort } from '../docker.ts'
 import { isTLSEnabled } from '../url.ts'
@@ -40,7 +47,20 @@ route('POST', '/apps/:name/domains', async (req, res, { name }) => {
     })
   }
 
-  json(res, 200, { domains: app.domains, added: body.domain })
+  let removedHostPort: number | undefined
+  if (app.isAutoHostPort && app.hostPort) {
+    removedHostPort = app.hostPort
+    removePortRoute(app.hostPort)
+    clearHostPort(name)
+    console.log(`[domains] Removed auto-assigned host port :${removedHostPort} for ${name}`)
+  }
+
+  json(res, 200, {
+    domains: app.domains,
+    added: body.domain,
+    hostPort: app.hostPort,
+    removedHostPort
+  })
 })
 
 route('DELETE', '/apps/:name/domains/:domain', async (_req, res, { name, domain }) => {
@@ -66,7 +86,7 @@ route('DELETE', '/apps/:name/domains/:domain', async (_req, res, { name, domain 
     const deployment = getCurrentDeployment(app)
     if (deployment) {
       const port = await getFreePort()
-      updateHostPort(name, port)
+      updateHostPort(name, port, true)
       routeApp(app, deployment.port)
       console.log(`[domains] Auto-assigned host port :${port} for ${name}`)
     }

@@ -48,7 +48,8 @@ vi.mock('./proxy.ts', () => ({
   routeApp: vi.fn(),
   unrouteApp: vi.fn(),
   updateProxyRoute: vi.fn(),
-  removeProxyRoute: vi.fn()
+  removeProxyRoute: vi.fn(),
+  removePortRoute: vi.fn()
 }))
 
 // Now import after mocks are set up
@@ -1090,6 +1091,39 @@ describe('API', () => {
       const res = await request('DELETE', '/apps/domblock/domains/block.com')
       expect(res.status).toBe(400)
       expect((res.body as { error: string }).error).toContain('previews exist')
+    })
+
+    it('POST /apps/:name/domains removes auto-assigned host port', async () => {
+      addTestApp({ name: 'autoport', hostPort: 7777 })
+      state.getApp('autoport')!.isAutoHostPort = true
+      state.saveState()
+      const res = await request('POST', '/apps/autoport/domains', { domain: 'autoport.com' })
+      expect(res.status).toBe(200)
+      const body = res.body as { removedHostPort?: number }
+      expect(body.removedHostPort).toBe(7777)
+      expect(state.getApp('autoport')!.hostPort).toBeUndefined()
+    })
+
+    it('POST /apps/:name/domains keeps explicit host port', async () => {
+      addTestApp({ name: 'explport', hostPort: 8888 })
+      const res = await request('POST', '/apps/explport/domains', { domain: 'explport.com' })
+      expect(res.status).toBe(200)
+      const body = res.body as { hostPort?: number; removedHostPort?: number }
+      expect(body.hostPort).toBe(8888)
+      expect(body.removedHostPort).toBeUndefined()
+    })
+
+    it('DELETE /apps/:name/host-port removes host port', async () => {
+      addTestApp({ name: 'rmport', domain: 'rmport.com', hostPort: 9999 })
+      const res = await request('DELETE', '/apps/rmport/host-port')
+      expect(res.status).toBe(200)
+      expect(state.getApp('rmport')!.hostPort).toBeUndefined()
+    })
+
+    it('DELETE /apps/:name/host-port returns 400 when no host port', async () => {
+      addTestApp({ name: 'noport', domain: 'noport.com' })
+      const res = await request('DELETE', '/apps/noport/host-port')
+      expect(res.status).toBe(400)
     })
   })
 })
