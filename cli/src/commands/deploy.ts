@@ -268,8 +268,8 @@ export async function deploy(positionals: string[], flags: Record<string, string
       logHint(`Remove with: zero remove ${body.name} --preview ${preview}`)
     } else {
       logSuccess(`Your app is live: ${cyan(result.url ?? `port ${result.port}`)}`)
-      const appDomain = result.url ? new URL(result.url).hostname : domain
-      if (result.isNew && appDomain && !isLocalDomain(appDomain)) {
+      const appDomain = domain ?? (result.url ? new URL(result.url).hostname : undefined)
+      if (result.isNew && appDomain && !isLocalDomain(appDomain) && !body.hostPort) {
         await printDnsTable(appDomain, client.config.host)
       }
       logHint(`View logs: zero logs ${body.name}`)

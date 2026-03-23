@@ -1,13 +1,7 @@
 import { createClient, unwrap } from '../client.ts'
 import type { AppSummary } from '../../../src/types.ts'
-import { dim, logInfo, logError, timeAgo, timeUntil, formatStatus, printTable, spinner } from '../ui.ts'
+import { dim, logInfo, logError, timeAgo, timeUntil, formatStatus, formatAppUrl, printTable, spinner } from '../ui.ts'
 import type { Column } from '../ui.ts'
-
-function formatUrl(domain: string | undefined, hostPort: number | undefined, serverUrl: URL): string {
-  if (domain) return `${serverUrl.protocol}//${domain}`
-  if (hostPort) return `http://${serverUrl.hostname}:${hostPort}`
-  return '—'
-}
 
 export async function list(): Promise<void> {
   const client = createClient()
@@ -28,7 +22,7 @@ export async function list(): Promise<void> {
     rows.push({
       name: app.name,
       status: formatStatus(app.status),
-      url: formatUrl(app.domains[0], app.hostPort, serverUrl),
+      url: formatAppUrl(app.domains[0], app.hostPort, serverUrl),
       image: app.currentImage ?? '—',
       deployed: dim(app.deployedAt ? timeAgo(app.deployedAt) : '—'),
       expires: ''
@@ -37,7 +31,7 @@ export async function list(): Promise<void> {
       rows.push({
         name: ` └ ${p.label}`,
         status: formatStatus(p.status),
-        url: formatUrl(p.domain, undefined, serverUrl),
+        url: formatAppUrl(p.domain, undefined, serverUrl),
         image: p.image ?? '—',
         deployed: dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
         expires: dim(p.expiresAt ? timeUntil(p.expiresAt) : '')

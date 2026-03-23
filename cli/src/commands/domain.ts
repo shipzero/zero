@@ -6,6 +6,7 @@ import {
   logInfo,
   dim,
   confirm,
+  formatAppUrl,
   requireAppName,
   spinner,
   printCommandHelp
@@ -93,7 +94,8 @@ async function domainRemove(positionals: string[]): Promise<void> {
 
   logSuccess(`Removed ${domainName} from ${appName}`)
   if (data.domains.length === 0 && data.hostPort) {
-    logInfo(`App is now reachable on port ${data.hostPort}`)
+    const serverUrl = new URL(client.config.host)
+    logInfo(`App is now reachable on ${formatAppUrl(undefined, data.hostPort, serverUrl)}`)
   }
 }
 

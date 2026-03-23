@@ -9,6 +9,9 @@ const CYAN = '\x1b[36m'
 
 const isColorEnabled = !process.env['NO_COLOR'] && process.stdout.isTTY
 
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+const ANSI_REGEX = /\x1b\[[0-9;]*m/g
+
 function wrap(code: string, text: string): string {
   return isColorEnabled ? `${code}${text}${RESET}` : text
 }
@@ -94,8 +97,6 @@ export function formatStatus(status: 'running' | 'stopped' | 'no deployment'): s
   }
 }
 
-const ANSI_REGEX = /\x1b\[[0-9;]*m/g
-
 function visibleLength(text: string): number {
   return text.replace(ANSI_REGEX, '').length
 }
@@ -124,8 +125,6 @@ export function printTable(columns: Column[], rows: Record<string, string>[]): v
     console.log(cells.join('  '))
   }
 }
-
-const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
 export function spinner(message: string): { stop: (finalMessage?: string) => void } {
   if (!process.stdout.isTTY) {
@@ -215,6 +214,12 @@ export async function confirm(message: string): Promise<boolean> {
       resolve(char === 'y')
     })
   })
+}
+
+export function formatAppUrl(domain: string | undefined, hostPort: number | undefined, serverUrl: URL): string {
+  if (domain) return `${serverUrl.protocol}//${domain}`
+  if (hostPort) return `http://${serverUrl.hostname}:${hostPort}`
+  return '—'
 }
 
 export async function printDnsTable(domain: string, serverHost: string): Promise<void> {
