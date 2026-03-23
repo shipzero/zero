@@ -74,7 +74,6 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
     } else {
       await deployPreview(name, label, body!.tag!, previewDomain, expiresAt)
     }
-    deployEvents.removeListener(`log:${name}`, onDeployLog)
     sendSSE(
       res,
       JSON.stringify({
@@ -87,7 +86,6 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
       })
     )
   } catch (err) {
-    deployEvents.removeListener(`log:${name}`, onDeployLog)
     sendSSE(
       res,
       JSON.stringify({
@@ -100,6 +98,8 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
         error: getErrorMessage(err)
       })
     )
+  } finally {
+    deployEvents.removeListener(`log:${name}`, onDeployLog)
   }
   res.end()
 })

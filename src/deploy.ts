@@ -135,8 +135,9 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
     } catch {
       /* container may already be gone */
     }
+    log(appName, 'Run `zero logs --server` to see full server logs', label)
     await removeContainer(containerId)
-    throw new Error(`Health check failed on port ${opts.internalPort}${healthPath}`)
+    throw new Error('Health check failed')
   }
 
   return { containerId, port, digest: inspection.digest }
@@ -290,8 +291,9 @@ async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: numb
     } catch {
       /* best effort */
     }
+    log(appName, 'Run `zero logs --server` to see full server logs', label)
     if (projectName !== app.name) removeComposeDir(projectName)
-    throw new Error(`Health check failed on port ${containerPort}${healthPath}`)
+    throw new Error('Health check failed')
   }
 
   return { port: containerPort, deployTag }

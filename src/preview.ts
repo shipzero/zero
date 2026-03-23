@@ -21,7 +21,7 @@ export async function destroyPreview(appName: string, preview: Preview): Promise
     await removeContainer(preview.containerId)
   }
   removePreview(appName, preview.label)
-  clearDeployLogs(appName, `preview/${preview.label}`)
+  clearDeployLogs(appName, preview.label)
 }
 
 export async function cleanupExpiredPreviews(): Promise<number> {

@@ -36,6 +36,7 @@ import {
   parseImageRef,
   previewExpiresAt,
   resolveContainerStatus,
+  resolveImageWithTag,
   findComposeContainer,
   getErrorMessage
 } from './router.ts'
@@ -190,88 +191,81 @@ route('POST', '/deploy', async (req, res) => {
   const onDeployLog = (line: string) => sendSSE(res, JSON.stringify({ event: 'log', message: line }))
   deployEvents.on(`log:${appName}`, onDeployLog)
 
-  if (body.preview) {
-    if (!app.domain) {
-      deployEvents.removeListener(`log:${appName}`, onDeployLog)
-      sendSSE(res, JSON.stringify({ event: 'complete', success: false, error: 'App must have a domain for previews' }))
-      res.end()
-      return
-    }
-
-    if (isComposeApp(app) && !app.imagePrefix) {
-      deployEvents.removeListener(`log:${appName}`, onDeployLog)
-      sendSSE(
-        res,
-        JSON.stringify({
-          event: 'complete',
-          success: false,
-          error:
-            'Compose previews require --image-prefix to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --image-prefix <prefix>'
-        })
-      )
-      res.end()
-      return
-    }
-
-    const label = body.preview
-    const tag = body.tag ?? label
-    let ttlMs: number
-    try {
-      ttlMs = body.ttl ? parseDuration(body.ttl) : PREVIEW_TTL_MS
-    } catch {
-      deployEvents.removeListener(`log:${appName}`, onDeployLog)
-      sendSSE(res, JSON.stringify({ event: 'complete', success: false, error: `Invalid --ttl "${body.ttl}"` }))
-      res.end()
-      return
-    }
-
-    const previewDomain = buildPreviewDomain(app.domain, label)
-    const expiresAt = previewExpiresAt(ttlMs)
-
-    try {
-      if (isComposeApp(app)) {
-        await deployComposePreview(appName, label, previewDomain, expiresAt, tag)
-      } else {
-        await deployPreview(appName, label, tag, previewDomain, expiresAt)
+  try {
+    if (body.preview) {
+      if (!app.domain) {
+        sendSSE(
+          res,
+          JSON.stringify({ event: 'complete', success: false, error: 'App must have a domain for previews' })
+        )
+        res.end()
+        return
       }
-      deployEvents.removeListener(`log:${appName}`, onDeployLog)
-      sendSSE(
-        res,
-        JSON.stringify({
-          event: 'complete',
-          success: true,
-          appName,
-          label,
-          url: buildDomainUrl(previewDomain)
-        })
-      )
-    } catch (err) {
-      deployEvents.removeListener(`log:${appName}`, onDeployLog)
-      sendSSE(
-        res,
-        JSON.stringify({
-          event: 'complete',
-          success: false,
-          error: getErrorMessage(err)
-        })
-      )
+
+      if (isComposeApp(app) && !app.imagePrefix) {
+        sendSSE(
+          res,
+          JSON.stringify({
+            event: 'complete',
+            success: false,
+            error:
+              'Compose previews require --image-prefix to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --image-prefix <prefix>'
+          })
+        )
+        res.end()
+        return
+      }
+
+      const label = body.preview
+      const tag = body.tag ?? label
+      let ttlMs: number
+      try {
+        ttlMs = body.ttl ? parseDuration(body.ttl) : PREVIEW_TTL_MS
+      } catch {
+        sendSSE(res, JSON.stringify({ event: 'complete', success: false, error: `Invalid --ttl "${body.ttl}"` }))
+        res.end()
+        return
+      }
+
+      const previewDomain = buildPreviewDomain(app.domain, label)
+      const expiresAt = previewExpiresAt(ttlMs)
+
+      try {
+        if (isComposeApp(app)) {
+          await deployComposePreview(appName, label, previewDomain, expiresAt, tag)
+        } else {
+          await deployPreview(appName, label, tag, previewDomain, expiresAt)
+        }
+        sendSSE(
+          res,
+          JSON.stringify({
+            event: 'complete',
+            success: true,
+            appName,
+            label,
+            url: buildDomainUrl(previewDomain)
+          })
+        )
+      } catch (err) {
+        sendSSE(
+          res,
+          JSON.stringify({
+            event: 'complete',
+            success: false,
+            error: getErrorMessage(err)
+          })
+        )
+      }
+      res.end()
+      return
     }
+
+    const result = await deploy(appName, resolveImageWithTag(app, body.tag))
+    sendSSE(res, JSON.stringify({ event: 'complete', ...result, appName, isNew }))
     res.end()
-    return
+  } finally {
+    deployEvents.removeListener(`log:${appName}`, onDeployLog)
   }
-
-  let imageWithTag: string | undefined
-  if (isComposeApp(app)) {
-    imageWithTag = body.tag || app.trackTag || undefined
-  } else {
-    imageWithTag = `${app.image}:${body.tag ?? app.trackTag}`
-  }
-
-  const result = await deploy(appName, imageWithTag)
-
-  deployEvents.removeListener(`log:${appName}`, onDeployLog)
-  sendSSE(res, JSON.stringify({ event: 'complete', ...result, appName, isNew }))
-  res.end()
 })
 
 route('GET', '/apps/:name', async (_req, res, { name }) => {
@@ -301,16 +295,8 @@ route('POST', '/apps/:name/deploy', async (req, res, { name }) => {
 
   const raw = (await readBody(req)).toString()
   const body = raw ? parseJSON<DeployRequest>(raw) : null
-  const tag = body?.tag
 
-  let imageWithTag: string | undefined
-  if (isComposeApp(app)) {
-    imageWithTag = tag || app.trackTag || undefined
-  } else {
-    imageWithTag = `${app.image}:${tag ?? app.trackTag}`
-  }
-
-  const result = await deploy(name, imageWithTag)
+  const result = await deploy(name, resolveImageWithTag(app, body?.tag))
   json(res, result.success ? 200 : 500, result)
 })
 

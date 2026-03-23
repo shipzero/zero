@@ -7,7 +7,6 @@ import { getErrorMessage } from './errors.ts'
 
 export const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
 
-/** Extracts the registry hostname from an image reference. */
 function registryFromImage(image: string): string {
   const parts = image.split('/')
   if (parts.length >= 2 && (parts[0].includes('.') || parts[0].includes(':'))) {
@@ -45,7 +44,6 @@ export interface ImageInspection {
   digest?: string
 }
 
-/** Inspects a pulled image for EXPOSE ports and registry digest. */
 export async function inspectImage(imageRef: string): Promise<ImageInspection> {
   try {
     const data = await docker.getImage(imageRef).inspect()
@@ -132,9 +130,7 @@ export async function removeContainer(containerId: string, gracefulMs = 30_000):
   }
 }
 
-export async function tailLogs(containerId: string, tail = 50): Promise<string[]> {
-  const container = docker.getContainer(containerId)
-  const buffer = (await container.logs({ follow: false, stdout: true, stderr: true, tail, timestamps: true })) as Buffer
+function parseDockerStreamFrames(buffer: Buffer): string[] {
   const lines: string[] = []
   let offset = 0
   while (offset < buffer.length) {
@@ -150,6 +146,12 @@ export async function tailLogs(containerId: string, tail = 50): Promise<string[]
   return lines
 }
 
+export async function tailLogs(containerId: string, tail = 50): Promise<string[]> {
+  const container = docker.getContainer(containerId)
+  const buffer = (await container.logs({ follow: false, stdout: true, stderr: true, tail, timestamps: true })) as Buffer
+  return parseDockerStreamFrames(buffer)
+}
+
 export async function* streamLogs(containerId: string): AsyncGenerator<string> {
   const container = docker.getContainer(containerId)
   const logStream = await container.logs({
@@ -161,16 +163,8 @@ export async function* streamLogs(containerId: string): AsyncGenerator<string> {
   })
 
   for await (const chunk of logStream as AsyncIterable<Buffer>) {
-    let offset = 0
-    while (offset < chunk.length) {
-      if (chunk.length - offset < 8) break
-      const size = chunk.readUInt32BE(offset + 4)
-      const line = chunk
-        .subarray(offset + 8, offset + 8 + size)
-        .toString('utf8')
-        .trimEnd()
-      if (line) yield line
-      offset += 8 + size
+    for (const line of parseDockerStreamFrames(chunk)) {
+      yield line
     }
   }
 }

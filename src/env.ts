@@ -1,3 +1,6 @@
+import { parseDuration } from './duration.ts'
+import { parseSize } from './size.ts'
+
 export const IS_DEV = process.env.NODE_ENV !== 'production'
 export const DOMAIN = process.env.DOMAIN ?? ''
 export const EMAIL = process.env.EMAIL ?? ''
@@ -10,8 +13,6 @@ export const CERTS_DIR = process.env.CERTS_PATH ?? (IS_DEV ? '.zero/certs' : '/v
 export const CERT_RENEW_BEFORE_DAYS = Number(process.env.CERT_RENEW_BEFORE_DAYS ?? 30)
 export const CERT_RENEW_INTERVAL_MS = Number(process.env.CERT_RENEW_INTERVAL_MS ?? 12 * 60 * 60 * 1000)
 export const COMPOSE_BASE_DIR = process.env.COMPOSE_DIR ?? (IS_DEV ? '.zero/compose' : '/var/lib/zero/compose')
-import { parseDuration } from './duration.ts'
-import { parseSize } from './size.ts'
 
 function safeParseDuration(value: string, fallback: string): number {
   try {

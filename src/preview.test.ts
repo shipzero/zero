@@ -53,7 +53,7 @@ describe('destroyPreview', () => {
     expect(mockRemoveProxyRoute).toHaveBeenCalledWith('pr-1.app.com')
     expect(mockRemoveContainer).toHaveBeenCalledWith('abc123')
     expect(mockRemovePreview).toHaveBeenCalledWith('myapp', 'pr-1')
-    expect(mockClearDeployLogs).toHaveBeenCalledWith('myapp', 'preview/pr-1')
+    expect(mockClearDeployLogs).toHaveBeenCalledWith('myapp', 'pr-1')
     expect(mockComposeDown).not.toHaveBeenCalled()
   })
 

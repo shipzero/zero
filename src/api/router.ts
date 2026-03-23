@@ -1,7 +1,7 @@
 import http from 'node:http'
 import crypto from 'node:crypto'
 import type { AppConfig, Preview } from '../state.ts'
-import { getApp, getPreview } from '../state.ts'
+import { getApp, getPreview, isComposeApp } from '../state.ts'
 import { getErrorMessage } from '../errors.ts'
 import { docker, getContainerState } from '../docker.ts'
 import { TOKEN, JWT_SECRET, API_PORT } from '../env.ts'
@@ -237,6 +237,13 @@ function recordAuthFailure(ip: string) {
   const attempts = authFailures.get(ip) ?? []
   attempts.push(Date.now())
   authFailures.set(ip, attempts)
+}
+
+export function resolveImageWithTag(app: AppConfig, tag?: string): string | undefined {
+  if (isComposeApp(app)) {
+    return tag || app.trackTag || undefined
+  }
+  return `${app.image}:${tag ?? app.trackTag}`
 }
 
 export { getErrorMessage } from '../errors.ts'
