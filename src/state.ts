@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { STATE_PATH } from './env.ts'
 import { ensureParentDir, writeFileAtomic } from './fs.ts'
+
 const MAX_DEPLOYMENTS = 10
 
 export interface Deployment {
@@ -46,51 +47,6 @@ export interface AppConfig {
   entryService?: string
   imagePrefix?: string
   previews: Record<string, Preview>
-}
-
-export function isComposeApp(app: AppConfig): boolean {
-  return !!app.composeFile
-}
-
-export function buildPreviewDomain(parentDomain: string, label: string): string {
-  return `preview-${label}.${parentDomain}`
-}
-
-export function getPreview(appName: string, label: string): Preview | undefined {
-  return _state.apps[appName]?.previews[label]
-}
-
-export function setPreview(appName: string, label: string, preview: Preview): void {
-  const app = _state.apps[appName]
-  if (!app) throw new Error(`App "${appName}" not found`)
-  app.previews[label] = preview
-  saveState()
-}
-
-export function removePreview(appName: string, label: string): void {
-  const app = _state.apps[appName]
-  if (!app) throw new Error(`App "${appName}" not found`)
-  delete app.previews[label]
-  saveState()
-}
-
-export function getPreviewsForApp(appName: string): Preview[] {
-  const app = _state.apps[appName]
-  if (!app) return []
-  return Object.values(app.previews)
-}
-
-export function getAllExpiredPreviews(): Array<{ appName: string; label: string; preview: Preview }> {
-  const now = new Date().toISOString()
-  const expired: Array<{ appName: string; label: string; preview: Preview }> = []
-  for (const app of Object.values(_state.apps)) {
-    for (const [label, preview] of Object.entries(app.previews)) {
-      if (preview.expiresAt < now) {
-        expired.push({ appName: app.name, label, preview })
-      }
-    }
-  }
-  return expired
 }
 
 export interface State {
@@ -146,6 +102,15 @@ export function addApp(config: Omit<AppConfig, 'webhookSecret' | 'deployments' |
   return app
 }
 
+export function removeApp(appName: string): void {
+  delete _state.apps[appName]
+  saveState()
+}
+
+export function isComposeApp(app: AppConfig): boolean {
+  return !!app.composeFile
+}
+
 export function resetWebhookSecret(appName: string): string {
   const app = _state.apps[appName]
   if (!app) throw new Error(`App "${appName}" not found`)
@@ -177,11 +142,6 @@ export function removeEnv(appName: string, keys: string[]): void {
   saveState()
 }
 
-export function removeApp(appName: string): void {
-  delete _state.apps[appName]
-  saveState()
-}
-
 export function getCurrentDeployment(app: AppConfig): Deployment | undefined {
   return app.deployments[0]
 }
@@ -199,6 +159,61 @@ export function addDeployment(appName: string, deployment: Deployment): Deployme
 
   saveState()
   return evicted
+}
+
+export function findRollbackTarget(appName: string): Deployment {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+
+  const current = app.deployments[0]
+  const currentId = current?.digest ?? current?.image
+  const target = app.deployments.find((d) => (d.digest ?? d.image) !== currentId)
+  if (!target) {
+    throw new Error('No previous deployment with a different image to roll back to')
+  }
+
+  return target
+}
+
+export function buildPreviewDomain(parentDomain: string, label: string): string {
+  return `preview-${label}.${parentDomain}`
+}
+
+export function getPreview(appName: string, label: string): Preview | undefined {
+  return _state.apps[appName]?.previews[label]
+}
+
+export function setPreview(appName: string, label: string, preview: Preview): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+  app.previews[label] = preview
+  saveState()
+}
+
+export function removePreview(appName: string, label: string): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+  delete app.previews[label]
+  saveState()
+}
+
+export function getPreviewsForApp(appName: string): Preview[] {
+  const app = _state.apps[appName]
+  if (!app) return []
+  return Object.values(app.previews)
+}
+
+export function getAllExpiredPreviews(): Array<{ appName: string; label: string; preview: Preview }> {
+  const now = new Date().toISOString()
+  const expired: Array<{ appName: string; label: string; preview: Preview }> = []
+  for (const app of Object.values(_state.apps)) {
+    for (const [label, preview] of Object.entries(app.previews)) {
+      if (preview.expiresAt < now) {
+        expired.push({ appName: app.name, label, preview })
+      }
+    }
+  }
+  return expired
 }
 
 export function getRegistryAuths(): Record<string, RegistryAuth> {
@@ -219,18 +234,4 @@ export function removeRegistryAuth(server: string): boolean {
   delete _state.registryAuths[server]
   saveState()
   return true
-}
-
-export function findRollbackTarget(appName: string): Deployment {
-  const app = _state.apps[appName]
-  if (!app) throw new Error(`App "${appName}" not found`)
-
-  const current = app.deployments[0]
-  const currentId = current?.digest ?? current?.image
-  const target = app.deployments.find((d) => (d.digest ?? d.image) !== currentId)
-  if (!target) {
-    throw new Error('No previous deployment with a different image to roll back to')
-  }
-
-  return target
 }

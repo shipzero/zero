@@ -15,9 +15,7 @@ import {
   pullImage,
   inspectImage,
   runContainer,
-  stopContainer,
   removeContainer,
-  tailLogs,
   waitForHealthy,
   getFreePort
 } from './docker.ts'
@@ -34,11 +32,49 @@ import { routeApp, updateProxyRoute } from './proxy.ts'
 import { buildDomainUrl, buildAppUrl } from './url.ts'
 import { getErrorMessage } from './errors.ts'
 
-const deployLogs = new Map<string, string[]>()
+const DEFAULT_PORT = 3000
 const MAX_LOG_LINES = 500
+
+export interface DeployResult {
+  success: boolean
+  image: string
+  port: number
+  containerId: string
+  url?: string
+  error?: string
+}
+
+interface ContainerDeployOptions {
+  imageWithTag: string
+  containerName: string
+  internalPort?: number
+  env: Record<string, string>
+  healthPath?: string
+  healthTimeout?: string
+  command?: string[]
+  volumes?: string[]
+  appName: string
+  label?: string
+}
+
+interface ContainerDeployResult {
+  containerId: string
+  port: number
+  digest?: string
+}
+
+interface ComposeDeployContext {
+  app: AppConfig
+  projectName: string
+  appName: string
+  tag?: string
+  label?: string
+}
 
 /** Emits `log:<appName>` events with the formatted log line as payload. */
 export const deployEvents = new EventEmitter()
+
+const deployLogs = new Map<string, string[]>()
 
 function log(appName: string, line: string, label?: string) {
   const prefix = label ? `${appName}/${label}` : appName
@@ -60,25 +96,14 @@ export function clearDeployLogs(appName: string, label?: string): void {
   deployLogs.delete(key)
 }
 
-const DEFAULT_PORT = 3000
+const locks = new Set<string>()
 
-interface ContainerDeployOptions {
-  imageWithTag: string
-  containerName: string
-  internalPort?: number
-  env: Record<string, string>
-  healthPath?: string
-  healthTimeout?: string
-  command?: string[]
-  volumes?: string[]
-  appName: string
-  label?: string
-}
-
-interface ContainerDeployResult {
-  containerId: string
-  port: number
-  digest?: string
+function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  if (locks.has(key)) {
+    throw new Error(`Deploy already in progress for "${key}"`)
+  }
+  locks.add(key)
+  return fn().finally(() => locks.delete(key))
 }
 
 async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerDeployResult> {
@@ -127,65 +152,12 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
     const healthPath = opts.healthPath ?? '/'
     log(appName, `Health check failed — container did not respond on port ${opts.internalPort}`, label)
     log(appName, `Make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`, label)
-    try {
-      log(appName, 'Container logs:', label)
-      const lines = await tailLogs(containerId)
-      for (const line of lines) log(appName, `  ${line}`, label)
-      await stopContainer(containerId)
-    } catch {
-      /* container may already be gone */
-    }
     log(appName, 'Run `zero logs --server` to see full server logs', label)
     await removeContainer(containerId)
     throw new Error('Health check failed')
   }
 
   return { containerId, port, digest: inspection.digest }
-}
-
-const locks = new Set<string>()
-
-export interface DeployResult {
-  success: boolean
-  image: string
-  port: number
-  containerId: string
-  url?: string
-  error?: string
-}
-
-function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  if (locks.has(key)) {
-    throw new Error(`Deploy already in progress for "${key}"`)
-  }
-  locks.add(key)
-  return fn().finally(() => locks.delete(key))
-}
-
-export async function deploy(appName: string, imageWithTag?: string): Promise<DeployResult> {
-  const app = getApp(appName)
-  if (!app) throw new Error(`App "${appName}" not registered`)
-
-  return withLock(appName, async () => {
-    deployLogs.delete(appName)
-
-    if (isComposeApp(app)) {
-      return deployCompose(appName, imageWithTag)
-    } else if (!imageWithTag) {
-      throw new Error('Image is required for single-container deploys')
-    } else {
-      return deploySingleContainer(appName, imageWithTag)
-    }
-  }).catch((err) => {
-    log(appName, `Deploy failed: ${getErrorMessage(err)}`)
-    return {
-      success: false,
-      image: imageWithTag ?? '',
-      port: 0,
-      containerId: '',
-      error: getErrorMessage(err)
-    }
-  })
 }
 
 async function deploySingleContainer(appName: string, imageWithTag: string): Promise<DeployResult> {
@@ -233,14 +205,6 @@ function resolveComposeContent(app: AppConfig, tag: string): string {
     return substituteImageTags(app.composeFile!, app.imagePrefix, tag)
   }
   return app.composeFile!
-}
-
-interface ComposeDeployContext {
-  app: AppConfig
-  projectName: string
-  appName: string
-  tag?: string
-  label?: string
 }
 
 async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: number; deployTag: string }> {
@@ -325,6 +289,29 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   const url = buildAppUrl(app.domain, app.hostPort ?? port)
   log(appName, `🚀 Your app is live: ${url}`)
   return { success: true, image: deployTag, port, containerId: 'compose', url }
+}
+
+export async function deploy(appName: string, imageWithTag?: string): Promise<DeployResult> {
+  const app = getApp(appName)
+  if (!app) throw new Error(`App "${appName}" not registered`)
+
+  return withLock(appName, async () => {
+    deployLogs.delete(appName)
+
+    if (isComposeApp(app)) {
+      return deployCompose(appName, imageWithTag)
+    } else if (!imageWithTag) {
+      throw new Error('Image is required for single-container deploys')
+    } else {
+      return deploySingleContainer(appName, imageWithTag)
+    }
+  }).catch((err) => ({
+    success: false,
+    image: imageWithTag ?? '',
+    port: 0,
+    containerId: '',
+    error: getErrorMessage(err)
+  }))
 }
 
 export async function deployPreview(

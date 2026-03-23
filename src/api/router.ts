@@ -161,6 +161,13 @@ export function previewExpiresAt(ttlMs: number): string {
   return new Date(Date.now() + ttlMs).toISOString()
 }
 
+export function resolveImageWithTag(app: AppConfig, tag?: string): string | undefined {
+  if (isComposeApp(app)) {
+    return tag || app.trackTag || undefined
+  }
+  return `${app.image}:${tag ?? app.trackTag}`
+}
+
 export const ZERO_CONTAINER = 'zero'
 
 export async function isZeroContainerRunning(): Promise<boolean> {
@@ -237,13 +244,6 @@ function recordAuthFailure(ip: string) {
   const attempts = authFailures.get(ip) ?? []
   attempts.push(Date.now())
   authFailures.set(ip, attempts)
-}
-
-export function resolveImageWithTag(app: AppConfig, tag?: string): string | undefined {
-  if (isComposeApp(app)) {
-    return tag || app.trackTag || undefined
-  }
-  return `${app.image}:${tag ?? app.trackTag}`
 }
 
 export { getErrorMessage } from '../errors.ts'
