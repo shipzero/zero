@@ -56,5 +56,5 @@ fi
 
 echo "  Get started:"
 echo "    zero login user@your-server.com"
-echo "    zero deploy ghcr.io/you/myapp:latest"
+echo "    zero deploy ghcr.io/shipzero/demo:latest"
 echo ""

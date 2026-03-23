@@ -157,7 +157,7 @@ function printDeployHelp(): void {
       ['--image-prefix <p>', 'Shared image prefix for tag substitution (e.g. ghcr.io/org/project)']
     ],
     [
-      'zero deploy ghcr.io/you/myapp:latest',
+      'zero deploy ghcr.io/shipzero/demo:latest',
       'zero deploy myapp --tag v2',
       'zero deploy myapp --env DATABASE_URL=postgres://localhost/db,NODE_ENV=production',
       'zero deploy myapp --preview pr-21',
