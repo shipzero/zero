@@ -9,6 +9,7 @@ import {
   dim,
   green,
   red,
+  spinner,
   printDnsTable,
   printCommandHelp
 } from '../ui.ts'
@@ -29,53 +30,85 @@ export function inferNameFromImage(imageRef: string): string {
   return segments[segments.length - 1]
 }
 
-const DONE_MESSAGES: Record<string, string> = {
+const STEP_DONE: Record<string, string> = {
   'Pulling image done': 'Pulling image',
   'Pulling images done': 'Pulling images',
   'Starting container done': 'Starting container',
   'Starting services done': 'Starting services'
 }
 
-export function formatDeployLog(line: string): string | null {
-  const stripped = line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
-
-  if (stripped.startsWith('Deploying ')) {
-    return null
-  }
-
-  if (DONE_MESSAGES[stripped]) {
-    return logLine(green('✓'), DONE_MESSAGES[stripped])
-  }
-
-  if (stripped.startsWith('Detected port:') || stripped.startsWith('Using default port:')) {
-    return logLine(green('✓'), stripped)
-  }
-
-  if (stripped === 'Health check passed') {
-    return logLine(green('✓'), stripped)
-  }
-
-  if (stripped.includes('Your app is live:') || stripped.includes('Preview is live:')) {
-    return null
-  }
-
-  if (stripped.includes('failed') || stripped.includes('error')) {
-    return logLine(red('✗'), stripped)
-  }
-
-  if (stripped.startsWith('Make sure')) {
-    return logLine(' ', dim(stripped))
-  }
-
-  if (stripped.startsWith('Container logs:') || stripped.startsWith('  ')) {
-    return logLine(' ', dim(stripped))
-  }
-
-  return null
+const NEXT_SPINNER: Record<string, string> = {
+  'Pulling image done': 'Starting container...',
+  'Pulling images done': 'Starting services...',
+  'Starting container done': 'Running health check...',
+  'Starting services done': 'Running health check...'
 }
 
-function logLine(prefix: string, message: string): string {
-  return `${prefix} ${message}`
+export function stripTimestamp(line: string): string {
+  return line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
+}
+
+export function createDeployLogger(): { handleLog: (line: string) => void; stop: () => void } {
+  let active: ReturnType<typeof spinner> | null = null
+
+  function stopSpinner(finalMessage?: string): void {
+    if (active) {
+      active.stop(finalMessage)
+      active = null
+    }
+  }
+
+  function startSpinner(message: string): void {
+    active = spinner(message)
+  }
+
+  function handleLog(line: string): void {
+    const stripped = stripTimestamp(line)
+
+    if (stripped.startsWith('Deploying ')) {
+      startSpinner('Pulling image...')
+      return
+    }
+
+    if (stripped.startsWith('Deploying compose')) {
+      startSpinner('Pulling images...')
+      return
+    }
+
+    if (STEP_DONE[stripped]) {
+      stopSpinner(`${green('✓')} ${STEP_DONE[stripped]}`)
+      const next = NEXT_SPINNER[stripped]
+      if (next) startSpinner(next)
+      return
+    }
+
+    if (stripped.startsWith('Detected port:') || stripped.startsWith('Using default port:')) {
+      console.log(`${green('✓')} ${stripped}`)
+      return
+    }
+
+    if (stripped === 'Health check passed') {
+      stopSpinner(`${green('✓')} Health check passed`)
+      return
+    }
+
+    if (stripped.includes('Your app is live:') || stripped.includes('Preview is live:')) {
+      return
+    }
+
+    if (stripped.includes('failed') || stripped.includes('error')) {
+      stopSpinner()
+      console.log(`${red('✗')} ${stripped}`)
+      return
+    }
+
+    if (stripped.startsWith('Make sure') || stripped.startsWith('Container logs:') || stripped.startsWith('  ')) {
+      console.log(`  ${dim(stripped)}`)
+      return
+    }
+  }
+
+  return { handleLog, stop: () => stopSpinner() }
 }
 
 interface DeployEvent {
@@ -88,6 +121,19 @@ interface DeployEvent {
   url?: string
   port?: number
   error?: string
+}
+
+export function parseEnvFlag(value: string): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const pair of value.split(',')) {
+    const equalsIndex = pair.indexOf('=')
+    if (equalsIndex === -1) {
+      logError(`Invalid env format: "${pair}" — expected KEY=val`)
+      process.exit(1)
+    }
+    env[pair.slice(0, equalsIndex)] = pair.slice(equalsIndex + 1)
+  }
+  return env
 }
 
 function printDeployHelp(): void {
@@ -105,13 +151,15 @@ function printDeployHelp(): void {
       ['--volume <v>', 'Volumes, comma-separated (e.g. data:/app/data)'],
       ['--health-path <path>', 'HTTP health check endpoint'],
       ['--health-timeout <t>', 'Health check timeout (e.g. 30s, 3m)'],
+      ['--env <vars>', 'Env vars, comma-separated (e.g. KEY=val,KEY2=val2)'],
       ['--compose <file>', 'Deploy a Docker Compose stack'],
       ['--service <svc>', 'Entry service for Compose (required with --compose)']
     ],
     [
       'zero deploy ghcr.io/you/myapp:latest',
       'zero deploy myapp --tag v2',
-      'zero deploy myapp --preview pr-42',
+      'zero deploy myapp --env DATABASE_URL=postgres://localhost/db,NODE_ENV=production',
+      'zero deploy myapp --preview pr-21',
       'zero deploy --compose docker-compose.yml --service web --name mystack'
     ]
   )
@@ -185,8 +233,10 @@ export async function deploy(positionals: string[], flags: Record<string, string
   if (flags['volume']) body.volumes = (flags['volume'] as string).split(',')
   if (flags['health-path']) body.healthPath = flags['health-path']
   if (flags['health-timeout']) body.healthTimeout = flags['health-timeout']
+  if (flags['env']) body.env = parseEnvFlag(flags['env'] as string)
 
   let result: DeployEvent | undefined
+  const deployLogger = createDeployLogger()
 
   await client.postSSE('/deploy', body, (raw) => {
     const event = JSON.parse(raw) as DeployEvent
@@ -201,12 +251,12 @@ export async function deploy(positionals: string[], flags: Record<string, string
     }
 
     if (event.event === 'log' && event.message) {
-      const formatted = formatDeployLog(event.message)
-      if (formatted) console.log(formatted)
+      deployLogger.handleLog(event.message)
       return
     }
 
     if (event.event === 'complete') {
+      deployLogger.stop()
       result = event
     }
   })

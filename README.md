@@ -129,18 +129,25 @@ All options:
 | `--volume`         | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —                          |
 | `--health-path`    | HTTP health check endpoint                                        | —                          |
 | `--health-timeout` | Health check timeout (e.g. `30s`, `3m`)                           | `60s`                      |
+| `--env`            | Env vars, comma-separated (e.g. `KEY=val,KEY2=val2`)              | —                          |
 | `--preview`        | Deploy as a preview environment                                   | —                          |
 | `--ttl`            | Time to live for previews (e.g. `24h`, `7d`)                      | `7d`                       |
 
 ### Environment variables
+
+Pass env vars inline with `--env`:
+
+```bash
+zero deploy ghcr.io/you/myapp:latest --env DATABASE_URL=postgres://localhost/mydb,SECRET_KEY=abc123
+```
+
+Or manage them separately — changes take effect on the next deploy:
 
 ```bash
 zero env set myapp DATABASE_URL=postgres://localhost/mydb SECRET_KEY=abc123
 zero env list myapp
 zero env remove myapp SECRET_KEY
 ```
-
-Changes take effect on the next `zero deploy myapp`.
 
 ### Volumes
 
@@ -186,7 +193,7 @@ zero deploy --compose docker-compose.yml --service web --name mystack --repo ghc
 
 # Now these work:
 zero deploy mystack --tag v2               # updates all ghcr.io/you/mystack/* images to :v2
-zero deploy mystack --preview pr-42        # preview with tag :pr-42
+zero deploy mystack --preview pr-21        # preview with tag :pr-21
 ```
 
 ## Operating apps
@@ -236,8 +243,8 @@ zero list                     # list all apps with status, URL, image
 Spin up a temporary version of any app:
 
 ```bash
-zero deploy myapp --preview pr-42
-# => https://preview-pr-42.myapp.your-server.com
+zero deploy myapp --preview pr-21
+# => https://preview-pr-21.myapp.your-server.com
 ```
 
 Previews expire automatically (default: 7 days). One command, temporary URL, automatic cleanup.
@@ -245,9 +252,9 @@ Previews expire automatically (default: 7 days). One command, temporary URL, aut
 ```bash
 zero deploy myapp --preview feat-1 --tag feat-branch --ttl 24h
 zero history myapp                                               # shows deploys + previews
-zero logs myapp --preview pr-42
-zero metrics myapp --preview pr-42
-zero remove myapp --preview pr-42
+zero logs myapp --preview pr-21
+zero metrics myapp --preview pr-21
+zero remove myapp --preview pr-21
 ```
 
 ## Webhooks

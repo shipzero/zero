@@ -306,6 +306,7 @@ interface DeployPayload {
   healthPath?: string
   healthTimeout?: string
   tag?: string
+  env?: Record<string, string>
   composeFile?: string
   entryService?: string
   repo?: string
@@ -365,10 +366,12 @@ route('POST', '/deploy', async (req, res) => {
       healthPath: body.healthPath,
       healthTimeout: body.healthTimeout,
       trackTag: tag,
-      env: {},
+      env: body.env ?? {},
       ...(isCompose ? { composeFile: body.composeFile, entryService: body.entryService, repo: body.repo } : {})
     })
     isNew = true
+  } else if (body.env) {
+    updateEnv(appName, body.env)
   }
 
   startSSE(res)

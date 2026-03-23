@@ -23,7 +23,11 @@ vi.mock('../ui.ts', async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>
   return {
     ...original,
-    spinner: () => ({ stop: vi.fn() }),
+    spinner: () => ({
+      stop: (msg?: string) => {
+        if (msg) console.log(msg)
+      }
+    }),
     printDnsTable: vi.fn().mockResolvedValue(undefined)
   }
 })
@@ -51,7 +55,8 @@ const mockClient = {
   streamSSE: vi.fn().mockResolvedValue(undefined)
 }
 
-const { formatDeployLog, isImageReference, inferNameFromImage, deploy } = await import('./deploy.ts')
+const { createDeployLogger, stripTimestamp, parseEnvFlag, isImageReference, inferNameFromImage, deploy } =
+  await import('./deploy.ts')
 
 describe('isImageReference', () => {
   it('detects image with registry path', () => {
@@ -93,47 +98,81 @@ describe('inferNameFromImage', () => {
   })
 })
 
-describe('formatDeployLog', () => {
-  it('hides deploying line', () => {
-    expect(formatDeployLog('Deploying nginx:latest')).toBeNull()
+describe('parseEnvFlag', () => {
+  it('parses single KEY=val pair', () => {
+    expect(parseEnvFlag('DB_URL=postgres://localhost/db')).toEqual({ DB_URL: 'postgres://localhost/db' })
   })
 
-  it('shows pulling image done as success', () => {
-    const result = formatDeployLog('Pulling image done')
-    expect(result).toContain('Pulling image')
+  it('parses multiple comma-separated pairs', () => {
+    expect(parseEnvFlag('KEY1=val1,KEY2=val2')).toEqual({ KEY1: 'val1', KEY2: 'val2' })
   })
 
-  it('shows starting container done as success', () => {
-    const result = formatDeployLog('Starting container done')
-    expect(result).toContain('Starting container')
+  it('handles values with equals signs', () => {
+    expect(parseEnvFlag('TOKEN=abc=def')).toEqual({ TOKEN: 'abc=def' })
   })
 
-  it('shows detected port', () => {
-    const result = formatDeployLog('Detected port: 8080')
-    expect(result).toContain('Detected port: 8080')
+  it('exits on invalid format', () => {
+    const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit')
+    })
+    expect(() => parseEnvFlag('INVALID')).toThrow('process.exit')
+    expect(mockExit).toHaveBeenCalledWith(1)
+    mockExit.mockRestore()
+  })
+})
+
+describe('stripTimestamp', () => {
+  it('removes ISO timestamp prefix', () => {
+    expect(stripTimestamp('2024-01-01T12:00:00.000Z Pulling image done')).toBe('Pulling image done')
   })
 
-  it('shows default port', () => {
-    const result = formatDeployLog('Using default port: 3000')
-    expect(result).toContain('Using default port: 3000')
+  it('passes through lines without timestamp', () => {
+    expect(stripTimestamp('Pulling image done')).toBe('Pulling image done')
+  })
+})
+
+describe('createDeployLogger', () => {
+  let output: string[]
+  let logger: ReturnType<typeof createDeployLogger>
+
+  beforeEach(() => {
+    output = []
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => output.push(args.join(' ')))
+    logger = createDeployLogger()
   })
 
-  it('shows health check passed', () => {
-    const result = formatDeployLog('Health check passed')
-    expect(result).toContain('Health check passed')
+  it('outputs step completion on done messages', () => {
+    logger.handleLog('Deploying nginx:latest')
+    logger.handleLog('Pulling image done')
+    expect(output.some((l) => l.includes('Pulling image'))).toBe(true)
   })
 
-  it('hides app is live line (shown from complete event instead)', () => {
-    expect(formatDeployLog('Your app is live: https://myapp.example.com')).toBeNull()
+  it('outputs detected port', () => {
+    logger.handleLog('Detected port: 8080')
+    expect(output.some((l) => l.includes('Detected port: 8080'))).toBe(true)
   })
 
-  it('formats error line', () => {
-    const result = formatDeployLog('Health check failed — container did not respond on port 3000')
-    expect(result).toContain('Health check failed')
+  it('outputs health check passed', () => {
+    logger.handleLog('Deploying nginx:latest')
+    logger.handleLog('Pulling image done')
+    logger.handleLog('Starting container done')
+    logger.handleLog('Health check passed')
+    expect(output.some((l) => l.includes('Health check passed'))).toBe(true)
   })
 
-  it('hides docker pull progress', () => {
-    expect(formatDeployLog('Pulling fs layer')).toBeNull()
+  it('outputs error lines', () => {
+    logger.handleLog('Health check failed — container did not respond on port 3000')
+    expect(output.some((l) => l.includes('Health check failed'))).toBe(true)
+  })
+
+  it('does not output app is live line', () => {
+    logger.handleLog('Your app is live: https://myapp.example.com')
+    expect(output).toHaveLength(0)
+  })
+
+  it('does not output docker pull progress', () => {
+    logger.handleLog('Pulling fs layer')
+    expect(output).toHaveLength(0)
   })
 })
 
@@ -187,6 +226,25 @@ describe('deploy command', () => {
     expect(mockClient.postSSE).toHaveBeenCalledWith(
       '/deploy',
       expect.objectContaining({ name: 'myapp', tag: 'v2' }),
+      expect.any(Function)
+    )
+  })
+
+  it('includes env when provided', async () => {
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'myapp', isNew: true },
+        { event: 'complete', success: true, appName: 'myapp', isNew: true }
+      ])
+    )
+
+    await deploy(['ghcr.io/you/myapp:latest'], { env: 'DB_URL=postgres://localhost/db,NODE_ENV=production' })
+
+    expect(mockClient.postSSE).toHaveBeenCalledWith(
+      '/deploy',
+      expect.objectContaining({
+        env: { DB_URL: 'postgres://localhost/db', NODE_ENV: 'production' }
+      }),
       expect.any(Function)
     )
   })

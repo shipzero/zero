@@ -684,7 +684,7 @@ describe('API', () => {
         env: {}
       })
       const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
-        push_data: { tag: 'pr-42' }
+        push_data: { tag: 'pr-21' }
       })
       expect(res.status).toBe(202)
       expect((res.body as { message: string }).message).toContain('Preview')
@@ -1005,6 +1005,29 @@ describe('API', () => {
     it('returns 404 for unknown app name without image', async () => {
       const res = await request('POST', '/deploy', { name: 'doesnotexist' })
       expect(res.status).toBe(404)
+    })
+
+    it('sets env vars on new app', async () => {
+      const res = await requestSSE('/deploy', {
+        image: 'ghcr.io/org/envnew:latest',
+        env: { DB_URL: 'postgres://localhost/db', SECRET: 'abc' }
+      })
+      expect(res.status).toBe(200)
+      const app = state.getApp('envnew')!
+      expect(app.env).toEqual({ DB_URL: 'postgres://localhost/db', SECRET: 'abc' })
+    })
+
+    it('merges env vars on existing app', async () => {
+      await requestSSE('/deploy', {
+        image: 'ghcr.io/org/envmerge:latest',
+        env: { KEY1: 'val1', KEY2: 'val2' }
+      })
+      await requestSSE('/deploy', {
+        name: 'envmerge',
+        env: { KEY2: 'updated', KEY3: 'val3' }
+      })
+      const app = state.getApp('envmerge')!
+      expect(app.env).toEqual({ KEY1: 'val1', KEY2: 'updated', KEY3: 'val3' })
     })
   })
 
