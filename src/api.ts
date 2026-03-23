@@ -393,6 +393,21 @@ route('POST', '/deploy', async (req, res) => {
       return
     }
 
+    if (isComposeApp(app) && !app.repo) {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(
+        res,
+        JSON.stringify({
+          event: 'complete',
+          success: false,
+          error:
+            'Compose previews require --repo to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --repo <image-prefix>'
+        })
+      )
+      res.end()
+      return
+    }
+
     const label = body.preview
     const tag = body.tag ?? label
     let ttlMs: number
@@ -739,6 +754,14 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
 
   if (!isCompose && !body?.tag) {
     json(res, 400, { error: '--tag required' })
+    return
+  }
+
+  if (isCompose && !parent.repo) {
+    json(res, 400, {
+      error:
+        'Compose previews require --repo to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --repo <image-prefix>'
+    })
     return
   }
 

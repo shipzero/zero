@@ -786,9 +786,10 @@ describe('API', () => {
     it('creates a compose preview deployment', async () => {
       await request('POST', '/apps', {
         name: 'compprev',
-        composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
+        composeFile: 'version: "3"\nservices:\n  web:\n    image: ghcr.io/org/app/web:latest',
         entryService: 'web',
-        domain: 'compprev.example.com'
+        domain: 'compprev.example.com',
+        repo: 'ghcr.io/org/app'
       })
       const res = await requestSSE('/apps/compprev/previews', { label: 'pr-1' })
       expect(res.status).toBe(200)
@@ -802,7 +803,7 @@ describe('API', () => {
       expect(preview!.isCompose).toBe(true)
     })
 
-    it('does not require tag for compose previews', async () => {
+    it('rejects compose preview without repo', async () => {
       await request('POST', '/apps', {
         name: 'compnotag',
         composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
@@ -810,7 +811,7 @@ describe('API', () => {
         domain: 'compnotag.example.com'
       })
       const res = await requestSSE('/apps/compnotag/previews', { label: 'pr-1' })
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(400)
     })
 
     it('stores tag in compose preview image field', async () => {
