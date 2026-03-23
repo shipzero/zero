@@ -25,7 +25,7 @@ export async function history(positionals: string[]): Promise<void> {
 
   for (const d of deployments) {
     rows.push({
-      type: d.isCurrent ? green('deploy') : dim('deploy'),
+      type: d.isCurrent ? green('production') : dim('production'),
       image: d.image + (d.isCurrent ? green(' ← current') : ''),
       deployed: dim(timeAgo(d.deployedAt)),
       expires: ''
