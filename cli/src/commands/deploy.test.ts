@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import fs from 'node:fs'
 
 process.env.NO_COLOR = '1'
+
+vi.mock('node:fs', async (importOriginal) => {
+  const original = (await importOriginal()) as typeof fs
+  return { ...original, default: { ...original, existsSync: vi.fn(), readFileSync: vi.fn() } }
+})
 
 vi.mock('../client.ts', () => ({
   createClient: () => mockClient,
@@ -215,6 +221,59 @@ describe('deploy command', () => {
     )
 
     await expect(deploy(['myapp'], {})).rejects.toThrow('process.exit')
+    expect(mockExit).toHaveBeenCalledWith(1)
+
+    mockExit.mockRestore()
+  })
+
+  it('sends compose file to POST /deploy', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.readFileSync).mockReturnValue('services:\n  web:\n    image: nginx')
+
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'mystack', isNew: true },
+        { event: 'complete', success: true, url: 'http://localhost:3000', appName: 'mystack', isNew: true }
+      ])
+    )
+
+    await deploy([], { compose: 'docker-compose.yml', service: 'web', name: 'mystack' })
+
+    expect(mockClient.postSSE).toHaveBeenCalledWith(
+      '/deploy',
+      expect.objectContaining({
+        composeFile: 'services:\n  web:\n    image: nginx',
+        name: 'mystack',
+        entryService: 'web'
+      }),
+      expect.any(Function)
+    )
+  })
+
+  it('exits with error when --compose is used without --name', async () => {
+    const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit')
+    })
+
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.readFileSync).mockReturnValue('services:\n  web:\n    image: nginx')
+
+    await expect(deploy([], { compose: 'docker-compose.yml', service: 'web' })).rejects.toThrow('process.exit')
+    expect(mockExit).toHaveBeenCalledWith(1)
+
+    mockExit.mockRestore()
+  })
+
+  it('exits with error when --compose file does not exist', async () => {
+    const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit')
+    })
+
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+
+    await expect(deploy([], { compose: 'missing.yml', service: 'web', name: 'mystack' })).rejects.toThrow(
+      'process.exit'
+    )
     expect(mockExit).toHaveBeenCalledWith(1)
 
     mockExit.mockRestore()

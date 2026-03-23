@@ -340,7 +340,7 @@ route('POST', '/deploy', async (req, res) => {
   let isNew = false
 
   if (!app) {
-    if (!body.image) {
+    if (!body.image && !body.composeFile) {
       json(res, 404, { error: `App "${appName}" not found` })
       return
     }
