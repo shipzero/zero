@@ -53,8 +53,8 @@ async function upgradeCli(isForce: boolean, isCanary: boolean): Promise<void> {
 
   logInfo(
     tag === baseVersion(VERSION)
-      ? `reinstalling cli ${baseVersion(VERSION)}...`
-      : `upgrading cli ${baseVersion(VERSION)} → ${tag}...`
+      ? `Reinstalling CLI ${baseVersion(VERSION)}...`
+      : `Upgrading CLI ${baseVersion(VERSION)} → ${tag}...`
   )
 
   const downloadUrl = `https://github.com/${REPO}/releases/download/${tag}/${platform}`
