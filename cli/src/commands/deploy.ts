@@ -153,7 +153,8 @@ function printDeployHelp(): void {
       ['--health-timeout <t>', 'Health check timeout (e.g. 30s, 3m)'],
       ['--env <vars>', 'Env vars, comma-separated (e.g. KEY=val,KEY2=val2)'],
       ['--compose <file>', 'Deploy a Docker Compose stack'],
-      ['--service <svc>', 'Entry service for Compose (required with --compose)']
+      ['--service <svc>', 'Entry service for Compose (required with --compose)'],
+      ['--image-prefix <p>', 'Shared image prefix for tag substitution (e.g. ghcr.io/org/project)']
     ],
     [
       'zero deploy ghcr.io/you/myapp:latest',
@@ -182,7 +183,7 @@ function parseDeployInput(firstArg: string | undefined, flags: Record<string, st
       composeFile: fs.readFileSync(composePath, 'utf8'),
       name,
       entryService: flags['service'] as string | undefined,
-      repo: flags['repo'] as string | undefined
+      imagePrefix: flags['image-prefix'] as string | undefined
     }
   }
 

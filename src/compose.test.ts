@@ -64,7 +64,7 @@ describe('compose', () => {
       '    image: postgres:16-alpine'
     ].join('\n')
 
-    it('replaces tags matching the repo prefix', () => {
+    it('replaces tags matching the image prefix', () => {
       const result = substituteImageTags(composeFile, 'ghcr.io/org/project', 'pr-21')
       expect(result).toContain('ghcr.io/org/project/backend:pr-21')
       expect(result).toContain('ghcr.io/org/project/frontend:pr-21')

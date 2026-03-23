@@ -173,23 +173,23 @@ If you need more than one container, you can use Docker Compose:
 zero deploy --compose docker-compose.yml --service web --name mystack --domain mystack.example.com --port 3000
 ```
 
-| Flag        | Description                                                                    |
-| ----------- | ------------------------------------------------------------------------------ |
-| `--compose` | Path to a `docker-compose.yml` file (required)                                 |
-| `--service` | The entry service that receives traffic (required)                             |
-| `--name`    | App name (required)                                                            |
-| `--repo`    | Shared image repo prefix — required for `--tag`, webhooks, and preview deploys |
+| Flag             | Description                                                           |
+| ---------------- | --------------------------------------------------------------------- |
+| `--compose`      | Path to a `docker-compose.yml` file (required)                        |
+| `--service`      | The entry service that receives traffic (required)                    |
+| `--name`         | App name (required)                                                   |
+| `--image-prefix` | Shared image prefix for tag substitution (e.g. `ghcr.io/org/project`) |
 
 The Compose file is uploaded to the server. On deploy, zero pulls images, starts services, and health-checks the
 entry service before routing traffic.
 
-**`--repo` explained:** When you pass `--repo ghcr.io/you/myapp`, zero replaces the tag of every image in your
-Compose file that starts with `ghcr.io/you/myapp`. This is what makes `--tag`, webhooks, and preview deployments
-work — without it, zero wouldn't know which images to update.
+**`--image-prefix` explained:** When you pass `--image-prefix ghcr.io/you/myapp`, zero replaces the tag of every
+image in your Compose file that starts with `ghcr.io/you/myapp`. This is what makes `--tag`, webhooks, and preview
+deployments work — without it, zero wouldn't know which images to update.
 
 ```bash
 # Deploy with tag substitution and previews enabled
-zero deploy --compose docker-compose.yml --service web --name mystack --repo ghcr.io/you/mystack
+zero deploy --compose docker-compose.yml --service web --name mystack --image-prefix ghcr.io/you/mystack
 
 # Now these work:
 zero deploy mystack --tag v2               # updates all ghcr.io/you/mystack/* images to :v2

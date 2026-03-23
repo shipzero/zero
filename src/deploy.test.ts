@@ -309,7 +309,7 @@ describe('deploy', () => {
         env: {},
         composeFile: 'services:\n  web:\n    image: nginx',
         entryService: 'web',
-        repo: 'nginx'
+        imagePrefix: 'nginx'
       })
       state.addDeployment('stack', { image: 'v1', containerId: 'compose', port: 3001, deployedAt: '2024-01-01' })
       state.addDeployment('stack', { image: 'v2', containerId: 'compose', port: 3002, deployedAt: '2024-01-02' })

@@ -690,7 +690,7 @@ describe('API', () => {
       expect((res.body as { message: string }).message).toContain('Preview')
     })
 
-    it('triggers compose preview deploy when repo is set and tag does not match', async () => {
+    it('triggers compose preview deploy when imagePrefix is set and tag does not match', async () => {
       const app = state.addApp({
         name: 'hookcompprev',
         image: '',
@@ -700,7 +700,7 @@ describe('API', () => {
         env: {},
         composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:test',
         entryService: 'web',
-        repo: 'ghcr.io/org/app'
+        imagePrefix: 'ghcr.io/org/app'
       })
       const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
         push_data: { tag: 'pr-99' }
@@ -789,7 +789,7 @@ describe('API', () => {
         composeFile: 'version: "3"\nservices:\n  web:\n    image: ghcr.io/org/app/web:latest',
         entryService: 'web',
         domain: 'compprev.example.com',
-        repo: 'ghcr.io/org/app'
+        imagePrefix: 'ghcr.io/org/app'
       })
       const res = await requestSSE('/apps/compprev/previews', { label: 'pr-1' })
       expect(res.status).toBe(200)
@@ -803,7 +803,7 @@ describe('API', () => {
       expect(preview!.isCompose).toBe(true)
     })
 
-    it('rejects compose preview without repo', async () => {
+    it('rejects compose preview without imagePrefix', async () => {
       await request('POST', '/apps', {
         name: 'compnotag',
         composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
@@ -820,7 +820,7 @@ describe('API', () => {
         composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:latest',
         entryService: 'web',
         domain: 'comptag.example.com',
-        repo: 'ghcr.io/org/app',
+        imagePrefix: 'ghcr.io/org/app',
         trackTag: 'latest'
       })
       await requestSSE('/apps/comptag/previews', { label: 'pr-5', tag: 'pr-5' })
@@ -834,7 +834,7 @@ describe('API', () => {
         composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:stable',
         entryService: 'web',
         domain: 'compdefault.example.com',
-        repo: 'ghcr.io/org/app',
+        imagePrefix: 'ghcr.io/org/app',
         trackTag: 'stable'
       })
       await request('POST', '/apps/compdefault/previews', { label: 'prev' })

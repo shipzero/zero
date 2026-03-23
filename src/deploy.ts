@@ -225,8 +225,8 @@ function resolveComposeTag(app: AppConfig, tag?: string): string {
 }
 
 function resolveComposeContent(app: AppConfig, tag: string): string {
-  if (tag !== 'compose' && app.repo) {
-    return substituteImageTags(app.composeFile!, app.repo, tag)
+  if (tag !== 'compose' && app.imagePrefix) {
+    return substituteImageTags(app.composeFile!, app.imagePrefix, tag)
   }
   return app.composeFile!
 }

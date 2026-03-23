@@ -44,7 +44,7 @@ export interface AppConfig {
   deployments: Deployment[]
   composeFile?: string
   entryService?: string
-  repo?: string
+  imagePrefix?: string
   previews: Record<string, Preview>
 }
 

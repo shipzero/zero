@@ -283,7 +283,7 @@ interface AddAppRequest {
   env?: Record<string, string>
   composeFile?: string
   entryService?: string
-  repo?: string
+  imagePrefix?: string
   trackTag?: string
 }
 
@@ -309,7 +309,7 @@ interface DeployPayload {
   env?: Record<string, string>
   composeFile?: string
   entryService?: string
-  repo?: string
+  imagePrefix?: string
   preview?: string
   ttl?: string
 }
@@ -367,7 +367,9 @@ route('POST', '/deploy', async (req, res) => {
       healthTimeout: body.healthTimeout,
       trackTag: tag,
       env: body.env ?? {},
-      ...(isCompose ? { composeFile: body.composeFile, entryService: body.entryService, repo: body.repo } : {})
+      ...(isCompose
+        ? { composeFile: body.composeFile, entryService: body.entryService, imagePrefix: body.imagePrefix }
+        : {})
     })
     isNew = true
   } else if (body.env) {
@@ -396,7 +398,7 @@ route('POST', '/deploy', async (req, res) => {
       return
     }
 
-    if (isComposeApp(app) && !app.repo) {
+    if (isComposeApp(app) && !app.imagePrefix) {
       deployEvents.removeListener(`log:${appName}`, onDeployLog)
       sendSSE(
         res,
@@ -404,7 +406,7 @@ route('POST', '/deploy', async (req, res) => {
           event: 'complete',
           success: false,
           error:
-            'Compose previews require --repo to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --repo <image-prefix>'
+            'Compose previews require --image-prefix to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --image-prefix <prefix>'
         })
       )
       res.end()
@@ -536,7 +538,7 @@ route('POST', '/apps', async (req, res) => {
     healthTimeout,
     trackTag: tag,
     env,
-    ...(isCompose ? { composeFile, entryService, repo: body.repo } : {})
+    ...(isCompose ? { composeFile, entryService, imagePrefix: body.imagePrefix } : {})
   })
 
   json<AddAppResponse>(res, 201, {
@@ -557,7 +559,7 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
     domain: app.domain,
     internalPort: app.internalPort,
     trackTag: app.trackTag,
-    repo: app.repo,
+    imagePrefix: app.imagePrefix,
     env: maskValues(app.env),
     currentImage: deployment?.image,
     port: deployment?.port,
@@ -760,10 +762,10 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
     return
   }
 
-  if (isCompose && !parent.repo) {
+  if (isCompose && !parent.imagePrefix) {
     json(res, 400, {
       error:
-        'Compose previews require --repo to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --repo <image-prefix>'
+        'Compose previews require --image-prefix to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --image-prefix <prefix>'
     })
     return
   }
@@ -1076,7 +1078,7 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
 
   const isCompose = isComposeApp(app)
   const isTrackedTag = app.trackTag === 'any' || tag === app.trackTag
-  const hasRepo = isCompose && !!app.repo
+  const hasImagePrefix = isCompose && !!app.imagePrefix
   const isPreviewCandidate = !isTrackedTag && app.domain
 
   if (!isTrackedTag && !isPreviewCandidate) {
@@ -1085,8 +1087,8 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   }
 
   if (isPreviewCandidate) {
-    if (isCompose && !hasRepo) {
-      json(res, 200, { message: `Ignored: compose app without --repo cannot create previews for tag "${tag}"` })
+    if (isCompose && !hasImagePrefix) {
+      json(res, 200, { message: `Ignored: compose app without --image-prefix cannot create previews for tag "${tag}"` })
       return
     }
     const previewDomain = buildPreviewDomain(app.domain!, tag)
@@ -1106,7 +1108,7 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
 
   if (isCompose) {
     json(res, 202, { message: 'Deploy triggered', tag })
-    deploy(app.name, hasRepo ? tag : undefined).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
+    deploy(app.name, hasImagePrefix ? tag : undefined).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
   } else {
     const image = `${app.image}:${tag}`
     json(res, 202, { message: 'Deploy triggered', image })
