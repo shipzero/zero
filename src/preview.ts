@@ -34,7 +34,7 @@ export async function cleanupExpiredPreviews(): Promise<number> {
       await destroyPreview(appName, preview)
       console.log(`[preview] removed expired preview ${label} of ${appName}`)
     } catch (err) {
-      console.error(`[preview] failed to remove ${label} of ${appName}:`, err)
+      console.error(`[preview] Failed to remove ${label} of ${appName}:`, err)
     }
   }
   return expired.length
@@ -43,7 +43,7 @@ export async function cleanupExpiredPreviews(): Promise<number> {
 export function startPreviewCleanupInterval(): ReturnType<typeof setInterval> {
   return setInterval(() => {
     cleanupExpiredPreviews().catch((err) => {
-      console.error('[preview] cleanup error:', err)
+      console.error('[preview] Cleanup error:', err)
     })
   }, CLEANUP_INTERVAL_MS)
 }

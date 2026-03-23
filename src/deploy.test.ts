@@ -101,28 +101,28 @@ describe('deploy', () => {
 
     it('returns failure when pull fails', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockPullImage.mockRejectedValueOnce(new Error('registry timeout'))
+      mockPullImage.mockRejectedValueOnce(new Error('Registry timeout'))
 
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('registry timeout')
+      expect(result.error).toContain('Registry timeout')
       expect(mockRunContainer).not.toHaveBeenCalled()
     })
 
     it('returns failure when container start fails', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockRunContainer.mockRejectedValueOnce(new Error('port conflict'))
+      mockRunContainer.mockRejectedValueOnce(new Error('Port conflict'))
 
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('port conflict')
+      expect(result.error).toContain('Port conflict')
     })
 
     it('removes container and returns failure when health check fails', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockWaitForHealthy.mockRejectedValueOnce(new Error('timeout'))
+      mockWaitForHealthy.mockRejectedValueOnce(new Error('Timeout'))
 
       const result = await deploy('web', 'nginx:latest')
 
@@ -170,7 +170,7 @@ describe('deploy', () => {
 
     it('releases lock after failure', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockPullImage.mockRejectedValueOnce(new Error('fail'))
+      mockPullImage.mockRejectedValueOnce(new Error('Fail'))
 
       await deploy('web', 'nginx:v1')
       const result = await deploy('web', 'nginx:v2')
@@ -213,7 +213,7 @@ describe('deploy', () => {
         composeFile: 'version: "3"',
         entryService: 'web'
       })
-      mockComposePull.mockRejectedValueOnce(new Error('pull error'))
+      mockComposePull.mockRejectedValueOnce(new Error('Pull error'))
 
       const result = await deploy('stack')
 
@@ -231,7 +231,7 @@ describe('deploy', () => {
         composeFile: 'version: "3"',
         entryService: 'web'
       })
-      mockComposeUp.mockRejectedValueOnce(new Error('up error'))
+      mockComposeUp.mockRejectedValueOnce(new Error('Up error'))
 
       const result = await deploy('stack')
 

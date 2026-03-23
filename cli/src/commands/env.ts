@@ -58,7 +58,7 @@ async function envSet(positionals: string[]): Promise<void> {
   const keys = Object.keys(envObj)
   logSuccess(`Set ${keys.length} variable${keys.length !== 1 ? 's' : ''}: ${keys.join(', ')}`)
   logWarn('Changes are not live yet')
-  logHint(`run: zero deploy ${appName}`)
+  logHint(`Run: zero deploy ${appName}`)
 }
 
 async function envRemove(positionals: string[]): Promise<void> {
@@ -76,7 +76,7 @@ async function envRemove(positionals: string[]): Promise<void> {
 
   logSuccess(`Removed ${keys.length} variable${keys.length !== 1 ? 's' : ''}: ${keys.join(', ')}`)
   logWarn('Changes are not live yet')
-  logHint(`run: zero deploy ${appName}`)
+  logHint(`Run: zero deploy ${appName}`)
 }
 
 async function envList(positionals: string[]): Promise<void> {

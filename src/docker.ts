@@ -24,7 +24,7 @@ export async function pullImage(image: string, onProgress?: (status: string) => 
   await new Promise<void>((resolve, reject) => {
     docker.pull(image, { authconfig: auth }, (err, stream) => {
       if (err) return reject(err)
-      if (!stream) return reject(new Error('no stream from docker pull'))
+      if (!stream) return reject(new Error('No stream from docker pull'))
 
       docker.modem.followProgress(
         stream,
@@ -127,7 +127,7 @@ export async function removeContainer(containerId: string, gracefulMs = 30_000):
   } catch (err: unknown) {
     const code = dockerStatusCode(err)
     if (code !== 304 && code !== 404) {
-      console.warn(`[docker] remove warning: ${getErrorMessage(err)}`)
+      console.warn(`[docker] Remove warning: ${getErrorMessage(err)}`)
     }
   }
 }
@@ -300,7 +300,7 @@ export function getFreePort(): Promise<number> {
     const server = net.createServer()
     server.listen(0, '127.0.0.1', () => {
       const address = server.address()
-      if (!address || typeof address === 'string') return reject(new Error('no address'))
+      if (!address || typeof address === 'string') return reject(new Error('No address'))
       const port = address.port
       server.close(() => resolve(port))
     })

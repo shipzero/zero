@@ -129,7 +129,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
   let composeFile: string | undefined
   if (composePath) {
     if (!fs.existsSync(composePath)) {
-      logError(`file not found: ${composePath}`)
+      logError(`File not found: ${composePath}`)
       process.exit(1)
     }
     composeFile = fs.readFileSync(composePath, 'utf8')

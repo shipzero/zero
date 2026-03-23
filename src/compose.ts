@@ -216,7 +216,7 @@ function runCompose(projectDir: string, args: string[], onProgress?: (line: stri
       if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`docker compose ${args[0]} failed (exit ${code}): ${stderr.trim()}`))
+        reject(new Error(`Docker compose ${args[0]} failed (exit ${code}): ${stderr.trim()}`))
       }
     })
 

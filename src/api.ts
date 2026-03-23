@@ -162,7 +162,7 @@ function readBody(req: http.IncomingMessage): Promise<Buffer> {
       size += chunk.length
       if (size > MAX_BODY_SIZE) {
         req.destroy()
-        reject(new Error('request body too large'))
+        reject(new Error('Request body too large'))
         return
       }
       chunks.push(chunk)
@@ -712,7 +712,7 @@ route('POST', '/upgrade', async (req, res) => {
     await upgrader.start()
     json<MessageResponse>(res, 200, { message: `upgrade started (${tag ?? 'latest'}) — zero will restart` })
   } catch (err) {
-    console.error('[upgrade] failed:', err)
+    console.error('[upgrade] Failed:', err)
     json(res, 500, { error: getErrorMessage(err) })
   }
 })
@@ -879,7 +879,7 @@ async function removeAppWithContainers(app: AppConfig): Promise<void> {
     try {
       await composeDown(composeDir(app.name))
     } catch (err) {
-      console.error(`[api] compose down failed for ${app.name}:`, err)
+      console.error(`[api] Compose down failed for ${app.name}:`, err)
     }
     removeComposeDir(app.name)
   } else {
@@ -1069,11 +1069,11 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
     json(res, 202, { message: 'preview deploy triggered', tag })
     if (isCompose) {
       deployComposePreview(app.name, tag, previewDomain, expiresAt, tag).catch((err) =>
-        console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
+        console.error(`[webhook] Preview ${app.name}/${tag}: ${err}`)
       )
     } else {
       deployPreview(app.name, tag, tag, previewDomain, expiresAt).catch((err) =>
-        console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
+        console.error(`[webhook] Preview ${app.name}/${tag}: ${err}`)
       )
     }
     return
@@ -1152,7 +1152,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   const isAuthorized = isWebhook || (isAuthToken ? authenticateStaticToken(req) : authenticate(req))
   if (!isAuthorized) {
     recordAuthFailure(clientIp)
-    console.warn(`[api] auth failure from ${clientIp} — ${method} ${url}`)
+    console.warn(`[api] Auth failure from ${clientIp} — ${method} ${url}`)
     json(res, 401, { error: 'Unauthorized' })
     return
   }
