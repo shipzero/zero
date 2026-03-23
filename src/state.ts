@@ -6,6 +6,7 @@ const MAX_DEPLOYMENTS = 10
 
 export interface Deployment {
   image: string
+  digest?: string
   containerId: string
   port: number
   deployedAt: string
@@ -32,7 +33,7 @@ export interface AppConfig {
   image: string
   trackTag: string
   domain?: string
-  internalPort: number
+  internalPort?: number
   hostPort?: number
   webhookSecret: string
   command?: string[]
@@ -43,7 +44,7 @@ export interface AppConfig {
   deployments: Deployment[]
   composeFile?: string
   entryService?: string
-  repo?: string
+  imagePrefix?: string
   previews: Record<string, Preview>
 }
 
@@ -52,7 +53,7 @@ export function isComposeApp(app: AppConfig): boolean {
 }
 
 export function buildPreviewDomain(parentDomain: string, label: string): string {
-  return `${label}.${parentDomain}`
+  return `preview-${label}.${parentDomain}`
 }
 
 export function getPreview(appName: string, label: string): Preview | undefined {
@@ -61,14 +62,14 @@ export function getPreview(appName: string, label: string): Preview | undefined 
 
 export function setPreview(appName: string, label: string, preview: Preview): void {
   const app = _state.apps[appName]
-  if (!app) throw new Error(`app "${appName}" not found`)
+  if (!app) throw new Error(`App "${appName}" not found`)
   app.previews[label] = preview
   saveState()
 }
 
 export function removePreview(appName: string, label: string): void {
   const app = _state.apps[appName]
-  if (!app) throw new Error(`app "${appName}" not found`)
+  if (!app) throw new Error(`App "${appName}" not found`)
   delete app.previews[label]
   saveState()
 }
@@ -147,22 +148,29 @@ export function addApp(config: Omit<AppConfig, 'webhookSecret' | 'deployments' |
 
 export function resetWebhookSecret(appName: string): string {
   const app = _state.apps[appName]
-  if (!app) throw new Error(`app "${appName}" not found`)
+  if (!app) throw new Error(`App "${appName}" not found`)
   app.webhookSecret = crypto.randomBytes(24).toString('hex')
   saveState()
   return app.webhookSecret
 }
 
+export function updateInternalPort(appName: string, port: number): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+  app.internalPort = port
+  saveState()
+}
+
 export function updateEnv(appName: string, env: Record<string, string>): void {
   const app = _state.apps[appName]
-  if (!app) throw new Error(`app "${appName}" not found`)
+  if (!app) throw new Error(`App "${appName}" not found`)
   app.env = { ...app.env, ...env }
   saveState()
 }
 
 export function removeEnv(appName: string, keys: string[]): void {
   const app = _state.apps[appName]
-  if (!app) throw new Error(`app "${appName}" not found`)
+  if (!app) throw new Error(`App "${appName}" not found`)
   for (const key of keys) {
     delete app.env[key]
   }
@@ -180,7 +188,7 @@ export function getCurrentDeployment(app: AppConfig): Deployment | undefined {
 
 export function addDeployment(appName: string, deployment: Deployment): Deployment[] {
   const app = _state.apps[appName]
-  if (!app) throw new Error(`app "${appName}" not found`)
+  if (!app) throw new Error(`App "${appName}" not found`)
 
   app.deployments.unshift(deployment)
 
@@ -215,12 +223,13 @@ export function removeRegistryAuth(server: string): boolean {
 
 export function findRollbackTarget(appName: string): Deployment {
   const app = _state.apps[appName]
-  if (!app) throw new Error(`app "${appName}" not found`)
+  if (!app) throw new Error(`App "${appName}" not found`)
 
-  const currentImage = app.deployments[0]?.image
-  const target = app.deployments.find((deployment) => deployment.image !== currentImage)
+  const current = app.deployments[0]
+  const currentId = current?.digest ?? current?.image
+  const target = app.deployments.find((d) => (d.digest ?? d.image) !== currentId)
   if (!target) {
-    throw new Error('no previous deployment with a different image to roll back to')
+    throw new Error('No previous deployment with a different image to roll back to')
   }
 
   return target

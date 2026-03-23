@@ -1,6 +1,6 @@
 import { createClient, unwrap } from '../client.ts'
 import type { MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logError, dim, spinner } from '../ui.ts'
+import { logSuccess, logInfo, logError, dim, spinner, printCommandHelp } from '../ui.ts'
 
 export async function registry(
   subcommand: string | null,
@@ -12,12 +12,22 @@ export async function registry(
       return registryLogin(positionals, flags)
     case 'logout':
       return registryLogout(positionals)
+    case 'list':
     case 'ls':
-      return registryLs()
+      return registryList()
     default:
-      logError('usage: zero registry login <server> --user <u> --password <p>')
-      logError('       zero registry logout <server>')
-      logError('       zero registry ls')
+      printCommandHelp(
+        'zero registry <subcommand> [args]',
+        [
+          ['--user <u>', 'Registry username'],
+          ['--password <p>', 'Registry password or token']
+        ],
+        [
+          'zero registry login ghcr.io --user <u> --password <token>',
+          'zero registry logout ghcr.io',
+          'zero registry list'
+        ]
+      )
       process.exit(1)
   }
 }
@@ -28,36 +38,36 @@ async function registryLogin(positionals: string[], flags: Record<string, string
   const password = flags['password'] as string | undefined
 
   if (!server || !username || !password) {
-    logError('usage: zero registry login <server> --user <u> --password <p>')
+    logError('Usage: zero registry login <server> --user <u> --password <p>')
     process.exit(1)
   }
 
   const client = createClient()
   unwrap(await client.post<MessageResponse>('/registries', { server, username, password }), logError)
-  logSuccess(`logged in to ${server}`)
+  logSuccess(`Logged in to ${server}`)
 }
 
 async function registryLogout(positionals: string[]): Promise<void> {
   const server = positionals[0]
   if (!server) {
-    logError('usage: zero registry logout <server>')
+    logError('Usage: zero registry logout <server>')
     process.exit(1)
   }
 
   const client = createClient()
   unwrap(await client.del<MessageResponse>(`/registries/${encodeURIComponent(server)}`), logError)
-  logSuccess(`logged out from ${server}`)
+  logSuccess(`Logged out from ${server}`)
 }
 
-async function registryLs(): Promise<void> {
+async function registryList(): Promise<void> {
   const client = createClient()
-  const spin = spinner('loading registries...')
+  const spin = spinner('Loading registries...')
   const res = await client.get<string[]>('/registries')
   spin.stop()
   const servers = unwrap(res, logError)
 
   if (servers.length === 0) {
-    logInfo('no registries configured')
+    logInfo('No registries configured')
     return
   }
 

@@ -27,7 +27,7 @@ function trackConnectionsPerIp(server: net.Server | tls.Server): void {
     const current = connectionsPerIp.get(ip) ?? 0
 
     if (current >= MAX_CONNECTIONS_PER_IP) {
-      console.warn(`[proxy] per-IP limit exceeded for ${ip} (${current} connections)`)
+      console.warn(`[proxy] Per-IP limit exceeded for ${ip} (${current} connections)`)
       socket.destroy()
       return
     }
@@ -137,7 +137,7 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
   })
 
   upstream.on('error', (err) => {
-    console.error(`[proxy] upstream error: ${err.message}`)
+    console.error(`[proxy] Upstream error: ${err.message}`)
     if (!res.headersSent) {
       res.writeHead(502, { 'Content-Type': 'text/plain' })
       res.end('Upstream unreachable')
@@ -222,7 +222,7 @@ function updatePortRoute(hostPort: number, targetPort: number) {
   entry.server = server
 
   server.on('error', (err) => {
-    console.error(`[proxy] failed to listen on :${hostPort}: ${err.message}`)
+    console.error(`[proxy] Failed to listen on :${hostPort}: ${err.message}`)
     portListeners.delete(hostPort)
   })
 

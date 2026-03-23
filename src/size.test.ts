@@ -28,8 +28,8 @@ describe('parseSize', () => {
   })
 
   it('throws on invalid input', () => {
-    expect(() => parseSize('')).toThrow('invalid size')
-    expect(() => parseSize('abc')).toThrow('invalid size')
-    expect(() => parseSize('100')).toThrow('invalid size')
+    expect(() => parseSize('')).toThrow('Invalid size')
+    expect(() => parseSize('abc')).toThrow('Invalid size')
+    expect(() => parseSize('100')).toThrow('Invalid size')
   })
 })

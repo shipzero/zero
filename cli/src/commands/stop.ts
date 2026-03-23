@@ -10,17 +10,17 @@ export async function stop(positionals: string[], flags: Record<string, string |
   unwrap(await client.get<AppDetail>(`/apps/${encodeURIComponent(appName)}`), logError)
 
   if (!flags['force']) {
-    const ok = await confirm(`stop ${bold(appName)}?`)
+    const ok = await confirm(`Stop ${bold(appName)}?`)
     if (!ok) {
       process.exit(0)
     }
   }
 
-  const spin = spinner(`stopping ${appName}...`)
+  const spin = spinner(`Stopping ${appName}...`)
   const res = await client.post<StopResponse>(`/apps/${encodeURIComponent(appName)}/stop`)
   spin.stop()
   unwrap(res, logError)
 
-  logSuccess(`stopped ${appName}`)
-  logHint(`restart with: zero start ${appName}`)
+  logSuccess(`Stopped ${appName}`)
+  logHint(`Restart with: zero start ${appName}`)
 }

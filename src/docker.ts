@@ -24,7 +24,7 @@ export async function pullImage(image: string, onProgress?: (status: string) => 
   await new Promise<void>((resolve, reject) => {
     docker.pull(image, { authconfig: auth }, (err, stream) => {
       if (err) return reject(err)
-      if (!stream) return reject(new Error('no stream from docker pull'))
+      if (!stream) return reject(new Error('No stream from docker pull'))
 
       docker.modem.followProgress(
         stream,
@@ -38,6 +38,30 @@ export async function pullImage(image: string, onProgress?: (status: string) => 
   })
 
   console.log(`[docker] pulled ${image}`)
+}
+
+export interface ImageInspection {
+  exposedPorts: number[]
+  digest?: string
+}
+
+/** Inspects a pulled image for EXPOSE ports and registry digest. */
+export async function inspectImage(imageRef: string): Promise<ImageInspection> {
+  try {
+    const data = await docker.getImage(imageRef).inspect()
+
+    const exposedPorts = Object.keys(data.Config?.ExposedPorts ?? {})
+      .map((key) => parseInt(key, 10))
+      .filter((port) => !isNaN(port))
+      .sort((a, b) => a - b)
+
+    const repoDigest = (data.RepoDigests ?? [])[0]
+    const digest = repoDigest?.split('@')[1]
+
+    return { exposedPorts, digest }
+  } catch {
+    return { exposedPorts: [] }
+  }
 }
 
 export interface RunOpts {
@@ -103,7 +127,7 @@ export async function removeContainer(containerId: string, gracefulMs = 30_000):
   } catch (err: unknown) {
     const code = dockerStatusCode(err)
     if (code !== 304 && code !== 404) {
-      console.warn(`[docker] remove warning: ${getErrorMessage(err)}`)
+      console.warn(`[docker] Remove warning: ${getErrorMessage(err)}`)
     }
   }
 }
@@ -218,8 +242,8 @@ export async function waitForHealthy(
   while (Date.now() < deadline) {
     if (containerId) {
       const state = await getContainerState(containerId)
-      if (!state.running) throw new Error('container exited during health check')
-      if (state.restartCount > initialRestartCount) throw new Error('container is crash-looping')
+      if (!state.running) throw new Error('Container exited during health check')
+      if (state.restartCount > initialRestartCount) throw new Error('Container is crash-looping')
     }
     if (await check()) return
     await sleep(500)
@@ -276,7 +300,7 @@ export function getFreePort(): Promise<number> {
     const server = net.createServer()
     server.listen(0, '127.0.0.1', () => {
       const address = server.address()
-      if (!address || typeof address === 'string') return reject(new Error('no address'))
+      if (!address || typeof address === 'string') return reject(new Error('No address'))
       const port = address.port
       server.close(() => resolve(port))
     })

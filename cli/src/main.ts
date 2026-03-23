@@ -1,21 +1,19 @@
 #!/usr/bin/env bun
 import { login } from './commands/login.ts'
-import { add } from './commands/add.ts'
-import { ls } from './commands/ls.ts'
+import { list } from './commands/list.ts'
 import { deploy } from './commands/deploy.ts'
 import { logs } from './commands/logs.ts'
 import { metrics } from './commands/metrics.ts'
 import { rollback } from './commands/rollback.ts'
-import { deployments } from './commands/deployments.ts'
+import { history } from './commands/history.ts'
 import { env } from './commands/env.ts'
-import { rm } from './commands/rm.ts'
+import { remove } from './commands/remove.ts'
 import { stop } from './commands/stop.ts'
 import { start } from './commands/start.ts'
 import { status } from './commands/status.ts'
 import { registry } from './commands/registry.ts'
 import { upgrade } from './commands/upgrade.ts'
 import { webhook } from './commands/webhook.ts'
-import { preview } from './commands/preview.ts'
 import { VERSION } from './version.ts'
 import { bold, cyan, dim, logInfo, logError } from './ui.ts'
 
@@ -50,10 +48,7 @@ function parseArgs(argv: string[]): ParsedArgs {
           flags[arg.slice(2)] = true
         }
       }
-    } else if (
-      isFirstPositional &&
-      (command === 'env' || command === 'registry' || command === 'webhook' || command === 'preview')
-    ) {
+    } else if (isFirstPositional && (command === 'env' || command === 'registry' || command === 'webhook')) {
       subcommand = arg
       isFirstPositional = false
     } else {
@@ -67,45 +62,32 @@ function parseArgs(argv: string[]): ParsedArgs {
 
 function formatHelp(): string {
   const commands = [
-    [
-      'add --name --image [--domain] [--port] [--host-port] [--repo] [--tag] [--command] [--volume] [--health-path] [--health-timeout]',
-      'Add a new app'
-    ],
-    ['deploy <app> [--tag <tag>]', 'Trigger deployment'],
-    ['deployments <app>', 'Show deployment history'],
-    ['env ls <app>', 'List environment variables'],
-    ['env rm <app> KEY [KEY ...]', 'Remove environment variables'],
-    ['env set <app> KEY=val [KEY=val ...]', 'Set environment variables'],
+    ['deploy <image-or-app> [options]', 'Deploy an app (creates if new)'],
+    ['env <set|list|remove> <app> [args]', 'Manage environment variables'],
+    ['history <app>', 'Show deployment history'],
+    ['list', 'List all apps'],
     ['login <user@server>', 'Authenticate via SSH'],
-    ['logs <app> [--preview <label>] | --server', 'Stream app or preview logs'],
-    ['ls', 'List all apps'],
-    ['metrics <app> [--preview <label>] | --server', 'Show live resource usage'],
-    ['preview deploy <app> --tag <tag> [--label] [--ttl]', 'Deploy a preview'],
-    ['preview ls <app>', 'List previews for an app'],
-    ['preview rm <app> <label> [--force]', 'Remove a preview'],
-    ['preview rm <app> --all [--force]', 'Remove all previews'],
-    ['registry login <server> --user --password', 'Add registry credentials'],
-    ['registry logout <server>', 'Remove registry credentials'],
-    ['registry ls', 'List configured registries'],
-    ['rm <app> [--force]', 'Remove an app and its containers'],
+    ['logs <app> [--preview <label>]', 'Stream app logs'],
+    ['metrics <app> [--preview <label>]', 'Show live resource usage'],
+    ['registry <login|logout|list> [server]', 'Manage registry credentials'],
+    ['remove <app> [--preview <label>] [--force]', 'Remove an app or preview'],
     ['rollback <app> [--force]', 'Roll back to previous deployment'],
-    ['start <app>', 'Start a stopped container'],
-    ['status', 'Show server connection and info'],
-    ['stop <app> [--force]', 'Stop running container'],
-    ['upgrade [--server] [--all] [--force] [--preview]', 'Upgrade CLI and/or server'],
+    ['start <app>', 'Start a stopped app'],
+    ['status', 'Show server connection info'],
+    ['stop <app> [--force]', 'Stop a running app'],
+    ['upgrade [--server] [--all]', 'Upgrade CLI and/or server'],
     ['version', 'Show CLI and server version'],
-    ['webhook reset <app>', 'Reset webhook secret and show new URL']
+    ['webhook url <app>', 'Show and rotate webhook URL']
   ]
 
   const maxCmd = Math.max(...commands.map(([cmd]) => cmd.length))
   const lines = commands.map(([cmd, desc]) => `  ${cyan(cmd.padEnd(maxCmd))}  ${dim(desc)}`)
 
   return [
-    bold('zero') + ' — your server, your apps, one command',
+    bold('zero') + ' — from Docker image to live HTTPS app in minutes',
     '',
-    `usage: ${cyan('zero <command>')} [options]`,
+    `Usage: ${cyan('zero <command>')} [options]`,
     '',
-    'Commands:',
     ...lines
   ].join('\n')
 }
@@ -115,14 +97,12 @@ async function main() {
 
   try {
     switch (parsed.command) {
-      case 'add':
-        await add(parsed.flags)
-        break
       case 'deploy':
         await deploy(parsed.positionals, parsed.flags)
         break
+      case 'history':
       case 'deployments':
-        await deployments(parsed.positionals)
+        await history(parsed.positionals)
         break
       case 'env':
         await env(parsed.subcommand, parsed.positionals, parsed.flags)
@@ -138,20 +118,19 @@ async function main() {
       case 'logs':
         await logs(parsed.positionals, parsed.flags)
         break
+      case 'list':
       case 'ls':
-        await ls()
+        await list()
         break
       case 'metrics':
         await metrics(parsed.positionals, parsed.flags)
         break
-      case 'preview':
-        await preview(parsed.subcommand, parsed.positionals, parsed.flags)
-        break
       case 'registry':
         await registry(parsed.subcommand, parsed.positionals, parsed.flags)
         break
+      case 'remove':
       case 'rm':
-        await rm(parsed.positionals, parsed.flags)
+        await remove(parsed.positionals, parsed.flags)
         break
       case 'rollback':
         await rollback(parsed.positionals, parsed.flags)
@@ -174,19 +153,19 @@ async function main() {
       case 'version':
       case '--version':
       case '-v': {
-        logInfo(`cli: ${VERSION}`)
+        logInfo(`CLI: ${VERSION}`)
         try {
           const { createClient } = await import('./client.ts')
           const client = createClient()
           const { data } = await client.get<{ version: string }>('/version')
-          logInfo(`server: ${'version' in data ? data.version : 'unknown'}`)
+          logInfo(`Server: ${'version' in data ? data.version : 'unknown'}`)
         } catch {
-          logInfo('server: not connected')
+          logInfo('Server: not connected')
         }
         break
       }
       default:
-        logError(`unknown command: ${parsed.command}`)
+        logError(`Unknown command: ${parsed.command}`)
         console.log(formatHelp())
         process.exit(1)
     }

@@ -151,10 +151,29 @@ export function spinner(message: string): { stop: (finalMessage?: string) => voi
   }
 }
 
+export function printCommandHelp(usage: string, options?: Array<[string, string]>, examples?: string[]): void {
+  console.log(`\n  Usage: ${usage}\n`)
+  if (options && options.length > 0) {
+    const maxFlag = Math.max(...options.map(([flag]) => flag.length))
+    console.log('  Options:')
+    for (const [flag, desc] of options) {
+      console.log(`    ${cyan(flag.padEnd(maxFlag))}  ${dim(desc)}`)
+    }
+    console.log()
+  }
+  if (examples && examples.length > 0) {
+    console.log('  Examples:')
+    for (const ex of examples) {
+      console.log(`    ${dim(ex)}`)
+    }
+    console.log()
+  }
+}
+
 export function requireAppName(positionals: string[], usage: string): string {
   const appName = positionals[0]
   if (!appName) {
-    logError(`usage: ${usage}`)
+    logError(`Usage: ${usage}`)
     process.exit(1)
   }
   return appName
@@ -196,4 +215,29 @@ export async function confirm(message: string): Promise<boolean> {
       resolve(char === 'y')
     })
   })
+}
+
+export async function printDnsTable(domain: string, serverHost: string): Promise<void> {
+  const dns = await import('node:dns/promises')
+  const hostname = new URL(serverHost).hostname
+  let ip = hostname
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+    try {
+      const addresses = await dns.resolve4(hostname)
+      ip = addresses[0]
+    } catch {}
+  }
+
+  const typeWidth = 4
+  const nameWidth = Math.max(4, domain.length, `*.${domain}`.length)
+
+  console.log()
+  console.log(bold('  DNS:'))
+  console.log(
+    `  ${'A'.padEnd(typeWidth)}  ${domain.padEnd(nameWidth)}  ${ip}  ${dim('(required — makes the app reachable)')}`
+  )
+  console.log(
+    `  ${'A'.padEnd(typeWidth)}  ${`*.${domain}`.padEnd(nameWidth)}  ${ip}  ${dim('(recommended — enables preview subdomains)')}`
+  )
+  console.log()
 }

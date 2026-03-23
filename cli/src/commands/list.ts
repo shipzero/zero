@@ -3,21 +3,27 @@ import type { AppSummary } from '../../../src/types.ts'
 import { dim, logInfo, logError, timeAgo, timeUntil, formatStatus, printTable, spinner } from '../ui.ts'
 import type { Column } from '../ui.ts'
 
-function formatUrl(domain: string | undefined, hostPort: number | undefined, serverUrl: URL): string {
+function formatUrl(
+  domain: string | undefined,
+  hostPort: number | undefined,
+  port: number | undefined,
+  serverUrl: URL
+): string {
   if (domain) return `${serverUrl.protocol}//${domain}`
-  if (hostPort) return `http://${serverUrl.hostname}:${hostPort}`
+  const displayPort = hostPort ?? port
+  if (displayPort) return `http://${serverUrl.hostname}:${displayPort}`
   return '—'
 }
 
-export async function ls(): Promise<void> {
+export async function list(): Promise<void> {
   const client = createClient()
-  const spin = spinner('loading apps...')
+  const spin = spinner('Loading apps...')
   const res = await client.get<AppSummary[]>('/apps')
   spin.stop()
   const data = unwrap(res, logError)
 
   if (data.length === 0) {
-    logInfo('no apps registered')
+    logInfo('No apps registered')
     return
   }
 
@@ -28,7 +34,7 @@ export async function ls(): Promise<void> {
     rows.push({
       name: app.name,
       status: formatStatus(app.status),
-      url: formatUrl(app.domain, app.hostPort, serverUrl),
+      url: formatUrl(app.domain, app.hostPort, app.port, serverUrl),
       image: app.currentImage ?? '—',
       deployed: dim(app.deployedAt ? timeAgo(app.deployedAt) : '—'),
       expires: ''
@@ -37,7 +43,7 @@ export async function ls(): Promise<void> {
       rows.push({
         name: ` └ ${p.label}`,
         status: formatStatus(p.status),
-        url: formatUrl(p.domain, undefined, serverUrl),
+        url: formatUrl(p.domain, undefined, undefined, serverUrl),
         image: p.image ?? '—',
         deployed: dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
         expires: dim(p.expiresAt ? timeUntil(p.expiresAt) : '')

@@ -57,7 +57,7 @@ function getCertExpiry(domain: string): Date | null {
     const pem = fs.readFileSync(cert, 'utf8')
     return new Date(new X509Certificate(pem).validTo)
   } catch (err) {
-    console.warn(`[acme] failed to inspect cert for ${domain}:`, getErrorMessage(err))
+    console.warn(`[acme] Failed to inspect cert for ${domain}:`, getErrorMessage(err))
     return null
   }
 }
@@ -88,7 +88,7 @@ export async function renewExpiringCerts(
       await renew(domain)
       renewed.push(domain)
     } catch (err) {
-      console.error(`[acme] failed to renew cert for ${domain}:`, getErrorMessage(err))
+      console.error(`[acme] Failed to renew cert for ${domain}:`, getErrorMessage(err))
     }
   }
 
@@ -99,7 +99,7 @@ export function obtainCert(domain: string): Promise<tls.SecureContext> {
   if (certInFlight.has(domain)) return certInFlight.get(domain)!
 
   const promise = _doObtainCert(domain).catch((err) => {
-    console.error(`[acme] failed to obtain cert for ${domain}:`, getErrorMessage(err))
+    console.error(`[acme] Failed to obtain cert for ${domain}:`, getErrorMessage(err))
     throw err
   })
   certInFlight.set(domain, promise)

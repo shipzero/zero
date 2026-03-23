@@ -27,16 +27,16 @@ vi.mock('../ui.ts', async (importOriginal) => {
   }
 })
 
-const { rm } = await import('./rm.ts')
+const { remove } = await import('./remove.ts')
 
-describe('rm command', () => {
+describe('remove command', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('calls GET then DELETE with --force', async () => {
     mockClient.get.mockResolvedValue({ status: 200, data: { name: 'myapp' } })
     mockClient.del.mockResolvedValue({ status: 200, data: { message: 'removed' } })
 
-    await rm(['myapp'], { force: true })
+    await remove(['myapp'], { force: true })
 
     expect(mockClient.get).toHaveBeenCalledWith('/apps/myapp')
     expect(mockClient.del).toHaveBeenCalledWith('/apps/myapp')
@@ -46,7 +46,7 @@ describe('rm command', () => {
     mockClient.get.mockResolvedValue({ status: 200, data: { name: 'my app' } })
     mockClient.del.mockResolvedValue({ status: 200, data: { message: 'removed' } })
 
-    await rm(['my app'], { force: true })
+    await remove(['my app'], { force: true })
 
     expect(mockClient.get).toHaveBeenCalledWith('/apps/my%20app')
     expect(mockClient.del).toHaveBeenCalledWith('/apps/my%20app')

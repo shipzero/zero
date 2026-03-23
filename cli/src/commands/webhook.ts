@@ -1,29 +1,30 @@
 import { createClient, unwrap } from '../client.ts'
-import { logSuccess, logError, requireAppName } from '../ui.ts'
+import { logSuccess, logError, logHint, confirm, bold, requireAppName } from '../ui.ts'
 
-interface WebhookResetResponse {
+interface WebhookResponse {
   webhookSecret: string
   webhookUrl: string
 }
 
 export async function webhook(subcommand: string | null, positionals: string[]): Promise<void> {
-  if (subcommand === 'reset') {
-    await webhookReset(positionals)
+  if (subcommand === 'url') {
+    await webhookUrl(positionals)
   } else {
-    logError('usage: zero webhook reset <app>')
+    logError('Usage: zero webhook url <app>')
     process.exit(1)
   }
 }
 
-async function webhookReset(positionals: string[]): Promise<void> {
-  const appName = requireAppName(positionals, 'zero webhook reset <app>')
+async function webhookUrl(positionals: string[]): Promise<void> {
+  const appName = requireAppName(positionals, 'zero webhook url <app>')
+
+  const ok = await confirm(`Rotate webhook secret for ${bold(appName)}? The current secret will stop working.`)
+  if (!ok) process.exit(0)
 
   const client = createClient()
-  const data = unwrap(
-    await client.post<WebhookResetResponse>(`/apps/${encodeURIComponent(appName)}/webhooks/reset`),
-    logError
-  )
+  const data = unwrap(await client.post<WebhookResponse>(`/apps/${encodeURIComponent(appName)}/webhook`), logError)
 
-  logSuccess(`webhook secret reset for ${appName}`)
+  logSuccess(`Webhook secret rotated for ${appName}`)
   console.log(`  url: ${data.webhookUrl}`)
+  logHint('Update the webhook URL in your registry')
 }

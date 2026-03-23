@@ -74,7 +74,7 @@ function shutdown(signal: string) {
   console.log(`[zero] ${signal} received, draining connections...`)
 
   const timeout = setTimeout(() => {
-    console.warn('[zero] graceful timeout exceeded, forcing exit')
+    console.warn('[zero] Graceful timeout exceeded, forcing exit')
     process.exit(1)
   }, GRACEFUL_TIMEOUT_MS)
   timeout.unref()

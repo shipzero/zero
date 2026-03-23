@@ -64,14 +64,14 @@ describe('compose', () => {
       '    image: postgres:16-alpine'
     ].join('\n')
 
-    it('replaces tags matching the repo prefix', () => {
-      const result = substituteImageTags(composeFile, 'ghcr.io/org/project', 'pr-42')
-      expect(result).toContain('ghcr.io/org/project/backend:pr-42')
-      expect(result).toContain('ghcr.io/org/project/frontend:pr-42')
+    it('replaces tags matching the image prefix', () => {
+      const result = substituteImageTags(composeFile, 'ghcr.io/org/project', 'pr-21')
+      expect(result).toContain('ghcr.io/org/project/backend:pr-21')
+      expect(result).toContain('ghcr.io/org/project/frontend:pr-21')
     })
 
     it('does not touch third-party images', () => {
-      const result = substituteImageTags(composeFile, 'ghcr.io/org/project', 'pr-42')
+      const result = substituteImageTags(composeFile, 'ghcr.io/org/project', 'pr-21')
       expect(result).toContain('postgres:16-alpine')
     })
 
@@ -82,7 +82,7 @@ describe('compose', () => {
     })
 
     it('returns content unchanged when no images match', () => {
-      const result = substituteImageTags(composeFile, 'ghcr.io/other/repo', 'pr-42')
+      const result = substituteImageTags(composeFile, 'ghcr.io/other/repo', 'pr-21')
       expect(result).toBe(composeFile)
     })
   })

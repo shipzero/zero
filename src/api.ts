@@ -36,7 +36,7 @@ import {
 import { composeDir, composeDown, composeStop, composeStart, composeLogs, removeComposeDir } from './compose.ts'
 import { routeApp, unrouteApp } from './proxy.ts'
 import { destroyPreview } from './preview.ts'
-import { isTLSEnabled, buildDomainUrl } from './url.ts'
+import { isTLSEnabled, buildDomainUrl, buildWebhookUrl, hasDomain } from './url.ts'
 import { IS_DEV, TOKEN, JWT_SECRET, DOMAIN, API_PORT, PREVIEW_TTL_MS } from './env.ts'
 import { signJwt, verifyJwt } from './jwt.ts'
 import { VERSION } from './version.ts'
@@ -45,14 +45,11 @@ import type {
   VersionResponse,
   AppSummary,
   AppDetail,
-  AddAppResponse,
   StopResponse,
   StartResponse,
-  PreviewDeployResponse,
   PreviewSummary
 } from './types.ts'
 
-const WEBHOOK_HOST = DOMAIN || 'localhost'
 const ZERO_CONTAINER = 'zero'
 const BEARER_PREFIX = 'Bearer '
 const MAX_BODY_SIZE = 1024 * 1024
@@ -60,8 +57,12 @@ const JWT_TTL_SECONDS = 24 * 60 * 60
 const AUTH_WINDOW_MS = 60_000
 const MAX_AUTH_FAILURES = 10
 
-function webhookUrl(secret: string): string {
-  return `${buildDomainUrl(WEBHOOK_HOST)}/webhooks/${secret}`
+function inferNameFromImage(imageRef: string): string {
+  const colonIdx = imageRef.lastIndexOf(':')
+  const hasTag = colonIdx > 0 && !imageRef.substring(colonIdx).includes('/')
+  const withoutTag = hasTag ? imageRef.substring(0, colonIdx) : imageRef
+  const segments = withoutTag.split('/')
+  return segments[segments.length - 1]
 }
 
 function parseImageRef(ref: string): { image: string; tag: string } {
@@ -159,7 +160,7 @@ function readBody(req: http.IncomingMessage): Promise<Buffer> {
       size += chunk.length
       if (size > MAX_BODY_SIZE) {
         req.destroy()
-        reject(new Error('request body too large'))
+        reject(new Error('Request body too large'))
         return
       }
       chunks.push(chunk)
@@ -195,7 +196,7 @@ function authenticate(req: http.IncomingMessage): boolean {
 function requireApp(name: string, res: http.ServerResponse): AppConfig | null {
   const app = getApp(name)
   if (!app) {
-    json(res, 404, { error: 'app not found' })
+    json(res, 404, { error: 'App not found' })
     return null
   }
   return app
@@ -205,7 +206,7 @@ function requirePreview(appName: string, label: string, res: http.ServerResponse
   if (!requireApp(appName, res)) return null
   const preview = getPreview(appName, label)
   if (!preview) {
-    json(res, 404, { error: 'preview not found' })
+    json(res, 404, { error: 'Preview not found' })
     return null
   }
   return preview
@@ -260,30 +261,13 @@ route('GET', '/apps', async (_req, res) => {
         port: deployment?.port,
         deployedAt: deployment?.deployedAt,
         status,
-        webhookUrl: webhookUrl(app.webhookSecret),
+        webhookUrl: buildWebhookUrl(app.webhookSecret),
         previews
       }
     })
   )
   json(res, 200, apps)
 })
-
-interface AddAppRequest {
-  name?: string
-  image?: string
-  domain?: string
-  internalPort?: number
-  hostPort?: number
-  command?: string[]
-  volumes?: string[]
-  healthPath?: string
-  healthTimeout?: string
-  env?: Record<string, string>
-  composeFile?: string
-  entryService?: string
-  repo?: string
-  trackTag?: string
-}
 
 interface DeployRequest {
   tag?: string
@@ -293,77 +277,183 @@ interface UpdateEnvRequest {
   [key: string]: string
 }
 
-route('POST', '/apps', async (req, res) => {
-  const body = parseJSON<AddAppRequest>((await readBody(req)).toString())
+interface DeployPayload {
+  image?: string
+  name?: string
+  domain?: string
+  port?: number
+  hostPort?: number
+  command?: string[]
+  volumes?: string[]
+  healthPath?: string
+  healthTimeout?: string
+  tag?: string
+  env?: Record<string, string>
+  composeFile?: string
+  entryService?: string
+  imagePrefix?: string
+  preview?: string
+  ttl?: string
+}
+
+route('POST', '/deploy', async (req, res) => {
+  const body = parseJSON<DeployPayload>((await readBody(req)).toString())
   if (!body) {
-    json(res, 400, { error: 'invalid JSON' })
-    return
-  }
-  const {
-    name,
-    domain,
-    internalPort = 3000,
-    hostPort,
-    command,
-    volumes,
-    healthPath,
-    healthTimeout,
-    env = {},
-    composeFile,
-    entryService
-  } = body
-
-  if (!name) {
-    json(res, 400, { error: 'name required' })
+    json(res, 400, { error: 'Invalid JSON' })
     return
   }
 
-  if (healthTimeout) {
+  if (!body.image && !body.name) {
+    json(res, 400, { error: 'Image or name required' })
+    return
+  }
+
+  if (body.healthTimeout) {
     try {
-      parseDuration(healthTimeout)
+      parseDuration(body.healthTimeout)
     } catch {
-      json(res, 400, { error: `invalid healthTimeout "${healthTimeout}" — use e.g. 30s, 3m` })
+      json(res, 400, { error: `Invalid --health-timeout "${body.healthTimeout}" — use e.g. 30s, 3m` })
       return
     }
   }
 
-  const isCompose = !!composeFile
-  if (isCompose && !entryService) {
-    json(res, 400, { error: 'entryService required for compose apps' })
+  const appName = body.name ?? inferNameFromImage(body.image!)
+  let app = getApp(appName)
+  let isNew = false
+
+  if (!app) {
+    if (!body.image && !body.composeFile) {
+      json(res, 404, { error: `App "${appName}" not found` })
+      return
+    }
+
+    const isCompose = !!body.composeFile
+    if (isCompose && !body.entryService) {
+      json(res, 400, { error: '--service required for Compose apps' })
+      return
+    }
+
+    const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image!)
+
+    const domain = body.domain ?? (hasDomain() ? `${appName}.${DOMAIN}` : undefined)
+
+    app = addApp({
+      name: appName,
+      image,
+      domain,
+      internalPort: isCompose ? (body.port ?? 80) : body.port,
+      hostPort: body.hostPort,
+      command: body.command,
+      volumes: body.volumes,
+      healthPath: body.healthPath,
+      healthTimeout: body.healthTimeout,
+      trackTag: tag,
+      env: body.env ?? {},
+      ...(isCompose
+        ? { composeFile: body.composeFile, entryService: body.entryService, imagePrefix: body.imagePrefix }
+        : {})
+    })
+    isNew = true
+  } else if (body.env) {
+    updateEnv(appName, body.env)
+  }
+
+  startSSE(res)
+  sendSSE(
+    res,
+    JSON.stringify({
+      event: 'accepted',
+      appName,
+      isNew,
+      ...(isNew ? { webhookUrl: buildWebhookUrl(app.webhookSecret) } : {})
+    })
+  )
+
+  const onDeployLog = (line: string) => sendSSE(res, JSON.stringify({ event: 'log', message: line }))
+  deployEvents.on(`log:${appName}`, onDeployLog)
+
+  if (body.preview) {
+    if (!app.domain) {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(res, JSON.stringify({ event: 'complete', success: false, error: 'App must have a domain for previews' }))
+      res.end()
+      return
+    }
+
+    if (isComposeApp(app) && !app.imagePrefix) {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(
+        res,
+        JSON.stringify({
+          event: 'complete',
+          success: false,
+          error:
+            'Compose previews require --image-prefix to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --image-prefix <prefix>'
+        })
+      )
+      res.end()
+      return
+    }
+
+    const label = body.preview
+    const tag = body.tag ?? label
+    let ttlMs: number
+    try {
+      ttlMs = body.ttl ? parseDuration(body.ttl) : PREVIEW_TTL_MS
+    } catch {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(res, JSON.stringify({ event: 'complete', success: false, error: `Invalid --ttl "${body.ttl}"` }))
+      res.end()
+      return
+    }
+
+    const previewDomain = buildPreviewDomain(app.domain, label)
+    const expiresAt = previewExpiresAt(ttlMs)
+
+    try {
+      if (isComposeApp(app)) {
+        await deployComposePreview(appName, label, previewDomain, expiresAt, tag)
+      } else {
+        await deployPreview(appName, label, tag, previewDomain, expiresAt)
+      }
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(
+        res,
+        JSON.stringify({
+          event: 'complete',
+          success: true,
+          appName,
+          label,
+          url: buildDomainUrl(previewDomain)
+        })
+      )
+    } catch (err) {
+      deployEvents.removeListener(`log:${appName}`, onDeployLog)
+      sendSSE(
+        res,
+        JSON.stringify({
+          event: 'complete',
+          success: false,
+          error: getErrorMessage(err)
+        })
+      )
+    }
+    res.end()
     return
   }
-  if (!isCompose && !body.image) {
-    json(res, 400, { error: 'image required (or use composeFile for compose apps)' })
-    return
+
+  let imageWithTag: string | undefined
+  if (isComposeApp(app)) {
+    imageWithTag = body.tag || app.trackTag || undefined
+  } else {
+    imageWithTag = `${app.image}:${body.tag ?? app.trackTag}`
   }
 
-  if (getApp(name)) {
-    json(res, 409, { error: `app "${name}" already exists` })
-    return
-  }
+  const result = await deploy(appName, imageWithTag)
 
-  const { image, tag } = isCompose ? { image: '', tag: body.trackTag ?? '' } : parseImageRef(body.image ?? '')
-
-  const app = addApp({
-    name,
-    image,
-    domain,
-    internalPort,
-    hostPort,
-    command,
-    volumes,
-    healthPath,
-    healthTimeout,
-    trackTag: tag,
-    env,
-    ...(isCompose ? { composeFile, entryService, repo: body.repo } : {})
-  })
-
-  json<AddAppResponse>(res, 201, {
-    name: app.name,
-    webhookSecret: app.webhookSecret,
-    webhookUrl: webhookUrl(app.webhookSecret)
-  })
+  deployEvents.removeListener(`log:${appName}`, onDeployLog)
+  sendSSE(res, JSON.stringify({ event: 'complete', ...result, appName, isNew }))
+  res.end()
 })
 
 route('GET', '/apps/:name', async (_req, res, { name }) => {
@@ -377,13 +467,13 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
     domain: app.domain,
     internalPort: app.internalPort,
     trackTag: app.trackTag,
-    repo: app.repo,
+    imagePrefix: app.imagePrefix,
     env: maskValues(app.env),
     currentImage: deployment?.image,
     port: deployment?.port,
     deployedAt: deployment?.deployedAt,
     deployments: app.deployments.length,
-    webhookUrl: webhookUrl(app.webhookSecret)
+    webhookUrl: buildWebhookUrl(app.webhookSecret)
   })
 })
 
@@ -446,7 +536,7 @@ route('POST', '/apps/:name/stop', async (_req, res, { name }) => {
 
   const deployment = getCurrentDeployment(app)
   if (!deployment) {
-    json(res, 400, { error: 'no active deployment' })
+    json(res, 400, { error: 'No active deployment' })
     return
   }
 
@@ -456,7 +546,7 @@ route('POST', '/apps/:name/stop', async (_req, res, { name }) => {
   } else {
     await stopContainer(deployment.containerId)
   }
-  json<StopResponse>(res, 200, { message: `stopped ${name}`, containerId: deployment.containerId })
+  json<StopResponse>(res, 200, { message: `Stopped ${name}`, containerId: deployment.containerId })
 })
 
 route('POST', '/apps/:name/start', async (_req, res, { name }) => {
@@ -465,7 +555,7 @@ route('POST', '/apps/:name/start', async (_req, res, { name }) => {
 
   const deployment = getCurrentDeployment(app)
   if (!deployment) {
-    json(res, 400, { error: 'no deployment to start' })
+    json(res, 400, { error: 'No deployment to start' })
     return
   }
 
@@ -481,7 +571,7 @@ route('POST', '/apps/:name/start', async (_req, res, { name }) => {
       app.healthTimeout ? parseDuration(app.healthTimeout) : undefined
     )
     routeApp(app, deployment.port)
-    json<StartResponse>(res, 200, { message: `started ${name}`, port: deployment.port })
+    json<StartResponse>(res, 200, { message: `Started ${name}`, port: deployment.port })
   } catch (err) {
     json(res, 500, { error: getErrorMessage(err) })
   }
@@ -491,33 +581,33 @@ route('PATCH', '/apps/:name/env', async (req, res, { name }) => {
   if (!requireApp(name, res)) return
   const env = parseJSON<UpdateEnvRequest>((await readBody(req)).toString())
   if (!env || typeof env !== 'object') {
-    json(res, 400, { error: 'invalid JSON' })
+    json(res, 400, { error: 'Invalid JSON' })
     return
   }
   updateEnv(name, env)
-  json<MessageResponse>(res, 200, { message: 'env updated — redeploy to apply' })
+  json<MessageResponse>(res, 200, { message: 'Env updated — redeploy to apply' })
 })
 
 route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
   if (!requireApp(name, res)) return
   const keys = new URLSearchParams(req.url?.split('?')[1] ?? '').getAll('key')
   if (keys.length === 0) {
-    json(res, 400, { error: 'key query param required' })
+    json(res, 400, { error: 'Key parameter required' })
     return
   }
   removeEnv(name, keys)
-  json<MessageResponse>(res, 200, { message: 'env removed — redeploy to apply' })
+  json<MessageResponse>(res, 200, { message: 'Env removed — redeploy to apply' })
 })
 
-route('POST', '/apps/:name/webhooks/reset', async (_req, res, { name }) => {
+route('POST', '/apps/:name/webhook', async (_req, res, { name }) => {
   if (!requireApp(name, res)) return
   const secret = resetWebhookSecret(name)
-  json(res, 200, { webhookSecret: secret, webhookUrl: webhookUrl(secret) })
+  json(res, 200, { webhookSecret: secret, webhookUrl: buildWebhookUrl(secret) })
 })
 
 route('POST', '/upgrade', async (req, res) => {
   if (IS_DEV) {
-    json(res, 400, { error: 'upgrade is only available in production mode' })
+    json(res, 400, { error: 'Upgrade is only available in production mode' })
     return
   }
 
@@ -526,11 +616,11 @@ route('POST', '/upgrade', async (req, res) => {
   const tag = body?.tag
 
   if (tag && !/^[a-zA-Z0-9._-]+$/.test(tag)) {
-    json(res, 400, { error: 'invalid tag' })
+    json(res, 400, { error: 'Invalid --tag' })
     return
   }
 
-  console.log(`[upgrade] pulling ${tag ?? 'latest'} image and restarting...`)
+  console.log(`[upgrade] Pulling ${tag ?? 'latest'} image and restarting...`)
 
   const COMPOSE_FILE = '/opt/zero/docker-compose.yml'
   const effectiveTag = tag ?? 'latest'
@@ -547,9 +637,9 @@ route('POST', '/upgrade', async (req, res) => {
       }
     })
     await upgrader.start()
-    json<MessageResponse>(res, 200, { message: `upgrade started (${tag ?? 'latest'}) — zero will restart` })
+    json<MessageResponse>(res, 200, { message: `Upgrade started (${tag ?? 'latest'}) — zero will restart` })
   } catch (err) {
-    console.error('[upgrade] failed:', err)
+    console.error('[upgrade] Upgrade failed:', err)
     json(res, 500, { error: getErrorMessage(err) })
   }
 })
@@ -568,7 +658,7 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   const parent = requireApp(name, res)
   if (!parent) return
   if (!parent.domain) {
-    json(res, 400, { error: 'parent app must have a domain for preview subdomains' })
+    json(res, 400, { error: 'Parent app must have a domain for preview subdomains' })
     return
   }
 
@@ -576,7 +666,15 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   const isCompose = isComposeApp(parent)
 
   if (!isCompose && !body?.tag) {
-    json(res, 400, { error: 'tag required' })
+    json(res, 400, { error: '--tag required' })
+    return
+  }
+
+  if (isCompose && !parent.imagePrefix) {
+    json(res, 400, {
+      error:
+        'Compose previews require --image-prefix to substitute image tags. Redeploy with: zero deploy --compose <file> --service <svc> --name <app> --image-prefix <prefix>'
+    })
     return
   }
 
@@ -585,11 +683,15 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
   try {
     ttlMs = body?.ttl ? parseDuration(body.ttl) : PREVIEW_TTL_MS
   } catch {
-    json(res, 400, { error: `invalid ttl "${body?.ttl}" — use e.g. 24h, 7d` })
+    json(res, 400, { error: `Invalid --ttl "${body?.ttl}" — use e.g. 24h, 7d` })
     return
   }
   const previewDomain = buildPreviewDomain(parent.domain, label)
   const expiresAt = previewExpiresAt(ttlMs)
+
+  startSSE(res)
+  const onDeployLog = (line: string) => sendSSE(res, JSON.stringify({ event: 'log', message: line }))
+  deployEvents.on(`log:${name}`, onDeployLog)
 
   try {
     if (isCompose) {
@@ -597,23 +699,34 @@ route('POST', '/apps/:name/previews', async (req, res, { name }) => {
     } else {
       await deployPreview(name, label, body!.tag!, previewDomain, expiresAt)
     }
-    json<PreviewDeployResponse>(res, 201, {
-      name,
-      label,
-      domain: previewDomain,
-      url: buildDomainUrl(previewDomain),
-      success: true
-    })
+    deployEvents.removeListener(`log:${name}`, onDeployLog)
+    sendSSE(
+      res,
+      JSON.stringify({
+        event: 'complete',
+        name,
+        label,
+        domain: previewDomain,
+        url: buildDomainUrl(previewDomain),
+        success: true
+      })
+    )
   } catch (err) {
-    json<PreviewDeployResponse>(res, 500, {
-      name,
-      label,
-      domain: previewDomain,
-      url: buildDomainUrl(previewDomain),
-      success: false,
-      error: getErrorMessage(err)
-    })
+    deployEvents.removeListener(`log:${name}`, onDeployLog)
+    sendSSE(
+      res,
+      JSON.stringify({
+        event: 'complete',
+        name,
+        label,
+        domain: previewDomain,
+        url: buildDomainUrl(previewDomain),
+        success: false,
+        error: getErrorMessage(err)
+      })
+    )
   }
+  res.end()
 })
 
 route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
@@ -647,7 +760,7 @@ route('DELETE', '/apps/:name/previews/:label', async (_req, res, { name, label }
   if (!preview) return
 
   await destroyPreview(name, preview)
-  json<MessageResponse>(res, 200, { message: `preview ${label} removed` })
+  json<MessageResponse>(res, 200, { message: `Preview ${label} removed` })
 })
 
 route('GET', '/apps/:name/previews/:label/logs', async (_req, res, { name, label }) => {
@@ -671,7 +784,7 @@ route('GET', '/apps/:name/previews/:label/metrics', async (_req, res, { name, la
     : preview.containerId
 
   if (!containerId) {
-    json(res, 400, { error: 'container not found' })
+    json(res, 400, { error: 'Container not found' })
     return
   }
 
@@ -687,7 +800,7 @@ route('DELETE', '/apps/:name/previews', async (_req, res, { name }) => {
   for (const preview of previews) {
     await destroyPreview(name, preview)
   }
-  json<MessageResponse>(res, 200, { message: `removed ${previews.length} preview(s)` })
+  json<MessageResponse>(res, 200, { message: `Removed ${previews.length} preview(s)` })
 })
 
 async function removeAppWithContainers(app: AppConfig): Promise<void> {
@@ -701,7 +814,7 @@ async function removeAppWithContainers(app: AppConfig): Promise<void> {
     try {
       await composeDown(composeDir(app.name))
     } catch (err) {
-      console.error(`[api] compose down failed for ${app.name}:`, err)
+      console.error(`[api] Compose down failed for ${app.name}:`, err)
     }
     removeComposeDir(app.name)
   } else {
@@ -717,7 +830,7 @@ route('DELETE', '/apps/:name', async (_req, res, { name }) => {
   if (!app) return
 
   await removeAppWithContainers(app)
-  json<MessageResponse>(res, 200, { message: 'removed' })
+  json<MessageResponse>(res, 200, { message: 'Removed' })
 })
 
 route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
@@ -740,16 +853,6 @@ route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
   }
 })
 
-route('GET', '/apps/:name/deploy-logs', async (_req, res, { name }) => {
-  if (!requireApp(name, res)) return
-
-  startSSE(res)
-
-  const onDeployLog = (line: string) => sendSSE(res, line)
-  deployEvents.on(`log:${name}`, onDeployLog)
-  res.on('close', () => deployEvents.removeListener(`log:${name}`, onDeployLog))
-})
-
 async function isZeroContainerRunning(): Promise<boolean> {
   try {
     const info = await docker.getContainer(ZERO_CONTAINER).inspect()
@@ -761,7 +864,7 @@ async function isZeroContainerRunning(): Promise<boolean> {
 
 route('GET', '/logs', async (_req, res) => {
   if (!(await isZeroContainerRunning())) {
-    json(res, 400, { error: 'server logs are only available in production (zero container not found)' })
+    json(res, 400, { error: 'Server logs are only available in production (zero container not found)' })
     return
   }
 
@@ -793,7 +896,7 @@ async function resolveContainerStatus(
 
 route('GET', '/metrics', async (_req, res) => {
   if (!(await isZeroContainerRunning())) {
-    json(res, 400, { error: 'server metrics are only available in production (zero container not found)' })
+    json(res, 400, { error: 'Server metrics are only available in production (zero container not found)' })
     return
   }
 
@@ -807,14 +910,14 @@ route('GET', '/apps/:name/metrics', async (_req, res, { name }) => {
 
   const deployment = getCurrentDeployment(app)
   if (!deployment) {
-    json(res, 400, { error: 'no active deployment' })
+    json(res, 400, { error: 'No active deployment' })
     return
   }
 
   const containerId = isComposeApp(app) ? await findComposeContainer(app.entryService!) : deployment.containerId
 
   if (!containerId) {
-    json(res, 400, { error: 'container not found' })
+    json(res, 400, { error: 'Container not found' })
     return
   }
 
@@ -831,25 +934,25 @@ route('GET', '/registries', async (_req, res) => {
 route('POST', '/registries', async (req, res) => {
   const body = parseJSON<{ server?: string; username?: string; password?: string }>((await readBody(req)).toString())
   if (!body?.server || !body.username || !body.password) {
-    json(res, 400, { error: 'server, username, password required' })
+    json(res, 400, { error: '--user and --password required' })
     return
   }
   setRegistryAuth(body.server, { username: body.username, password: body.password })
-  json<MessageResponse>(res, 200, { message: `registry ${body.server} saved` })
+  json<MessageResponse>(res, 200, { message: `Registry ${body.server} saved` })
 })
 
 route('DELETE', '/registries/:server', async (_req, res, { server }) => {
   if (!removeRegistryAuth(server)) {
-    json(res, 404, { error: `no credentials for ${server}` })
+    json(res, 404, { error: `No credentials for ${server}` })
     return
   }
-  json<MessageResponse>(res, 200, { message: `registry ${server} removed` })
+  json<MessageResponse>(res, 200, { message: `Registry ${server} removed` })
 })
 
 route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   const app = findAppBySecret(secret)
   if (!app) {
-    json(res, 404, { error: 'unknown webhook' })
+    json(res, 404, { error: 'Unknown webhook' })
     return
   }
 
@@ -857,7 +960,7 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
 
   const signature = req.headers['x-hub-signature-256'] as string | undefined
   if (!signature) {
-    json(res, 401, { error: 'missing signature' })
+    json(res, 401, { error: 'Missing signature' })
     return
   }
 
@@ -865,58 +968,58 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   const signatureBuffer = Buffer.from(signature)
   const expectedBuffer = Buffer.from(expected)
   if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
-    json(res, 401, { error: 'invalid signature' })
+    json(res, 401, { error: 'Invalid signature' })
     return
   }
 
   const payload = parseJSON<Record<string, unknown>>(rawBody.toString())
   if (!payload) {
-    json(res, 400, { error: 'invalid JSON' })
+    json(res, 400, { error: 'Invalid JSON' })
     return
   }
 
   const tag = extractTag(payload)
   if (!tag) {
-    json(res, 200, { message: 'ignored: no tag' })
+    json(res, 200, { message: 'Ignored: no tag' })
     return
   }
 
   const isCompose = isComposeApp(app)
   const isTrackedTag = app.trackTag === 'any' || tag === app.trackTag
-  const hasRepo = isCompose && !!app.repo
+  const hasImagePrefix = isCompose && !!app.imagePrefix
   const isPreviewCandidate = !isTrackedTag && app.domain
 
   if (!isTrackedTag && !isPreviewCandidate) {
-    json(res, 200, { message: `ignored: tag "${tag}" != tracked "${app.trackTag}"` })
+    json(res, 200, { message: `Ignored: tag "${tag}" != tracked "${app.trackTag}"` })
     return
   }
 
   if (isPreviewCandidate) {
-    if (isCompose && !hasRepo) {
-      json(res, 200, { message: `ignored: compose app without --repo cannot create previews for tag "${tag}"` })
+    if (isCompose && !hasImagePrefix) {
+      json(res, 200, { message: `Ignored: compose app without --image-prefix cannot create previews for tag "${tag}"` })
       return
     }
     const previewDomain = buildPreviewDomain(app.domain!, tag)
     const expiresAt = previewExpiresAt(PREVIEW_TTL_MS)
-    json(res, 202, { message: 'preview deploy triggered', tag })
+    json(res, 202, { message: 'Preview deploy triggered', tag })
     if (isCompose) {
       deployComposePreview(app.name, tag, previewDomain, expiresAt, tag).catch((err) =>
-        console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
+        console.error(`[webhook] Preview ${app.name}/${tag}: ${err}`)
       )
     } else {
       deployPreview(app.name, tag, tag, previewDomain, expiresAt).catch((err) =>
-        console.error(`[webhook] preview ${app.name}/${tag}: ${err}`)
+        console.error(`[webhook] Preview ${app.name}/${tag}: ${err}`)
       )
     }
     return
   }
 
   if (isCompose) {
-    json(res, 202, { message: 'deploy triggered', tag })
-    deploy(app.name, hasRepo ? tag : undefined).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
+    json(res, 202, { message: 'Deploy triggered', tag })
+    deploy(app.name, hasImagePrefix ? tag : undefined).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
   } else {
     const image = `${app.image}:${tag}`
-    json(res, 202, { message: 'deploy triggered', image })
+    json(res, 202, { message: 'Deploy triggered', image })
     deploy(app.name, image).catch((err) => console.error(`[webhook] ${app.name}: ${err}`))
   }
 })
@@ -977,21 +1080,21 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (!isWebhook && isRateLimited(clientIp)) {
     res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '60' })
-    res.end(JSON.stringify({ error: 'too many requests' }))
+    res.end(JSON.stringify({ error: 'Too many requests' }))
     return
   }
 
   const isAuthorized = isWebhook || (isAuthToken ? authenticateStaticToken(req) : authenticate(req))
   if (!isAuthorized) {
     recordAuthFailure(clientIp)
-    console.warn(`[api] auth failure from ${clientIp} — ${method} ${url}`)
-    json(res, 401, { error: 'unauthorized' })
+    console.warn(`[api] Auth failure from ${clientIp}: ${method} ${url}`)
+    json(res, 401, { error: 'Unauthorized' })
     return
   }
 
   const match = matchRoute(method, url)
   if (!match) {
-    json(res, 404, { error: 'not found' })
+    json(res, 404, { error: 'Not found' })
     return
   }
 
@@ -1008,6 +1111,6 @@ function listenOn(server: http.Server, port: number, host?: string): Promise<voi
 export async function startApi() {
   const server = http.createServer(handleRequest)
   await listenOn(server, API_PORT, '127.0.0.1')
-  console.log(`[api] listening on 127.0.0.1:${API_PORT} (proxied via :${isTLSEnabled() ? 443 : 80})`)
+  console.log(`[api] Listening on 127.0.0.1:${API_PORT} (proxied via :${isTLSEnabled() ? 443 : 80})`)
   return server
 }

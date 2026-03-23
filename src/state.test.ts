@@ -125,7 +125,7 @@ describe('state', () => {
     })
 
     it('throws for non-existent app', () => {
-      expect(() => state.updateEnv('nope', { X: '1' })).toThrow('app "nope" not found')
+      expect(() => state.updateEnv('nope', { X: '1' })).toThrow('App "nope" not found')
     })
   })
 
@@ -201,7 +201,7 @@ describe('state', () => {
     it('throws when no different image exists', () => {
       state.addApp({ name: 'app', image: 'img', trackTag: 'latest', internalPort: 80, env: {} })
       state.addDeployment('app', { image: 'img:v1', containerId: 'c1', port: 3001, deployedAt: '2024-01-01' })
-      expect(() => state.findRollbackTarget('app')).toThrow('no previous deployment')
+      expect(() => state.findRollbackTarget('app')).toThrow('No previous deployment')
     })
 
     it('throws for non-existent app', () => {
@@ -270,7 +270,7 @@ describe('state', () => {
 
   describe('preview helpers', () => {
     it('buildPreviewDomain builds correct subdomain', () => {
-      expect(state.buildPreviewDomain('myapp.example.com', 'pr-42')).toBe('pr-42.myapp.example.com')
+      expect(state.buildPreviewDomain('myapp.example.com', 'pr-21')).toBe('preview-pr-21.myapp.example.com')
     })
 
     it('setPreview and getPreview work correctly', () => {

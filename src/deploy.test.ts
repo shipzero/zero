@@ -8,6 +8,7 @@ process.env.STATE_PATH = path.join(tmpDir, 'state.json')
 process.env.EMAIL = ''
 
 const mockPullImage = vi.fn().mockResolvedValue(undefined)
+const mockInspectImage = vi.fn().mockResolvedValue({ exposedPorts: [], digest: 'sha256:abc123' })
 const mockRunContainer = vi.fn().mockResolvedValue('new-container-id')
 const mockRemoveContainer = vi.fn().mockResolvedValue(undefined)
 const mockWaitForHealthy = vi.fn().mockResolvedValue(undefined)
@@ -19,6 +20,7 @@ const mockComposeUp = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('./docker.ts', () => ({
   pullImage: (...args: unknown[]) => mockPullImage(...args),
+  inspectImage: (...args: unknown[]) => mockInspectImage(...args),
   runContainer: (...args: unknown[]) => mockRunContainer(...args),
   removeContainer: (...args: unknown[]) => mockRemoveContainer(...args),
   waitForHealthy: (...args: unknown[]) => mockWaitForHealthy(...args),
@@ -99,33 +101,33 @@ describe('deploy', () => {
 
     it('returns failure when pull fails', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockPullImage.mockRejectedValueOnce(new Error('registry timeout'))
+      mockPullImage.mockRejectedValueOnce(new Error('Registry timeout'))
 
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('registry timeout')
+      expect(result.error).toContain('Registry timeout')
       expect(mockRunContainer).not.toHaveBeenCalled()
     })
 
     it('returns failure when container start fails', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockRunContainer.mockRejectedValueOnce(new Error('port conflict'))
+      mockRunContainer.mockRejectedValueOnce(new Error('Port conflict'))
 
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('port conflict')
+      expect(result.error).toContain('Port conflict')
     })
 
     it('removes container and returns failure when health check fails', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockWaitForHealthy.mockRejectedValueOnce(new Error('timeout'))
+      mockWaitForHealthy.mockRejectedValueOnce(new Error('Timeout'))
 
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('health check failed')
+      expect(result.error).toContain('Health check failed')
       expect(mockRemoveContainer).toHaveBeenCalledWith('new-container-id')
     })
 
@@ -152,7 +154,7 @@ describe('deploy', () => {
 
       const result = await deploy('web')
       expect(result.success).toBe(false)
-      expect(result.error).toContain('image is required')
+      expect(result.error).toContain('Image is required')
     })
   })
 
@@ -168,7 +170,7 @@ describe('deploy', () => {
 
     it('releases lock after failure', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      mockPullImage.mockRejectedValueOnce(new Error('fail'))
+      mockPullImage.mockRejectedValueOnce(new Error('Fail'))
 
       await deploy('web', 'nginx:v1')
       const result = await deploy('web', 'nginx:v2')
@@ -211,12 +213,12 @@ describe('deploy', () => {
         composeFile: 'version: "3"',
         entryService: 'web'
       })
-      mockComposePull.mockRejectedValueOnce(new Error('pull error'))
+      mockComposePull.mockRejectedValueOnce(new Error('Pull error'))
 
       const result = await deploy('stack')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('pull failed')
+      expect(result.error).toContain('Pull failed')
     })
 
     it('returns failure when compose up fails', async () => {
@@ -229,12 +231,12 @@ describe('deploy', () => {
         composeFile: 'version: "3"',
         entryService: 'web'
       })
-      mockComposeUp.mockRejectedValueOnce(new Error('up error'))
+      mockComposeUp.mockRejectedValueOnce(new Error('Up error'))
 
       const result = await deploy('stack')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('compose up failed')
+      expect(result.error).toContain('Compose up failed')
     })
   })
 
@@ -246,8 +248,8 @@ describe('deploy', () => {
 
       const logs = getDeployLogs('web')
       expect(logs.length).toBeGreaterThan(0)
-      expect(logs.some((l) => l.includes('deploy start'))).toBe(true)
-      expect(logs.some((l) => l.includes('deploy complete'))).toBe(true)
+      expect(logs.some((l) => l.includes('Deploying'))).toBe(true)
+      expect(logs.some((l) => l.includes('Your app is live'))).toBe(true)
     })
 
     it('clears logs at the start of a new deploy', async () => {
@@ -276,7 +278,7 @@ describe('deploy', () => {
       await deploy('web', 'nginx:latest')
 
       expect(received.length).toBeGreaterThan(0)
-      expect(received.some((l) => l.includes('deploy start'))).toBe(true)
+      expect(received.some((l) => l.includes('Deploying'))).toBe(true)
 
       deployEvents.removeAllListeners('log:web')
     })
@@ -307,7 +309,7 @@ describe('deploy', () => {
         env: {},
         composeFile: 'services:\n  web:\n    image: nginx',
         entryService: 'web',
-        repo: 'nginx'
+        imagePrefix: 'nginx'
       })
       state.addDeployment('stack', { image: 'v1', containerId: 'compose', port: 3001, deployedAt: '2024-01-01' })
       state.addDeployment('stack', { image: 'v2', containerId: 'compose', port: 3002, deployedAt: '2024-01-02' })

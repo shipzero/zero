@@ -17,7 +17,7 @@ function safeParseDuration(value: string, fallback: string): number {
   try {
     return parseDuration(value)
   } catch {
-    console.error(`[config] invalid PREVIEW_TTL "${value}", falling back to ${fallback}`)
+    console.error(`[config] Invalid PREVIEW_TTL "${value}", falling back to ${fallback}`)
     return parseDuration(fallback)
   }
 }
@@ -28,7 +28,7 @@ function safeParseSize(value: string, fallback: string): number {
   try {
     return parseSize(value)
   } catch {
-    console.error(`[config] invalid MAX_BODY_SIZE "${value}", falling back to ${fallback}`)
+    console.error(`[config] Invalid MAX_BODY_SIZE "${value}", falling back to ${fallback}`)
     return parseSize(fallback)
   }
 }

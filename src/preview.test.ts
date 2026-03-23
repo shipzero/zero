@@ -79,7 +79,7 @@ describe('destroyPreview', () => {
   })
 
   it('continues when composeDown fails', async () => {
-    mockComposeDown.mockRejectedValueOnce(new Error('project not found'))
+    mockComposeDown.mockRejectedValueOnce(new Error('Project not found'))
     const preview = {
       label: 'pr-3',
       domain: 'pr-3.app.com',
@@ -145,7 +145,7 @@ describe('cleanupExpiredPreviews', () => {
   })
 
   it('continues cleanup when one preview fails', async () => {
-    mockRemoveContainer.mockRejectedValueOnce(new Error('container gone'))
+    mockRemoveContainer.mockRejectedValueOnce(new Error('Container gone'))
     mockGetAllExpiredPreviews.mockReturnValue([
       {
         appName: 'app1',

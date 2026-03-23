@@ -13,6 +13,6 @@ export function parseSize(input: string): number {
     total += Number(value) * UNITS[unit.toLowerCase()]
     matched = true
   }
-  if (!matched) throw new Error(`invalid size "${input}" — use e.g. 512k, 100m, 1g`)
+  if (!matched) throw new Error(`Invalid size "${input}" — use e.g. 512k, 100m, 1g`)
   return total
 }

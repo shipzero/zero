@@ -11,7 +11,7 @@ import { vi } from 'vitest'
 vi.mock('./certs.ts', () => ({
   getCachedCert: vi.fn().mockReturnValue(undefined),
   loadCachedCert: vi.fn().mockReturnValue(null),
-  obtainCert: vi.fn().mockRejectedValue(new Error('no cert')),
+  obtainCert: vi.fn().mockRejectedValue(new Error('No cert')),
   handleAcmeChallenge: vi.fn().mockReturnValue(false),
   isTLSEnabled: vi.fn().mockReturnValue(false)
 }))

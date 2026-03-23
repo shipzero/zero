@@ -29,8 +29,8 @@ describe('parseDuration', () => {
   })
 
   it('throws on invalid input', () => {
-    expect(() => parseDuration('')).toThrow('invalid duration')
-    expect(() => parseDuration('abc')).toThrow('invalid duration')
-    expect(() => parseDuration('100')).toThrow('invalid duration')
+    expect(() => parseDuration('')).toThrow('Invalid duration')
+    expect(() => parseDuration('abc')).toThrow('Invalid duration')
+    expect(() => parseDuration('100')).toThrow('Invalid duration')
   })
 })

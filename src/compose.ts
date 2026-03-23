@@ -38,12 +38,12 @@ function parseServiceNames(composeContent: string): string[] {
 
 const VALID_TAG_PATTERN = /^[a-zA-Z0-9._-]+$/
 
-/** Replaces image tags for all images matching the repo prefix. Throws on invalid tags. */
-export function substituteImageTags(composeContent: string, repo: string, tag: string): string {
+/** Replaces image tags for all images matching the image prefix. Throws on invalid tags. */
+export function substituteImageTags(composeContent: string, imagePrefix: string, tag: string): string {
   if (!VALID_TAG_PATTERN.test(tag)) {
-    throw new Error(`invalid image tag: "${tag}"`)
+    throw new Error(`Invalid image tag: "${tag}"`)
   }
-  const escaped = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escaped = imagePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const pattern = new RegExp(`(image:\\s*${escaped}/[^:]+):[^\\s]+`, 'g')
   return composeContent.replace(pattern, `$1:${tag}`)
 }
@@ -216,7 +216,7 @@ function runCompose(projectDir: string, args: string[], onProgress?: (line: stri
       if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`docker compose ${args[0]} failed (exit ${code}): ${stderr.trim()}`))
+        reject(new Error(`Docker compose ${args[0]} failed (exit ${code}): ${stderr.trim()}`))
       }
     })
 

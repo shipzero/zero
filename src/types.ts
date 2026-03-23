@@ -28,30 +28,15 @@ export interface AppDetail {
   name: string
   image: string
   domain?: string
-  internalPort: number
+  internalPort?: number
   trackTag: string
-  repo?: string
+  imagePrefix?: string
   env: Record<string, string>
   currentImage?: string
   port?: number
   deployedAt?: string
   deployments: number
   webhookUrl: string
-}
-
-export interface AddAppResponse {
-  name: string
-  webhookSecret: string
-  webhookUrl: string
-}
-
-export interface DeployResult {
-  success: boolean
-  image: string
-  port: number
-  containerId: string
-  url?: string
-  error?: string
 }
 
 export interface RollbackResponse {
@@ -85,15 +70,6 @@ export interface ContainerStats {
   networkTx: number
 }
 
-export interface PreviewDeployResponse {
-  name: string
-  label: string
-  domain: string
-  url: string
-  success: boolean
-  error?: string
-}
-
 export interface PreviewSummary {
   name: string
   label: string
@@ -106,6 +82,7 @@ export interface PreviewSummary {
 
 export interface DeploymentInfo {
   image: string
+  digest?: string
   containerId: string
   port: number
   deployedAt: string

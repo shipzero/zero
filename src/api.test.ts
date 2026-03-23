@@ -19,6 +19,7 @@ import { vi } from 'vitest'
 vi.mock('./docker.ts', () => ({
   docker: {},
   pullImage: vi.fn().mockResolvedValue(undefined),
+  inspectImage: vi.fn().mockResolvedValue({ exposedPorts: [], digest: 'sha256:mock' }),
   runContainer: vi.fn().mockResolvedValue('mock-container-id'),
   removeContainer: vi.fn().mockResolvedValue(undefined),
   stopContainer: vi.fn().mockResolvedValue(undefined),
@@ -67,6 +68,26 @@ function mintTestJwt(expiresInSeconds = 3600): string {
 
 const testJwt = mintTestJwt()
 
+function addTestApp(opts: {
+  name: string
+  image?: string
+  domain?: string
+  internalPort?: number
+  hostPort?: number
+  env?: Record<string, string>
+  composeFile?: string
+  entryService?: string
+  imagePrefix?: string
+  trackTag?: string
+}) {
+  const { image: rawImage = 'nginx:latest', ...rest } = opts
+  const colonIdx = rawImage.lastIndexOf(':')
+  const hasTag = colonIdx > 0 && !rawImage.substring(colonIdx).includes('/')
+  const image = hasTag ? rawImage.substring(0, colonIdx) : rawImage
+  const trackTag = rest.trackTag ?? (hasTag ? rawImage.substring(colonIdx + 1) : 'latest')
+  return state.addApp({ image, trackTag, internalPort: 80, env: {}, ...rest })
+}
+
 let server: http.Server
 let baseUrl: string
 
@@ -103,6 +124,41 @@ function request(
     })
     req.on('error', reject)
     if (serialized) req.write(serialized)
+    req.end()
+  })
+}
+
+function requestSSE(
+  path: string,
+  body: unknown
+): Promise<{ status: number; events: Array<{ event: string; [key: string]: unknown }> }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(path, baseUrl)
+    const serialized = JSON.stringify(body)
+    const req = http.request(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${testJwt}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(serialized).toString()
+        }
+      },
+      (res) => {
+        let data = ''
+        res.on('data', (chunk) => (data += chunk))
+        res.on('end', () => {
+          const events = data
+            .split('\n')
+            .filter((line) => line.startsWith('data: '))
+            .map((line) => JSON.parse(line.slice(6)))
+          resolve({ status: res.statusCode!, events })
+        })
+      }
+    )
+    req.on('error', reject)
+    req.write(serialized)
     req.end()
   })
 }
@@ -190,68 +246,6 @@ describe('API', () => {
     })
   })
 
-  describe('POST /apps', () => {
-    it('creates an app', async () => {
-      const res = await request('POST', '/apps', {
-        name: 'testapp',
-        image: 'nginx:latest',
-        domain: 'test.com',
-        internalPort: 80
-      })
-      expect(res.status).toBe(201)
-      const body = res.body as { name: string; webhookSecret: string; webhookUrl: string }
-      expect(body.name).toBe('testapp')
-      expect(body.webhookSecret).toBeDefined()
-      expect(body.webhookUrl).toContain('webhook')
-    })
-
-    it('rejects duplicate app name', async () => {
-      await request('POST', '/apps', { name: 'dup', image: 'nginx:latest' })
-      const res = await request('POST', '/apps', { name: 'dup', image: 'nginx:latest' })
-      expect(res.status).toBe(409)
-    })
-
-    it('rejects missing name', async () => {
-      const res = await request('POST', '/apps', { image: 'nginx:latest' })
-      expect(res.status).toBe(400)
-    })
-
-    it('rejects missing image for non-compose app', async () => {
-      const res = await request('POST', '/apps', { name: 'noimg' })
-      expect(res.status).toBe(400)
-    })
-
-    it('rejects compose app without entryService', async () => {
-      const res = await request('POST', '/apps', {
-        name: 'comp',
-        composeFile: 'version: "3"'
-      })
-      expect(res.status).toBe(400)
-    })
-
-    it('creates compose app successfully', async () => {
-      const res = await request('POST', '/apps', {
-        name: 'comp',
-        composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
-        entryService: 'web'
-      })
-      expect(res.status).toBe(201)
-    })
-
-    it('parses image:tag correctly', async () => {
-      await request('POST', '/apps', { name: 'tagged', image: 'myrepo/myimg:v2.1' })
-      const app = state.getApp('tagged')!
-      expect(app.image).toBe('myrepo/myimg')
-      expect(app.trackTag).toBe('v2.1')
-    })
-
-    it('defaults tag to latest', async () => {
-      await request('POST', '/apps', { name: 'notag', image: 'nginx' })
-      const app = state.getApp('notag')!
-      expect(app.trackTag).toBe('latest')
-    })
-  })
-
   describe('GET /apps', () => {
     it('returns empty list', async () => {
       const res = await request('GET', '/apps')
@@ -260,7 +254,7 @@ describe('API', () => {
     })
 
     it('returns apps after adding', async () => {
-      await request('POST', '/apps', { name: 'a', image: 'nginx:latest' })
+      addTestApp({ name: 'a' })
       const res = await request('GET', '/apps')
       expect(res.status).toBe(200)
       expect(res.body).toHaveLength(1)
@@ -269,7 +263,7 @@ describe('API', () => {
 
   describe('GET /apps/:name', () => {
     it('returns app details', async () => {
-      await request('POST', '/apps', { name: 'detail', image: 'nginx:latest', domain: 'detail.com' })
+      addTestApp({ name: 'detail', domain: 'detail.com' })
       const res = await request('GET', '/apps/detail')
       expect(res.status).toBe(200)
       const body = res.body as { name: string; domain: string }
@@ -285,7 +279,7 @@ describe('API', () => {
 
   describe('POST /apps/:name/deploy', () => {
     it('starts deploy for existing app', async () => {
-      await request('POST', '/apps', { name: 'dep', image: 'nginx:latest' })
+      addTestApp({ name: 'dep' })
       const res = await request('POST', '/apps/dep/deploy', { tag: 'v1' })
       expect(res.status).toBe(200)
       const body = res.body as { success: boolean; image: string }
@@ -294,7 +288,7 @@ describe('API', () => {
     })
 
     it('uses tracked tag when none specified', async () => {
-      await request('POST', '/apps', { name: 'dep2', image: 'nginx:stable' })
+      addTestApp({ name: 'dep2', image: 'nginx:stable' })
       const res = await request('POST', '/apps/dep2/deploy')
       expect(res.status).toBe(200)
       const body = res.body as { success: boolean; image: string }
@@ -310,7 +304,7 @@ describe('API', () => {
 
   describe('PATCH /apps/:name/env', () => {
     it('updates environment variables', async () => {
-      await request('POST', '/apps', { name: 'envapp', image: 'nginx:latest' })
+      addTestApp({ name: 'envapp' })
       const res = await request('PATCH', '/apps/envapp/env', { FOO: 'bar', BAZ: 'qux' })
       expect(res.status).toBe(200)
       expect(state.getApp('envapp')!.env).toEqual({ FOO: 'bar', BAZ: 'qux' })
@@ -322,7 +316,7 @@ describe('API', () => {
     })
 
     it('rejects invalid JSON', async () => {
-      await request('POST', '/apps', { name: 'envapp2', image: 'nginx:latest' })
+      addTestApp({ name: 'envapp2' })
       const res = await new Promise<{ status: number; body: unknown }>((resolve, reject) => {
         const url = new URL('/apps/envapp2/env', baseUrl)
         const req = http.request(
@@ -347,7 +341,7 @@ describe('API', () => {
 
   describe('DELETE /apps/:name/env', () => {
     it('removes environment variables', async () => {
-      await request('POST', '/apps', { name: 'envrm', image: 'nginx:latest' })
+      addTestApp({ name: 'envrm' })
       await request('PATCH', '/apps/envrm/env', { FOO: 'bar', BAZ: 'qux', KEEP: 'me' })
       const res = await request('DELETE', '/apps/envrm/env?key=FOO&key=BAZ')
       expect(res.status).toBe(200)
@@ -360,13 +354,13 @@ describe('API', () => {
     })
 
     it('rejects missing keys', async () => {
-      await request('POST', '/apps', { name: 'envrm2', image: 'nginx:latest' })
+      addTestApp({ name: 'envrm2' })
       const res = await request('DELETE', '/apps/envrm2/env')
       expect(res.status).toBe(400)
     })
 
     it('rejects empty keys array', async () => {
-      await request('POST', '/apps', { name: 'envrm3', image: 'nginx:latest' })
+      addTestApp({ name: 'envrm3' })
       const res = await request('DELETE', '/apps/envrm3/env')
       expect(res.status).toBe(400)
     })
@@ -374,7 +368,7 @@ describe('API', () => {
 
   describe('DELETE /apps/:name', () => {
     it('removes an app', async () => {
-      await request('POST', '/apps', { name: 'delme', image: 'nginx:latest' })
+      addTestApp({ name: 'delme' })
       const res = await request('DELETE', '/apps/delme')
       expect(res.status).toBe(200)
       expect(state.getApp('delme')).toBeUndefined()
@@ -393,7 +387,7 @@ describe('API', () => {
     })
 
     it('returns 400 when no rollback target exists', async () => {
-      await request('POST', '/apps', { name: 'rb', image: 'nginx:latest' })
+      addTestApp({ name: 'rb' })
       state.addDeployment('rb', { image: 'nginx:v1', containerId: 'c1', port: 3001, deployedAt: '2024-01-01' })
 
       const res = await request('POST', '/apps/rb/rollback')
@@ -401,7 +395,7 @@ describe('API', () => {
     })
 
     it('triggers rollback when previous deployment exists', async () => {
-      await request('POST', '/apps', { name: 'rb2', image: 'nginx:latest' })
+      addTestApp({ name: 'rb2' })
       state.addDeployment('rb2', { image: 'nginx:v1', containerId: 'c1', port: 3001, deployedAt: '2024-01-01' })
       state.addDeployment('rb2', { image: 'nginx:v2', containerId: 'c2', port: 3002, deployedAt: '2024-01-02' })
 
@@ -415,7 +409,7 @@ describe('API', () => {
 
   describe('GET /apps/:name/deployments', () => {
     it('returns deployment history', async () => {
-      await request('POST', '/apps', { name: 'hist', image: 'nginx:latest' })
+      addTestApp({ name: 'hist' })
       state.addDeployment('hist', { image: 'nginx:v1', containerId: 'c1', port: 3001, deployedAt: '2024-01-01' })
       state.addDeployment('hist', { image: 'nginx:v2', containerId: 'c2', port: 3002, deployedAt: '2024-01-02' })
 
@@ -430,7 +424,7 @@ describe('API', () => {
 
   describe('POST /apps/:name/stop', () => {
     it('returns 400 when no deployment exists', async () => {
-      await request('POST', '/apps', { name: 'stopme', image: 'nginx:latest' })
+      addTestApp({ name: 'stopme' })
       const res = await request('POST', '/apps/stopme/stop')
       expect(res.status).toBe(400)
     })
@@ -441,7 +435,7 @@ describe('API', () => {
     })
 
     it('stops a running container', async () => {
-      await request('POST', '/apps', { name: 'stopok', image: 'nginx:latest' })
+      addTestApp({ name: 'stopok' })
       state.addDeployment('stopok', { image: 'nginx:v1', containerId: 'stop-c1', port: 5000, deployedAt: '2024-01-01' })
 
       const res = await request('POST', '/apps/stopok/stop')
@@ -452,8 +446,9 @@ describe('API', () => {
     })
 
     it('uses docker compose stop for compose apps', async () => {
-      await request('POST', '/apps', {
+      addTestApp({
         name: 'compstop',
+        image: '',
         composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
         entryService: 'web'
       })
@@ -473,7 +468,7 @@ describe('API', () => {
 
   describe('POST /apps/:name/start', () => {
     it('returns 400 when no deployment exists', async () => {
-      await request('POST', '/apps', { name: 'startme', image: 'nginx:latest' })
+      addTestApp({ name: 'startme' })
       const res = await request('POST', '/apps/startme/start')
       expect(res.status).toBe(400)
     })
@@ -484,7 +479,7 @@ describe('API', () => {
     })
 
     it('starts a stopped container', async () => {
-      await request('POST', '/apps', { name: 'startok', image: 'nginx:latest', domain: 'start.com' })
+      addTestApp({ name: 'startok', domain: 'start.com' })
       state.addDeployment('startok', {
         image: 'nginx:v1',
         containerId: 'start-c1',
@@ -500,8 +495,9 @@ describe('API', () => {
     })
 
     it('uses docker compose start for compose apps', async () => {
-      await request('POST', '/apps', {
+      addTestApp({
         name: 'compstart',
+        image: '',
         composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
         entryService: 'web'
       })
@@ -550,12 +546,12 @@ describe('API', () => {
     })
   })
 
-  describe('POST /apps/:name/webhooks/reset', () => {
+  describe('POST /apps/:name/webhook', () => {
     it('resets webhook secret and returns new URL', async () => {
-      await request('POST', '/apps', { name: 'hookapp', image: 'nginx:latest' })
+      addTestApp({ name: 'hookapp' })
       const oldSecret = state.getApp('hookapp')!.webhookSecret
 
-      const res = await request('POST', '/apps/hookapp/webhooks/reset')
+      const res = await request('POST', '/apps/hookapp/webhook')
       expect(res.status).toBe(200)
 
       const body = res.body as { webhookSecret: string; webhookUrl: string }
@@ -565,7 +561,7 @@ describe('API', () => {
     })
 
     it('returns 404 for unknown app', async () => {
-      const res = await request('POST', '/apps/nope/webhooks/reset')
+      const res = await request('POST', '/apps/nope/webhook')
       expect(res.status).toBe(404)
     })
   })
@@ -617,7 +613,7 @@ describe('API', () => {
       const app = state.addApp({ name: 'hook-nosig', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
       const res = await request('POST', `/webhooks/${app.webhookSecret}`, { push_data: { tag: 'latest' } }, '')
       expect(res.status).toBe(401)
-      expect((res.body as { error: string }).error).toBe('missing signature')
+      expect((res.body as { error: string }).error).toBe('Missing signature')
     })
 
     it('rejects webhook with invalid signature', async () => {
@@ -626,7 +622,7 @@ describe('API', () => {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(401)
-      expect((res.body as { error: string }).error).toBe('invalid signature')
+      expect((res.body as { error: string }).error).toBe('Invalid signature')
     })
 
     it('ignores when tag does not match tracked tag and no domain', async () => {
@@ -635,7 +631,7 @@ describe('API', () => {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(200)
-      expect((res.body as { message: string }).message).toContain('ignored')
+      expect((res.body as { message: string }).message).toContain('Ignored')
     })
 
     it('triggers preview deploy when tag does not match but app has domain', async () => {
@@ -648,13 +644,13 @@ describe('API', () => {
         env: {}
       })
       const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
-        push_data: { tag: 'pr-42' }
+        push_data: { tag: 'pr-21' }
       })
       expect(res.status).toBe(202)
-      expect((res.body as { message: string }).message).toContain('preview')
+      expect((res.body as { message: string }).message).toContain('Preview')
     })
 
-    it('triggers compose preview deploy when repo is set and tag does not match', async () => {
+    it('triggers compose preview deploy when imagePrefix is set and tag does not match', async () => {
       const app = state.addApp({
         name: 'hookcompprev',
         image: '',
@@ -664,13 +660,13 @@ describe('API', () => {
         env: {},
         composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:test',
         entryService: 'web',
-        repo: 'ghcr.io/org/app'
+        imagePrefix: 'ghcr.io/org/app'
       })
       const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
         push_data: { tag: 'pr-99' }
       })
       expect(res.status).toBe(202)
-      expect((res.body as { message: string }).message).toContain('preview')
+      expect((res.body as { message: string }).message).toContain('Preview')
     })
 
     it('deploys when trackTag is "any"', async () => {
@@ -699,46 +695,47 @@ describe('API', () => {
 
   describe('POST /apps/:name/previews', () => {
     it('creates a preview deployment', async () => {
-      await request('POST', '/apps', { name: 'prev', image: 'nginx:latest', domain: 'prev.example.com' })
-      const res = await request('POST', '/apps/prev/previews', { label: 'pr-1', tag: 'pr-1' })
-      expect(res.status).toBe(201)
-      const body = res.body as { name: string; label: string; domain: string; url: string; success: boolean }
-      expect(body.name).toBe('prev')
-      expect(body.label).toBe('pr-1')
-      expect(body.domain).toBe('pr-1.prev.example.com')
-      expect(body.success).toBe(true)
+      addTestApp({ name: 'prev', domain: 'prev.example.com' })
+      const res = await requestSSE('/apps/prev/previews', { label: 'pr-1', tag: 'pr-1' })
+      expect(res.status).toBe(200)
+      const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
+      expect(complete.name).toBe('prev')
+      expect(complete.label).toBe('pr-1')
+      expect(complete.domain).toBe('preview-pr-1.prev.example.com')
+      expect(complete.success).toBe(true)
       const preview = state.getApp('prev')?.previews['pr-1']
       expect(preview).toBeDefined()
-      expect(preview!.domain).toBe('pr-1.prev.example.com')
+      expect(preview!.domain).toBe('preview-pr-1.prev.example.com')
     })
 
     it('redeploys existing preview', async () => {
-      await request('POST', '/apps', { name: 'prev2', image: 'nginx:latest', domain: 'prev2.example.com' })
-      await request('POST', '/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2' })
-      const res = await request('POST', '/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2-updated' })
-      expect(res.status).toBe(201)
-      expect((res.body as { success: boolean }).success).toBe(true)
+      addTestApp({ name: 'prev2', domain: 'prev2.example.com' })
+      await requestSSE('/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2' })
+      const res = await requestSSE('/apps/prev2/previews', { label: 'pr-2', tag: 'pr-2-updated' })
+      expect(res.status).toBe(200)
+      const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
+      expect(complete.success).toBe(true)
       const preview = state.getApp('prev2')?.previews['pr-2']
       expect(preview!.image).toBe('nginx:pr-2-updated')
     })
 
     it('rejects preview without domain on parent', async () => {
-      await request('POST', '/apps', { name: 'nodom', image: 'nginx:latest' })
+      addTestApp({ name: 'nodom' })
       const res = await request('POST', '/apps/nodom/previews', { label: 'pr-1', tag: 'pr-1' })
       expect(res.status).toBe(400)
       expect((res.body as { error: string }).error).toContain('domain')
     })
 
     it('rejects missing tag', async () => {
-      await request('POST', '/apps', { name: 'prev4', image: 'nginx:latest', domain: 'prev4.example.com' })
+      addTestApp({ name: 'prev4', domain: 'prev4.example.com' })
       const res = await request('POST', '/apps/prev4/previews', { label: 'pr-4' })
       expect(res.status).toBe(400)
-      expect((res.body as { error: string }).error).toContain('tag')
+      expect((res.body as { error: string }).error).toContain('--tag')
     })
 
     it('sets TTL on preview', async () => {
-      await request('POST', '/apps', { name: 'prev6', image: 'nginx:latest', domain: 'prev6.example.com' })
-      await request('POST', '/apps/prev6/previews', { label: 'pr-6', tag: 'pr-6', ttl: '24h' })
+      addTestApp({ name: 'prev6', domain: 'prev6.example.com' })
+      await requestSSE('/apps/prev6/previews', { label: 'pr-6', tag: 'pr-6', ttl: '24h' })
       const preview = state.getApp('prev6')?.previews['pr-6']
       expect(preview?.expiresAt).toBeDefined()
       const expiresAt = new Date(preview!.expiresAt).getTime()
@@ -747,56 +744,61 @@ describe('API', () => {
     })
 
     it('creates a compose preview deployment', async () => {
-      await request('POST', '/apps', {
+      addTestApp({
         name: 'compprev',
-        composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
+        image: '',
+        composeFile: 'version: "3"\nservices:\n  web:\n    image: ghcr.io/org/app/web:latest',
         entryService: 'web',
-        domain: 'compprev.example.com'
+        domain: 'compprev.example.com',
+        imagePrefix: 'ghcr.io/org/app'
       })
-      const res = await request('POST', '/apps/compprev/previews', { label: 'pr-1' })
-      expect(res.status).toBe(201)
-      const body = res.body as { name: string; label: string; domain: string; success: boolean }
-      expect(body.name).toBe('compprev')
-      expect(body.label).toBe('pr-1')
-      expect(body.domain).toBe('pr-1.compprev.example.com')
-      expect(body.success).toBe(true)
+      const res = await requestSSE('/apps/compprev/previews', { label: 'pr-1' })
+      expect(res.status).toBe(200)
+      const complete = res.events.find((e) => e.event === 'complete') as Record<string, unknown>
+      expect(complete.name).toBe('compprev')
+      expect(complete.label).toBe('pr-1')
+      expect(complete.domain).toBe('preview-pr-1.compprev.example.com')
+      expect(complete.success).toBe(true)
       const preview = state.getApp('compprev')?.previews['pr-1']
       expect(preview).toBeDefined()
       expect(preview!.isCompose).toBe(true)
     })
 
-    it('does not require tag for compose previews', async () => {
-      await request('POST', '/apps', {
+    it('rejects compose preview without imagePrefix', async () => {
+      addTestApp({
         name: 'compnotag',
+        image: '',
         composeFile: 'version: "3"\nservices:\n  web:\n    image: nginx',
         entryService: 'web',
         domain: 'compnotag.example.com'
       })
-      const res = await request('POST', '/apps/compnotag/previews', { label: 'pr-1' })
-      expect(res.status).toBe(201)
+      const res = await requestSSE('/apps/compnotag/previews', { label: 'pr-1' })
+      expect(res.status).toBe(400)
     })
 
     it('stores tag in compose preview image field', async () => {
-      await request('POST', '/apps', {
+      addTestApp({
         name: 'comptag',
+        image: '',
         composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:latest',
         entryService: 'web',
         domain: 'comptag.example.com',
-        repo: 'ghcr.io/org/app',
+        imagePrefix: 'ghcr.io/org/app',
         trackTag: 'latest'
       })
-      await request('POST', '/apps/comptag/previews', { label: 'pr-5', tag: 'pr-5' })
+      await requestSSE('/apps/comptag/previews', { label: 'pr-5', tag: 'pr-5' })
       const preview = state.getApp('comptag')?.previews['pr-5']
       expect(preview!.image).toBe('pr-5')
     })
 
     it('uses trackTag for compose preview when no tag given', async () => {
-      await request('POST', '/apps', {
+      addTestApp({
         name: 'compdefault',
+        image: '',
         composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:stable',
         entryService: 'web',
         domain: 'compdefault.example.com',
-        repo: 'ghcr.io/org/app',
+        imagePrefix: 'ghcr.io/org/app',
         trackTag: 'stable'
       })
       await request('POST', '/apps/compdefault/previews', { label: 'prev' })
@@ -807,9 +809,9 @@ describe('API', () => {
 
   describe('GET /apps/:name/previews', () => {
     it('lists previews for an app', async () => {
-      await request('POST', '/apps', { name: 'pls', image: 'nginx:latest', domain: 'pls.example.com' })
-      await request('POST', '/apps/pls/previews', { label: 'pr-1', tag: 'pr-1' })
-      await request('POST', '/apps/pls/previews', { label: 'pr-2', tag: 'pr-2' })
+      addTestApp({ name: 'pls', domain: 'pls.example.com' })
+      await requestSSE('/apps/pls/previews', { label: 'pr-1', tag: 'pr-1' })
+      await requestSSE('/apps/pls/previews', { label: 'pr-2', tag: 'pr-2' })
 
       const res = await request('GET', '/apps/pls/previews')
       expect(res.status).toBe(200)
@@ -819,7 +821,7 @@ describe('API', () => {
     })
 
     it('returns empty array when no previews', async () => {
-      await request('POST', '/apps', { name: 'pls2', image: 'nginx:latest', domain: 'pls2.example.com' })
+      addTestApp({ name: 'pls2', domain: 'pls2.example.com' })
       const res = await request('GET', '/apps/pls2/previews')
       expect(res.status).toBe(200)
       expect(res.body).toEqual([])
@@ -833,8 +835,8 @@ describe('API', () => {
 
   describe('DELETE /apps/:name/previews/:label', () => {
     it('removes a specific preview', async () => {
-      await request('POST', '/apps', { name: 'pdel', image: 'nginx:latest', domain: 'pdel.example.com' })
-      await request('POST', '/apps/pdel/previews', { label: 'pr-1', tag: 'pr-1' })
+      addTestApp({ name: 'pdel', domain: 'pdel.example.com' })
+      await requestSSE('/apps/pdel/previews', { label: 'pr-1', tag: 'pr-1' })
 
       const res = await request('DELETE', '/apps/pdel/previews/pr-1')
       expect(res.status).toBe(200)
@@ -842,7 +844,7 @@ describe('API', () => {
     })
 
     it('returns 404 for unknown preview', async () => {
-      await request('POST', '/apps', { name: 'pdel2', image: 'nginx:latest', domain: 'pdel2.example.com' })
+      addTestApp({ name: 'pdel2', domain: 'pdel2.example.com' })
       const res = await request('DELETE', '/apps/pdel2/previews/nope')
       expect(res.status).toBe(404)
     })
@@ -850,7 +852,7 @@ describe('API', () => {
 
   describe('GET /apps/:name/previews/:label/logs', () => {
     it('returns 404 for unknown preview', async () => {
-      await request('POST', '/apps', { name: 'plog', image: 'nginx:latest', domain: 'plog.example.com' })
+      addTestApp({ name: 'plog', domain: 'plog.example.com' })
       const res = await request('GET', '/apps/plog/previews/nope/logs')
       expect(res.status).toBe(404)
     })
@@ -863,7 +865,7 @@ describe('API', () => {
 
   describe('GET /apps/:name/previews/:label/metrics', () => {
     it('returns 404 for unknown preview', async () => {
-      await request('POST', '/apps', { name: 'pmet', image: 'nginx:latest', domain: 'pmet.example.com' })
+      addTestApp({ name: 'pmet', domain: 'pmet.example.com' })
       const res = await request('GET', '/apps/pmet/previews/nope/metrics')
       expect(res.status).toBe(404)
     })
@@ -876,9 +878,9 @@ describe('API', () => {
 
   describe('DELETE /apps/:name/previews', () => {
     it('removes all previews for an app', async () => {
-      await request('POST', '/apps', { name: 'pdelall', image: 'nginx:latest', domain: 'pdelall.example.com' })
-      await request('POST', '/apps/pdelall/previews', { label: 'pr-1', tag: 'pr-1' })
-      await request('POST', '/apps/pdelall/previews', { label: 'pr-2', tag: 'pr-2' })
+      addTestApp({ name: 'pdelall', domain: 'pdelall.example.com' })
+      await requestSSE('/apps/pdelall/previews', { label: 'pr-1', tag: 'pr-1' })
+      await requestSSE('/apps/pdelall/previews', { label: 'pr-2', tag: 'pr-2' })
 
       const res = await request('DELETE', '/apps/pdelall/previews')
       expect(res.status).toBe(200)
@@ -887,8 +889,8 @@ describe('API', () => {
     })
 
     it('deleting parent also removes previews', async () => {
-      await request('POST', '/apps', { name: 'pparent', image: 'nginx:latest', domain: 'pparent.example.com' })
-      await request('POST', '/apps/pparent/previews', { label: 'pr-1', tag: 'pr-1' })
+      addTestApp({ name: 'pparent', domain: 'pparent.example.com' })
+      await requestSSE('/apps/pparent/previews', { label: 'pr-1', tag: 'pr-1' })
 
       await request('DELETE', '/apps/pparent')
       expect(state.getApp('pparent')).toBeUndefined()
@@ -897,8 +899,8 @@ describe('API', () => {
 
   describe('GET /apps includes previews inline', () => {
     it('previews do not appear as separate apps', async () => {
-      await request('POST', '/apps', { name: 'pvis', image: 'nginx:latest', domain: 'pvis.example.com' })
-      await request('POST', '/apps/pvis/previews', { label: 'pr-1', tag: 'pr-1' })
+      addTestApp({ name: 'pvis', domain: 'pvis.example.com' })
+      await requestSSE('/apps/pvis/previews', { label: 'pr-1', tag: 'pr-1' })
 
       const res = await request('GET', '/apps')
       expect(res.status).toBe(200)
@@ -910,11 +912,86 @@ describe('API', () => {
     })
 
     it('returns empty previews array when app has no previews', async () => {
-      await request('POST', '/apps', { name: 'noprev', image: 'nginx:latest' })
+      addTestApp({ name: 'noprev' })
       const res = await request('GET', '/apps')
       const apps = res.body as Array<{ name: string; previews: unknown[] }>
       const app = apps.find((a) => a.name === 'noprev')
       expect(app?.previews).toEqual([])
+    })
+  })
+
+  describe('POST /deploy', () => {
+    it('creates and deploys a new app from image', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/org/newapp:v1' })
+      expect(res.status).toBe(200)
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      const complete = res.events.find((e) => e.event === 'complete')
+      expect(accepted?.appName).toBe('newapp')
+      expect(accepted?.isNew).toBe(true)
+      expect(accepted?.webhookUrl).toBeDefined()
+      expect(complete?.success).toBe(true)
+    })
+
+    it('deploys existing app by name', async () => {
+      addTestApp({ name: 'existing' })
+      const res = await requestSSE('/deploy', { name: 'existing' })
+      expect(res.status).toBe(200)
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      const complete = res.events.find((e) => e.event === 'complete')
+      expect(accepted?.appName).toBe('existing')
+      expect(accepted?.isNew).toBe(false)
+      expect(complete?.success).toBe(true)
+    })
+
+    it('streams log events during deploy', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/user/logtest:latest' })
+      const logs = res.events.filter((e) => e.event === 'log')
+      expect(logs.length).toBeGreaterThan(0)
+    })
+
+    it('infers name from image', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/user/myapi:latest' })
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      expect(accepted?.appName).toBe('myapi')
+    })
+
+    it('uses explicit name over inferred', async () => {
+      const res = await requestSSE('/deploy', { image: 'nginx:latest', name: 'web' })
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      expect(accepted?.appName).toBe('web')
+    })
+
+    it('returns 400 without image or name', async () => {
+      const res = await request('POST', '/deploy', {})
+      expect(res.status).toBe(400)
+    })
+
+    it('returns 404 for unknown app name without image', async () => {
+      const res = await request('POST', '/deploy', { name: 'doesnotexist' })
+      expect(res.status).toBe(404)
+    })
+
+    it('sets env vars on new app', async () => {
+      const res = await requestSSE('/deploy', {
+        image: 'ghcr.io/org/envnew:latest',
+        env: { DB_URL: 'postgres://localhost/db', SECRET: 'abc' }
+      })
+      expect(res.status).toBe(200)
+      const app = state.getApp('envnew')!
+      expect(app.env).toEqual({ DB_URL: 'postgres://localhost/db', SECRET: 'abc' })
+    })
+
+    it('merges env vars on existing app', async () => {
+      await requestSSE('/deploy', {
+        image: 'ghcr.io/org/envmerge:latest',
+        env: { KEY1: 'val1', KEY2: 'val2' }
+      })
+      await requestSSE('/deploy', {
+        name: 'envmerge',
+        env: { KEY2: 'updated', KEY3: 'val3' }
+      })
+      const app = state.getApp('envmerge')!
+      expect(app.env).toEqual({ KEY1: 'val1', KEY2: 'updated', KEY3: 'val3' })
     })
   })
 

@@ -3,9 +3,9 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "2020:2020"
+      - '80:80'
+      - '443:443'
+      - '2020:2020'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/zero:/var/lib/zero
