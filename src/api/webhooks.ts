@@ -55,7 +55,7 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
   const isCompose = isComposeApp(app)
   const isTrackedTag = app.trackTag === 'any' || tag === app.trackTag
   const hasImagePrefix = isCompose && !!app.imagePrefix
-  const isPreviewCandidate = !isTrackedTag && app.domain
+  const isPreviewCandidate = !isTrackedTag && app.domains.length > 0
 
   if (!isTrackedTag && !isPreviewCandidate) {
     json(res, 200, { message: `Ignored: tag "${tag}" != tracked "${app.trackTag}"` })
@@ -67,7 +67,7 @@ route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
       json(res, 200, { message: `Ignored: compose app without --image-prefix cannot create previews for tag "${tag}"` })
       return
     }
-    const previewDomain = buildPreviewDomain(app.domain!, tag)
+    const previewDomain = buildPreviewDomain(app.domains[0], tag)
     const expiresAt = previewExpiresAt(PREVIEW_TTL_MS)
     json(res, 202, { message: 'Preview deploy triggered', tag })
     if (isCompose) {

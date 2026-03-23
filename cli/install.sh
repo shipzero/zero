@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ── zero CLI Installer ──────────────────────────────────────────────────────
-# Usage: curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/cli/install.sh | bash
+# Usage: curl -fsSL https://shipzero.sh/cli/install.sh | bash
 
 REPO="shipzero/zero"
 INSTALL_DIR="${HOME}/.zero/bin"
@@ -56,5 +56,5 @@ fi
 
 echo "  Get started:"
 echo "    zero login user@your-server.com"
-echo "    zero deploy ghcr.io/you/myapp:latest"
+echo "    zero deploy ghcr.io/shipzero/demo:latest"
 echo ""

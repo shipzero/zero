@@ -7,6 +7,7 @@ import {
   updateEnv,
   removeEnv,
   removeApp,
+  clearHostPort,
   resetWebhookSecret,
   getCurrentDeployment,
   findRollbackTarget,
@@ -17,7 +18,7 @@ import {
 import { deploy, deployPreview, deployComposePreview, rollback, deployEvents } from '../deploy.ts'
 import { streamLogs, streamStats, stopContainer, startContainer, waitForHealthy, removeContainer } from '../docker.ts'
 import { composeDir, composeDown, composeStop, composeStart, composeLogs, removeComposeDir } from '../compose.ts'
-import { routeApp, unrouteApp } from '../proxy.ts'
+import { routeApp, unrouteApp, removePortRoute } from '../proxy.ts'
 import { destroyPreview } from '../preview.ts'
 import { buildDomainUrl, buildWebhookUrl, hasDomain } from '../url.ts'
 import { DOMAIN, PREVIEW_TTL_MS } from '../env.ts'
@@ -101,7 +102,7 @@ route('GET', '/apps', async (_req, res) => {
       return {
         name: app.name,
         image: app.image,
-        domain: app.domain,
+        domains: app.domains,
         hostPort: app.hostPort,
         trackTag: app.trackTag,
         currentImage: deployment?.image,
@@ -155,12 +156,13 @@ route('POST', '/deploy', async (req, res) => {
 
     const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image!)
 
-    const domain = body.domain ?? (hasDomain() ? `${appName}.${DOMAIN}` : undefined)
+    const domain = body.domain ?? (!body.hostPort && hasDomain() ? `${appName}.${DOMAIN}` : undefined)
+    const domains = domain ? [domain] : []
 
     app = addApp({
       name: appName,
       image,
-      domain,
+      domains,
       internalPort: isCompose ? (body.port ?? 80) : body.port,
       hostPort: body.hostPort,
       command: body.command,
@@ -194,7 +196,7 @@ route('POST', '/deploy', async (req, res) => {
 
   try {
     if (body.preview) {
-      if (!app.domain) {
+      if (app.domains.length === 0) {
         sendSSE(
           res,
           JSON.stringify({ event: 'complete', success: false, error: 'App must have a domain for previews' })
@@ -228,7 +230,7 @@ route('POST', '/deploy', async (req, res) => {
         return
       }
 
-      const previewDomain = buildPreviewDomain(app.domain, label)
+      const previewDomain = buildPreviewDomain(app.domains[0], label)
       const expiresAt = previewExpiresAt(ttlMs)
 
       try {
@@ -277,7 +279,7 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
   json<AppDetail>(res, 200, {
     name: app.name,
     image: app.image,
-    domain: app.domain,
+    domains: app.domains,
     internalPort: app.internalPort,
     trackTag: app.trackTag,
     imagePrefix: app.imagePrefix,
@@ -474,6 +476,21 @@ async function removeAppWithContainers(app: AppConfig): Promise<void> {
 
   removeApp(app.name)
 }
+
+route('DELETE', '/apps/:name/host-port', async (_req, res, { name }) => {
+  const app = requireApp(name, res)
+  if (!app) return
+
+  if (!app.hostPort) {
+    json(res, 400, { error: 'No host port configured' })
+    return
+  }
+
+  removePortRoute(app.hostPort)
+  clearHostPort(name)
+
+  json<MessageResponse>(res, 200, { message: 'Host port removed' })
+})
 
 route('DELETE', '/apps/:name', async (_req, res, { name }) => {
   const app = requireApp(name, res)

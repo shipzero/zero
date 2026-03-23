@@ -48,7 +48,8 @@ vi.mock('./proxy.ts', () => ({
   routeApp: vi.fn(),
   unrouteApp: vi.fn(),
   updateProxyRoute: vi.fn(),
-  removeProxyRoute: vi.fn()
+  removeProxyRoute: vi.fn(),
+  removePortRoute: vi.fn()
 }))
 
 // Now import after mocks are set up
@@ -81,12 +82,13 @@ function addTestApp(opts: {
   imagePrefix?: string
   trackTag?: string
 }) {
-  const { image: rawImage = 'nginx:latest', ...rest } = opts
+  const { image: rawImage = 'nginx:latest', domain, ...rest } = opts
+  const domains = domain ? [domain] : []
   const colonIdx = rawImage.lastIndexOf(':')
   const hasTag = colonIdx > 0 && !rawImage.substring(colonIdx).includes('/')
   const image = hasTag ? rawImage.substring(0, colonIdx) : rawImage
   const trackTag = rest.trackTag ?? (hasTag ? rawImage.substring(colonIdx + 1) : 'latest')
-  return state.addApp({ image, trackTag, internalPort: 80, env: {}, ...rest })
+  return state.addApp({ image, trackTag, internalPort: 80, env: {}, domains, ...rest })
 }
 
 let server: http.Server
@@ -267,9 +269,9 @@ describe('API', () => {
       addTestApp({ name: 'detail', domain: 'detail.com' })
       const res = await request('GET', '/apps/detail')
       expect(res.status).toBe(200)
-      const body = res.body as { name: string; domain: string }
+      const body = res.body as { name: string; domains: string[] }
       expect(body.name).toBe('detail')
-      expect(body.domain).toBe('detail.com')
+      expect(body.domains).toEqual(['detail.com'])
     })
 
     it('returns 404 for unknown app', async () => {
@@ -640,7 +642,7 @@ describe('API', () => {
         name: 'hookprev',
         image: 'nginx',
         trackTag: 'latest',
-        domain: 'hookprev.example.com',
+        domains: ['hookprev.example.com'],
         internalPort: 80,
         env: {}
       })
@@ -656,7 +658,7 @@ describe('API', () => {
         name: 'hookcompprev',
         image: '',
         trackTag: 'test',
-        domain: 'hookcompprev.example.com',
+        domains: ['hookcompprev.example.com'],
         internalPort: 80,
         env: {},
         composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:test',
@@ -994,12 +996,134 @@ describe('API', () => {
       const app = state.getApp('envmerge')!
       expect(app.env).toEqual({ KEY1: 'val1', KEY2: 'updated', KEY3: 'val3' })
     })
+
+    it('does not auto-assign domain when hostPort is set', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/org/portonly:latest', hostPort: 8888 })
+      expect(res.status).toBe(200)
+      const app = state.getApp('portonly')!
+      expect(app.domains).toEqual([])
+      expect(app.hostPort).toBe(8888)
+    })
+
+    it('auto-assigns domain when no hostPort and explicit domain given', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/org/autodom:latest', domain: 'autodom.example.com' })
+      expect(res.status).toBe(200)
+      const app = state.getApp('autodom')!
+      expect(app.domains).toEqual(['autodom.example.com'])
+      expect(app.hostPort).toBeUndefined()
+    })
+
+    it('uses explicit domain even with hostPort', async () => {
+      const res = await requestSSE('/deploy', {
+        image: 'ghcr.io/org/both:latest',
+        domain: 'both.example.com',
+        hostPort: 9999
+      })
+      expect(res.status).toBe(200)
+      const app = state.getApp('both')!
+      expect(app.domains).toEqual(['both.example.com'])
+      expect(app.hostPort).toBe(9999)
+    })
   })
 
   describe('404 for unknown routes', () => {
     it('returns 404', async () => {
       const res = await request('GET', '/nonexistent')
       expect(res.status).toBe(404)
+    })
+  })
+
+  describe('domain management', () => {
+    it('GET /apps/:name/domains returns domains', async () => {
+      addTestApp({ name: 'domapp', domain: 'domapp.com' })
+      const res = await request('GET', '/apps/domapp/domains')
+      expect(res.status).toBe(200)
+      expect((res.body as { domains: string[] }).domains).toEqual(['domapp.com'])
+    })
+
+    it('POST /apps/:name/domains adds a domain', async () => {
+      addTestApp({ name: 'domadd' })
+      const res = await request('POST', '/apps/domadd/domains', { domain: 'new.com' })
+      expect(res.status).toBe(200)
+      expect((res.body as { domains: string[]; added: string }).added).toBe('new.com')
+      expect(state.getApp('domadd')!.domains).toContain('new.com')
+    })
+
+    it('POST /apps/:name/domains rejects missing domain', async () => {
+      addTestApp({ name: 'domadd2' })
+      const res = await request('POST', '/apps/domadd2/domains', {})
+      expect(res.status).toBe(400)
+    })
+
+    it('POST /apps/:name/domains rejects duplicate domain', async () => {
+      addTestApp({ name: 'domdup', domain: 'taken.com' })
+      addTestApp({ name: 'domdup2' })
+      const res = await request('POST', '/apps/domdup2/domains', { domain: 'taken.com' })
+      expect(res.status).toBe(400)
+      expect((res.body as { error: string }).error).toContain('already used')
+    })
+
+    it('DELETE /apps/:name/domains/:domain removes a domain', async () => {
+      addTestApp({ name: 'domrm', domain: 'remove.com' })
+      state.addDomain('domrm', 'extra.com')
+      const res = await request('DELETE', '/apps/domrm/domains/extra.com')
+      expect(res.status).toBe(200)
+      expect(state.getApp('domrm')!.domains).toEqual(['remove.com'])
+    })
+
+    it('DELETE /apps/:name/domains/:domain returns 404 for unknown domain', async () => {
+      addTestApp({ name: 'domrm2' })
+      const res = await request('DELETE', '/apps/domrm2/domains/nope.com')
+      expect(res.status).toBe(404)
+    })
+
+    it('DELETE /apps/:name/domains/:domain blocks removing last domain with active previews', async () => {
+      addTestApp({ name: 'domblock', domain: 'block.com' })
+      state.setPreview('domblock', 'pr-1', {
+        label: 'pr-1',
+        domain: 'preview-pr-1.block.com',
+        image: 'nginx:pr-1',
+        containerId: 'c1',
+        port: 4000,
+        deployedAt: '2026-01-01T00:00:00Z',
+        expiresAt: '2026-12-01T00:00:00Z'
+      })
+      const res = await request('DELETE', '/apps/domblock/domains/block.com')
+      expect(res.status).toBe(400)
+      expect((res.body as { error: string }).error).toContain('previews exist')
+    })
+
+    it('POST /apps/:name/domains removes auto-assigned host port', async () => {
+      addTestApp({ name: 'autoport', hostPort: 7777 })
+      state.getApp('autoport')!.isAutoHostPort = true
+      state.saveState()
+      const res = await request('POST', '/apps/autoport/domains', { domain: 'autoport.com' })
+      expect(res.status).toBe(200)
+      const body = res.body as { removedHostPort?: number }
+      expect(body.removedHostPort).toBe(7777)
+      expect(state.getApp('autoport')!.hostPort).toBeUndefined()
+    })
+
+    it('POST /apps/:name/domains keeps explicit host port', async () => {
+      addTestApp({ name: 'explport', hostPort: 8888 })
+      const res = await request('POST', '/apps/explport/domains', { domain: 'explport.com' })
+      expect(res.status).toBe(200)
+      const body = res.body as { hostPort?: number; removedHostPort?: number }
+      expect(body.hostPort).toBe(8888)
+      expect(body.removedHostPort).toBeUndefined()
+    })
+
+    it('DELETE /apps/:name/host-port removes host port', async () => {
+      addTestApp({ name: 'rmport', domain: 'rmport.com', hostPort: 9999 })
+      const res = await request('DELETE', '/apps/rmport/host-port')
+      expect(res.status).toBe(200)
+      expect(state.getApp('rmport')!.hostPort).toBeUndefined()
+    })
+
+    it('DELETE /apps/:name/host-port returns 400 when no host port', async () => {
+      addTestApp({ name: 'noport', domain: 'noport.com' })
+      const res = await request('DELETE', '/apps/noport/host-port')
+      expect(res.status).toBe(400)
     })
   })
 })

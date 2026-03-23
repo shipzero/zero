@@ -143,7 +143,7 @@ function printDeployHelp(): void {
       ['--name <n>', 'App name (overrides inferred name)'],
       ['--domain <d>', 'Domain for routing and TLS'],
       ['--port <p>', 'Internal container port (auto-detected from EXPOSE)'],
-      ['--host-port <p>', 'Expose directly on a host port'],
+      ['--host-port <p>', 'Expose directly on a host port (skips auto-domain)'],
       ['--tag <t>', 'Image tag to deploy'],
       ['--preview <label>', 'Deploy as a preview environment'],
       ['--ttl <duration>', 'Time to live for previews (e.g. 24h, 7d)'],
@@ -157,7 +157,7 @@ function printDeployHelp(): void {
       ['--image-prefix <p>', 'Shared image prefix for tag substitution (e.g. ghcr.io/org/project)']
     ],
     [
-      'zero deploy ghcr.io/you/myapp:latest',
+      'zero deploy ghcr.io/shipzero/demo:latest',
       'zero deploy myapp --tag v2',
       'zero deploy myapp --env DATABASE_URL=postgres://localhost/db,NODE_ENV=production',
       'zero deploy myapp --preview pr-21',
@@ -268,8 +268,8 @@ export async function deploy(positionals: string[], flags: Record<string, string
       logHint(`Remove with: zero remove ${body.name} --preview ${preview}`)
     } else {
       logSuccess(`Your app is live: ${cyan(result.url ?? `port ${result.port}`)}`)
-      const appDomain = result.url ? new URL(result.url).hostname : domain
-      if (result.isNew && appDomain && !isLocalDomain(appDomain)) {
+      const appDomain = domain ?? (result.url ? new URL(result.url).hostname : undefined)
+      if (result.isNew && appDomain && !isLocalDomain(appDomain) && !body.hostPort) {
         await printDnsTable(appDomain, client.config.host)
       }
       logHint(`View logs: zero logs ${body.name}`)

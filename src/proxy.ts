@@ -60,18 +60,21 @@ export function removeProxyRoute(domain: string) {
   routes.delete(domain)
 }
 
-export function routeApp(app: { domain?: string; hostPort?: number }, containerPort: number) {
-  if (app.domain) {
-    updateProxyRoute(app.domain, containerPort)
+export function routeApp(app: { domains: string[]; hostPort?: number }, containerPort: number) {
+  if (app.domains.length > 0) {
+    for (const domain of app.domains) {
+      updateProxyRoute(domain, containerPort)
+    }
   } else if (app.hostPort) {
     updatePortRoute(app.hostPort, containerPort)
   }
 }
 
-export function unrouteApp(app: { domain?: string; hostPort?: number }) {
-  if (app.domain) {
-    removeProxyRoute(app.domain)
-  } else if (app.hostPort) {
+export function unrouteApp(app: { domains: string[]; hostPort?: number }) {
+  for (const domain of app.domains) {
+    removeProxyRoute(domain)
+  }
+  if (app.hostPort) {
     removePortRoute(app.hostPort)
   }
 }
@@ -233,7 +236,7 @@ function updatePortRoute(hostPort: number, targetPort: number) {
   portListeners.set(hostPort, entry)
 }
 
-function removePortRoute(hostPort: number) {
+export function removePortRoute(hostPort: number) {
   const entry = portListeners.get(hostPort)
   if (!entry) return
   entry.server.close()
@@ -329,7 +332,7 @@ export function startDevProxy() {
 
 export function restoreRoutes(
   apps: Array<{
-    domain?: string
+    domains: string[]
     hostPort?: number
     deployments: Array<{ port: number }>
     previews: Record<string, { domain: string; port: number }>
@@ -339,9 +342,11 @@ export function restoreRoutes(
     const deployment = app.deployments[0]
     if (!deployment) continue
 
-    if (app.domain) {
-      updateProxyRoute(app.domain, deployment.port)
-      loadCachedCert(app.domain)
+    if (app.domains.length > 0) {
+      for (const domain of app.domains) {
+        updateProxyRoute(domain, deployment.port)
+        loadCachedCert(domain)
+      }
     } else if (app.hostPort) {
       updatePortRoute(app.hostPort, deployment.port)
     }

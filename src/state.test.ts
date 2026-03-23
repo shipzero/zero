@@ -35,7 +35,7 @@ describe('state', () => {
             name: 'myapp',
             image: 'nginx',
             trackTag: 'latest',
-            domain: 'myapp.com',
+            domains: ['myapp.com'],
             internalPort: 80,
             webhookSecret: 'abc123',
             env: {},
@@ -366,6 +366,75 @@ describe('state', () => {
     it('addApp initializes previews as empty object', () => {
       const app = state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
       expect(app.previews).toEqual({})
+    })
+  })
+
+  describe('domain management', () => {
+    it('addApp defaults domains to empty array', () => {
+      const app = state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      expect(app.domains).toEqual([])
+    })
+
+    it('addApp accepts initial domains', () => {
+      const app = state.addApp({
+        name: 'app',
+        image: 'nginx',
+        trackTag: 'latest',
+        internalPort: 80,
+        env: {},
+        domains: ['app.com', 'www.app.com']
+      })
+      expect(app.domains).toEqual(['app.com', 'www.app.com'])
+    })
+
+    it('addDomain appends a domain', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {}, domains: ['app.com'] })
+      state.addDomain('app', 'staging.app.com')
+      expect(state.getApp('app')!.domains).toEqual(['app.com', 'staging.app.com'])
+    })
+
+    it('addDomain throws for duplicate domain on same app', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {}, domains: ['app.com'] })
+      expect(() => state.addDomain('app', 'app.com')).toThrow('already used')
+    })
+
+    it('addDomain throws for domain used by another app', () => {
+      state.addApp({
+        name: 'app1',
+        image: 'nginx',
+        trackTag: 'latest',
+        internalPort: 80,
+        env: {},
+        domains: ['app.com']
+      })
+      state.addApp({ name: 'app2', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      expect(() => state.addDomain('app2', 'app.com')).toThrow('already used by app "app1"')
+    })
+
+    it('addDomain throws for non-existent app', () => {
+      expect(() => state.addDomain('nope', 'x.com')).toThrow('not found')
+    })
+
+    it('removeDomain removes a domain', () => {
+      state.addApp({
+        name: 'app',
+        image: 'nginx',
+        trackTag: 'latest',
+        internalPort: 80,
+        env: {},
+        domains: ['app.com', 'staging.app.com']
+      })
+      state.removeDomain('app', 'staging.app.com')
+      expect(state.getApp('app')!.domains).toEqual(['app.com'])
+    })
+
+    it('removeDomain throws for non-existent domain', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {}, domains: ['app.com'] })
+      expect(() => state.removeDomain('app', 'nope.com')).toThrow('not found')
+    })
+
+    it('removeDomain throws for non-existent app', () => {
+      expect(() => state.removeDomain('nope', 'x.com')).toThrow('not found')
     })
   })
 })

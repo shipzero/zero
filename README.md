@@ -9,13 +9,13 @@
 
 ```bash
 # Install server and CLI
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/install.sh | sudo bash
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/cli/install.sh | bash
+curl -fsSL https://shipzero.sh/install.sh | sudo bash
+curl -fsSL https://shipzero.sh/cli/install.sh | bash
 
 # Deploy
 zero login root@your-server.com
-zero deploy ghcr.io/you/myapp:latest
-# => https://myapp.your-server.com
+zero deploy ghcr.io/shipzero/demo:latest
+# => https://demo.your-server.com
 ```
 
 ## Why zero
@@ -53,7 +53,7 @@ look at [Coolify](https://coolify.io) or [CapRover](https://caprover.com).
 Any Linux VPS (Hetzner, DigitalOcean, etc.) with root access:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/install.sh | sudo bash
+curl -fsSL https://shipzero.sh/install.sh | sudo bash
 ```
 
 The installer sets up Docker, prompts for your domain and email (for TLS), and starts zero.
@@ -61,7 +61,7 @@ The installer sets up Docker, prompts for your domain and email (for TLS), and s
 ### 2. Install the CLI
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/shipzero/zero/main/cli/install.sh | bash
+curl -fsSL https://shipzero.sh/cli/install.sh | bash
 ```
 
 ### 3. Connect
@@ -75,7 +75,7 @@ Authentication uses SSH — if you can SSH into the server, you can use zero.
 ### 4. Deploy
 
 ```bash
-zero deploy ghcr.io/you/myapp:latest
+zero deploy ghcr.io/shipzero/demo:latest
 ```
 
 That's it. zero infers the app name from the image, detects the port from `EXPOSE`, assigns a subdomain under
@@ -86,7 +86,7 @@ your server domain, provisions a TLS certificate, and routes traffic.
 ✓ starting container
 ✓ detected port: 3000
 ✓ health check passed
-✓ Your app is live: https://myapp.your-server.com
+✓ Your app is live: https://demo.your-server.com
 ```
 
 ## Deploying
@@ -95,25 +95,28 @@ your server domain, provisions a TLS certificate, and routes traffic.
 
 Only the image is required. Everything else is inferred:
 
-| What       | How it works                                                     |
-| ---------- | ---------------------------------------------------------------- |
-| **Name**   | Last segment of the image path (`ghcr.io/you/myapp` → `myapp`)   |
-| **Port**   | Read from the image's `EXPOSE` directive, falls back to `3000`   |
-| **Domain** | `<name>.<server-domain>` when the server has a domain configured |
-| **Health** | TCP connection check, or HTTP `GET` when `--health-path` is set  |
+| What       | How it works                                                      |
+| ---------- | ----------------------------------------------------------------- |
+| **Name**   | Last segment of the image path (`ghcr.io/shipzero/demo` → `demo`) |
+| **Port**   | Read from the image's `EXPOSE` directive, falls back to `3000`    |
+| **Domain** | `<name>.<server-domain>` unless `--host-port` is set              |
+| **Health** | TCP connection check, or HTTP `GET` when `--health-path` is set   |
 
 ```bash
 # Deploy with all defaults
-zero deploy ghcr.io/you/myapp:latest
+zero deploy ghcr.io/shipzero/demo:latest
 
 # Override any default
-zero deploy ghcr.io/you/myapp:latest --name api --domain api.example.com --port 8080
+zero deploy ghcr.io/shipzero/demo:latest --name api --domain api.example.com --port 8080
 
 # Redeploy an existing app
 zero deploy myapp
 
 # Deploy a specific tag
 zero deploy myapp --tag v1.2.3
+
+# Expose on a host port instead of a domain
+zero deploy ghcr.io/shipzero/demo:latest --host-port 8888
 ```
 
 All options:
@@ -123,7 +126,7 @@ All options:
 | `--name`           | App name (overrides inferred name)                                | _(from image)_             |
 | `--domain`         | Domain for routing and TLS                                        | _`<name>.<server-domain>`_ |
 | `--port`           | Internal container port                                           | _(auto-detect)_            |
-| `--host-port`      | Expose directly on a host port (skips reverse proxy)              | —                          |
+| `--host-port`      | Expose directly on a host port (skips auto-domain)                | —                          |
 | `--tag`            | Image tag to deploy                                               | `latest`                   |
 | `--command`        | Container startup command                                         | —                          |
 | `--volume`         | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —                          |
@@ -138,7 +141,7 @@ All options:
 Pass env vars inline with `--env`:
 
 ```bash
-zero deploy ghcr.io/you/myapp:latest --env DATABASE_URL=postgres://localhost/mydb,SECRET_KEY=abc123
+zero deploy ghcr.io/shipzero/demo:latest --env DATABASE_URL=postgres://localhost/mydb,SECRET_KEY=abc123
 ```
 
 Or manage them separately — changes take effect on the next deploy:
@@ -183,8 +186,8 @@ zero deploy --compose docker-compose.yml --service web --name mystack --domain m
 The Compose file is uploaded to the server. On deploy, zero pulls images, starts services, and health-checks the
 entry service before routing traffic.
 
-**`--image-prefix` explained:** When you pass `--image-prefix ghcr.io/you/myapp`, zero replaces the tag of every
-image in your Compose file that starts with `ghcr.io/you/myapp`. This is what makes `--tag`, webhooks, and preview
+**`--image-prefix` explained:** When you pass `--image-prefix ghcr.io/shipzero/demo`, zero replaces the tag of every
+image in your Compose file that starts with `ghcr.io/shipzero/demo`. This is what makes `--tag`, webhooks, and preview
 deployments work — without it, zero wouldn't know which images to update.
 
 ```bash
@@ -231,6 +234,18 @@ zero stop myapp              # stop container, traffic returns 502
 zero start myapp             # restart and health-check before routing
 zero remove myapp             # remove app and all its containers
 ```
+
+### Domains
+
+Apps can have multiple domains. The first domain is the primary (used for preview subdomains).
+
+```bash
+zero domain add myapp staging.myapp.com     # add a domain (no redeploy needed)
+zero domain list myapp                      # list all domains
+zero domain remove myapp staging.myapp.com  # remove a domain
+```
+
+The `--domain` flag on `zero deploy` sets the initial domain when creating an app. Use `zero domain add` for additional domains.
 
 ### Deployment history
 

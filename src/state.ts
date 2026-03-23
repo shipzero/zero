@@ -33,9 +33,10 @@ export interface AppConfig {
   name: string
   image: string
   trackTag: string
-  domain?: string
+  domains: string[]
   internalPort?: number
   hostPort?: number
+  isAutoHostPort?: boolean
   webhookSecret: string
   command?: string[]
   volumes?: string[]
@@ -65,6 +66,7 @@ export function loadState(): void {
     _state.registryAuths ??= {}
     for (const app of Object.values(_state.apps)) {
       app.previews ??= {}
+      app.domains ??= []
     }
     console.log(`[state] loaded ${Object.keys(_state.apps).length} app(s)`)
   } else {
@@ -90,9 +92,12 @@ export function findAppBySecret(secret: string): AppConfig | undefined {
   return getApps().find((app) => app.webhookSecret === secret)
 }
 
-export function addApp(config: Omit<AppConfig, 'webhookSecret' | 'deployments' | 'previews'>): AppConfig {
+export function addApp(
+  config: Omit<AppConfig, 'webhookSecret' | 'deployments' | 'previews' | 'domains'> & { domains?: string[] }
+): AppConfig {
   const app: AppConfig = {
     ...config,
+    domains: config.domains ?? [],
     webhookSecret: crypto.randomBytes(24).toString('hex'),
     deployments: [],
     previews: {}
@@ -117,6 +122,22 @@ export function resetWebhookSecret(appName: string): string {
   app.webhookSecret = crypto.randomBytes(24).toString('hex')
   saveState()
   return app.webhookSecret
+}
+
+export function updateHostPort(appName: string, port: number, isAuto = false): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+  app.hostPort = port
+  app.isAutoHostPort = isAuto || undefined
+  saveState()
+}
+
+export function clearHostPort(appName: string): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+  delete app.hostPort
+  delete app.isAutoHostPort
+  saveState()
 }
 
 export function updateInternalPort(appName: string, port: number): void {
@@ -173,6 +194,32 @@ export function findRollbackTarget(appName: string): Deployment {
   }
 
   return target
+}
+
+export function addDomain(appName: string, domain: string): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+
+  const conflict = getApps().find((a) => a.domains.includes(domain))
+  if (conflict) {
+    throw new Error(`Domain "${domain}" is already used by app "${conflict.name}"`)
+  }
+
+  app.domains.push(domain)
+  saveState()
+}
+
+export function removeDomain(appName: string, domain: string): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+
+  const idx = app.domains.indexOf(domain)
+  if (idx === -1) {
+    throw new Error(`Domain "${domain}" not found on app "${appName}"`)
+  }
+
+  app.domains.splice(idx, 1)
+  saveState()
 }
 
 export function buildPreviewDomain(parentDomain: string, label: string): string {
