@@ -201,7 +201,7 @@ describe('state', () => {
     it('throws when no different image exists', () => {
       state.addApp({ name: 'app', image: 'img', trackTag: 'latest', internalPort: 80, env: {} })
       state.addDeployment('app', { image: 'img:v1', containerId: 'c1', port: 3001, deployedAt: '2024-01-01' })
-      expect(() => state.findRollbackTarget('app')).toThrow('no previous deployment')
+      expect(() => state.findRollbackTarget('app')).toThrow('No previous deployment')
     })
 
     it('throws for non-existent app', () => {

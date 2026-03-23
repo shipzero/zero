@@ -14,6 +14,6 @@ export function parseDuration(input: string): number {
     total += Number(value) * UNITS[unit]
     matched = true
   }
-  if (!matched) throw new Error(`invalid duration "${input}" — use e.g. 30s, 5m, 2h, 7d`)
+  if (!matched) throw new Error(`Invalid duration "${input}" — use e.g. 30s, 5m, 2h, 7d`)
   return total
 }

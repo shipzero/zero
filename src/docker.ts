@@ -242,8 +242,8 @@ export async function waitForHealthy(
   while (Date.now() < deadline) {
     if (containerId) {
       const state = await getContainerState(containerId)
-      if (!state.running) throw new Error('container exited during health check')
-      if (state.restartCount > initialRestartCount) throw new Error('container is crash-looping')
+      if (!state.running) throw new Error('Container exited during health check')
+      if (state.restartCount > initialRestartCount) throw new Error('Container is crash-looping')
     }
     if (await check()) return
     await sleep(500)

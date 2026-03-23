@@ -41,7 +41,7 @@ const VALID_TAG_PATTERN = /^[a-zA-Z0-9._-]+$/
 /** Replaces image tags for all images matching the repo prefix. Throws on invalid tags. */
 export function substituteImageTags(composeContent: string, repo: string, tag: string): string {
   if (!VALID_TAG_PATTERN.test(tag)) {
-    throw new Error(`invalid image tag: "${tag}"`)
+    throw new Error(`Invalid image tag: "${tag}"`)
   }
   const escaped = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const pattern = new RegExp(`(image:\\s*${escaped}/[^:]+):[^\\s]+`, 'g')

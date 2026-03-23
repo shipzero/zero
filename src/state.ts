@@ -229,7 +229,7 @@ export function findRollbackTarget(appName: string): Deployment {
   const currentId = current?.digest ?? current?.image
   const target = app.deployments.find((d) => (d.digest ?? d.image) !== currentId)
   if (!target) {
-    throw new Error('no previous deployment with a different image to roll back to')
+    throw new Error('No previous deployment with a different image to roll back to')
   }
 
   return target

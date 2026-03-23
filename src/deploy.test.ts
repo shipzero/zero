@@ -127,7 +127,7 @@ describe('deploy', () => {
       const result = await deploy('web', 'nginx:latest')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('health check failed')
+      expect(result.error).toContain('Health check failed')
       expect(mockRemoveContainer).toHaveBeenCalledWith('new-container-id')
     })
 
@@ -154,7 +154,7 @@ describe('deploy', () => {
 
       const result = await deploy('web')
       expect(result.success).toBe(false)
-      expect(result.error).toContain('image is required')
+      expect(result.error).toContain('Image is required')
     })
   })
 
@@ -218,7 +218,7 @@ describe('deploy', () => {
       const result = await deploy('stack')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('pull failed')
+      expect(result.error).toContain('Pull failed')
     })
 
     it('returns failure when compose up fails', async () => {
@@ -236,7 +236,7 @@ describe('deploy', () => {
       const result = await deploy('stack')
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('compose up failed')
+      expect(result.error).toContain('Compose up failed')
     })
   })
 

@@ -653,7 +653,7 @@ describe('API', () => {
       const app = state.addApp({ name: 'hook-nosig', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
       const res = await request('POST', `/webhooks/${app.webhookSecret}`, { push_data: { tag: 'latest' } }, '')
       expect(res.status).toBe(401)
-      expect((res.body as { error: string }).error).toBe('missing signature')
+      expect((res.body as { error: string }).error).toBe('Missing signature')
     })
 
     it('rejects webhook with invalid signature', async () => {
@@ -662,7 +662,7 @@ describe('API', () => {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(401)
-      expect((res.body as { error: string }).error).toBe('invalid signature')
+      expect((res.body as { error: string }).error).toBe('Invalid signature')
     })
 
     it('ignores when tag does not match tracked tag and no domain', async () => {
@@ -770,7 +770,7 @@ describe('API', () => {
       await request('POST', '/apps', { name: 'prev4', image: 'nginx:latest', domain: 'prev4.example.com' })
       const res = await request('POST', '/apps/prev4/previews', { label: 'pr-4' })
       expect(res.status).toBe(400)
-      expect((res.body as { error: string }).error).toContain('tag')
+      expect((res.body as { error: string }).error).toContain('--tag')
     })
 
     it('sets TTL on preview', async () => {

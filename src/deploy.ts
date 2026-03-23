@@ -136,7 +136,7 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
       /* container may already be gone */
     }
     await removeContainer(containerId)
-    throw new Error(`health check failed on port ${opts.internalPort}${healthPath}`)
+    throw new Error(`Health check failed on port ${opts.internalPort}${healthPath}`)
   }
 
   return { containerId, port, digest: inspection.digest }
@@ -171,7 +171,7 @@ export async function deploy(appName: string, imageWithTag?: string): Promise<De
     if (isComposeApp(app)) {
       return deployCompose(appName, imageWithTag)
     } else if (!imageWithTag) {
-      throw new Error('image is required for single-container deploys')
+      throw new Error('Image is required for single-container deploys')
     } else {
       return deploySingleContainer(appName, imageWithTag)
     }
@@ -259,14 +259,14 @@ async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: numb
   try {
     await composePull(projectDir, (line) => log(appName, line, label))
   } catch (err) {
-    throw new Error(`pull failed: ${getErrorMessage(err)}`)
+    throw new Error(`Pull failed: ${getErrorMessage(err)}`)
   }
   log(appName, 'pulling images done', label)
 
   try {
     await composeUp(projectDir, (line) => log(appName, line, label))
   } catch (err) {
-    throw new Error(`compose up failed: ${getErrorMessage(err)}`)
+    throw new Error(`Compose up failed: ${getErrorMessage(err)}`)
   }
   log(appName, 'starting services done', label)
 
@@ -291,7 +291,7 @@ async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: numb
       /* best effort */
     }
     if (projectName !== app.name) removeComposeDir(projectName)
-    throw new Error(`health check failed on port ${containerPort}${healthPath}`)
+    throw new Error(`Health check failed on port ${containerPort}${healthPath}`)
   }
 
   return { port: containerPort, deployTag }
