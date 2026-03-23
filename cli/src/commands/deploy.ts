@@ -90,83 +90,87 @@ interface DeployEvent {
   error?: string
 }
 
-export async function deploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
-  const firstArg = positionals[0]
+function printDeployHelp(): void {
+  printCommandHelp(
+    'zero deploy <image-or-app> [options]',
+    [
+      ['--name <n>', 'App name (overrides inferred name)'],
+      ['--domain <d>', 'Domain for routing and TLS'],
+      ['--port <p>', 'Internal container port (auto-detected from EXPOSE)'],
+      ['--host-port <p>', 'Expose directly on a host port'],
+      ['--tag <t>', 'Image tag to deploy'],
+      ['--preview <label>', 'Deploy as a preview environment'],
+      ['--ttl <duration>', 'Time to live for previews (e.g. 24h, 7d)'],
+      ['--command <cmd>', 'Container startup command'],
+      ['--volume <v>', 'Volumes, comma-separated (e.g. data:/app/data)'],
+      ['--health-path <path>', 'HTTP health check endpoint'],
+      ['--health-timeout <t>', 'Health check timeout (e.g. 30s, 3m)'],
+      ['--compose <file>', 'Deploy a Docker Compose stack'],
+      ['--service <svc>', 'Entry service for Compose (required with --compose)']
+    ],
+    [
+      'zero deploy ghcr.io/you/myapp:latest',
+      'zero deploy myapp --tag v2',
+      'zero deploy myapp --preview pr-42',
+      'zero deploy --compose docker-compose.yml --service web --name mystack'
+    ]
+  )
+}
 
-  if (!firstArg || flags['help'] === true) {
-    printCommandHelp(
-      'zero deploy <image-or-app> [options]',
-      [
-        ['--name <n>', 'App name (overrides inferred name)'],
-        ['--domain <d>', 'Domain for routing and TLS'],
-        ['--port <p>', 'Internal container port (auto-detected from EXPOSE)'],
-        ['--host-port <p>', 'Expose directly on a host port'],
-        ['--tag <t>', 'Image tag to deploy'],
-        ['--preview <label>', 'Deploy as a preview environment'],
-        ['--ttl <duration>', 'Time to live for previews (e.g. 24h, 7d)'],
-        ['--command <cmd>', 'Container startup command'],
-        ['--volume <v>', 'Volumes, comma-separated (e.g. data:/app/data)'],
-        ['--health-path <path>', 'HTTP health check endpoint'],
-        ['--health-timeout <t>', 'Health check timeout (e.g. 30s, 3m)'],
-        ['--compose <file>', 'Deploy a Docker Compose stack'],
-        ['--service <svc>', 'Entry service for Compose (required with --compose)']
-      ],
-      [
-        'zero deploy ghcr.io/you/myapp:latest',
-        'zero deploy myapp --tag v2',
-        'zero deploy myapp --preview pr-42',
-        'zero deploy --compose docker-compose.yml --service web --name mystack'
-      ]
-    )
-    process.exit(firstArg ? 0 : 1)
-  }
-
-  const client = createClient()
-  const tag = flags['tag'] as string | undefined
-  const domain = flags['domain'] as string | undefined
-
+function parseDeployInput(firstArg: string | undefined, flags: Record<string, string | true>): Record<string, unknown> {
   const composePath = flags['compose'] as string | undefined
-  let composeFile: string | undefined
+
   if (composePath) {
     if (!fs.existsSync(composePath)) {
       logError(`File not found: ${composePath}`)
       process.exit(1)
     }
-    composeFile = fs.readFileSync(composePath, 'utf8')
-  }
-
-  let appName: string
-  if (composeFile) {
     const name = flags['name'] as string | undefined
     if (!name) {
       logError('--name is required for compose apps')
       process.exit(1)
     }
-    appName = name
-  } else if (isImageReference(firstArg)) {
-    appName = (flags['name'] as string | undefined) ?? inferNameFromImage(firstArg)
-  } else {
-    appName = firstArg
+    return {
+      composeFile: fs.readFileSync(composePath, 'utf8'),
+      name,
+      entryService: flags['service'] as string | undefined,
+      repo: flags['repo'] as string | undefined
+    }
   }
+
+  if (!firstArg) {
+    printDeployHelp()
+    process.exit(1)
+  }
+
+  if (isImageReference(firstArg)) {
+    return {
+      image: firstArg,
+      name: (flags['name'] as string | undefined) ?? inferNameFromImage(firstArg)
+    }
+  }
+
+  return { name: firstArg }
+}
+
+export async function deploy(positionals: string[], flags: Record<string, string | true>): Promise<void> {
+  const firstArg = positionals[0]
+
+  if (flags['help'] === true) {
+    printDeployHelp()
+    process.exit(0)
+  }
+
+  const body = parseDeployInput(firstArg, flags)
+
+  const client = createClient()
+  const tag = flags['tag'] as string | undefined
+  const domain = flags['domain'] as string | undefined
 
   process.on('SIGINT', () => {
     console.log(dim('\n[disconnected — deploy continues on the server]'))
     process.exit(0)
   })
-
-  const body: Record<string, unknown> = {}
-
-  if (composeFile) {
-    body.composeFile = composeFile
-    body.name = appName
-    body.entryService = flags['service'] as string | undefined
-    body.repo = flags['repo'] as string | undefined
-  } else if (isImageReference(firstArg)) {
-    body.image = firstArg
-    body.name = appName
-  } else {
-    body.name = appName
-  }
 
   const preview = flags['preview'] as string | undefined
   const ttl = flags['ttl'] as string | undefined
@@ -188,7 +192,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
     const event = JSON.parse(raw) as DeployEvent
 
     if (event.event === 'accepted') {
-      const target = preview ? `preview ${preview} for ${event.appName ?? appName}` : `${event.appName ?? appName}`
+      const target = preview ? `preview ${preview} for ${event.appName ?? body.name}` : `${event.appName ?? body.name}`
       logInfo(`Deploying ${target}...`)
       if (event.isNew && event.webhookUrl) {
         logInfo(`Webhook: ${event.webhookUrl}`)
@@ -210,13 +214,13 @@ export async function deploy(positionals: string[], flags: Record<string, string
   if (result?.success) {
     if (preview) {
       logSuccess(`Preview deployed: ${cyan(result.url ?? '')}`)
-      logHint(`Remove with: zero remove ${appName} --preview ${preview}`)
+      logHint(`Remove with: zero remove ${body.name} --preview ${preview}`)
     } else {
       logSuccess(`Your app is live: ${cyan(result.url ?? `port ${result.port}`)}`)
       if (result.isNew && domain && !isLocalDomain(domain)) {
         await printDnsTable(domain, client.config.host)
       }
-      logHint(`View logs: zero logs ${appName}`)
+      logHint(`View logs: zero logs ${body.name}`)
     }
   } else {
     logError(result?.error ?? 'Deploy failed')
