@@ -17,11 +17,12 @@ export function buildDomainUrl(domain: string): string {
   return `${isTLSEnabled() ? 'https' : 'http'}://${domain}`
 }
 
-/** Builds a URL for an app, falling back to host:port when no domain is set. */
-export function buildAppUrl(domain: string | undefined, port: number): string {
+/** Builds a URL for an app. Returns undefined when no domain and no hostPort. */
+export function buildAppUrl(domain: string | undefined, hostPort: number | undefined): string | undefined {
   if (domain) return buildDomainUrl(domain)
+  if (!hostPort) return undefined
   const host = DOMAIN || 'localhost'
-  return `http://${host}:${port}`
+  return `http://${host}:${hostPort}`
 }
 
 /** Builds a webhook URL with the correct host and port. */

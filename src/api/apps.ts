@@ -155,7 +155,7 @@ route('POST', '/deploy', async (req, res) => {
 
     const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image!)
 
-    const domain = body.domain ?? (hasDomain() ? `${appName}.${DOMAIN}` : undefined)
+    const domain = body.domain ?? (!body.hostPort && hasDomain() ? `${appName}.${DOMAIN}` : undefined)
     const domains = domain ? [domain] : []
 
     app = addApp({

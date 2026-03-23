@@ -95,12 +95,12 @@ your server domain, provisions a TLS certificate, and routes traffic.
 
 Only the image is required. Everything else is inferred:
 
-| What       | How it works                                                     |
-| ---------- | ---------------------------------------------------------------- |
-| **Name**   | Last segment of the image path (`ghcr.io/shipzero/demo` → `demo`)   |
-| **Port**   | Read from the image's `EXPOSE` directive, falls back to `3000`   |
-| **Domain** | `<name>.<server-domain>` when the server has a domain configured |
-| **Health** | TCP connection check, or HTTP `GET` when `--health-path` is set  |
+| What       | How it works                                                      |
+| ---------- | ----------------------------------------------------------------- |
+| **Name**   | Last segment of the image path (`ghcr.io/shipzero/demo` → `demo`) |
+| **Port**   | Read from the image's `EXPOSE` directive, falls back to `3000`    |
+| **Domain** | `<name>.<server-domain>` unless `--host-port` is set              |
+| **Health** | TCP connection check, or HTTP `GET` when `--health-path` is set   |
 
 ```bash
 # Deploy with all defaults
@@ -114,6 +114,9 @@ zero deploy myapp
 
 # Deploy a specific tag
 zero deploy myapp --tag v1.2.3
+
+# Expose on a host port instead of a domain
+zero deploy ghcr.io/shipzero/demo:latest --host-port 8888
 ```
 
 All options:
@@ -123,7 +126,7 @@ All options:
 | `--name`           | App name (overrides inferred name)                                | _(from image)_             |
 | `--domain`         | Domain for routing and TLS                                        | _`<name>.<server-domain>`_ |
 | `--port`           | Internal container port                                           | _(auto-detect)_            |
-| `--host-port`      | Expose directly on a host port (skips reverse proxy)              | —                          |
+| `--host-port`      | Expose directly on a host port (skips auto-domain)                | —                          |
 | `--tag`            | Image tag to deploy                                               | `latest`                   |
 | `--command`        | Container startup command                                         | —                          |
 | `--volume`         | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —                          |

@@ -123,6 +123,13 @@ export function resetWebhookSecret(appName: string): string {
   return app.webhookSecret
 }
 
+export function updateHostPort(appName: string, port: number): void {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+  app.hostPort = port
+  saveState()
+}
+
 export function updateInternalPort(appName: string, port: number): void {
   const app = _state.apps[appName]
   if (!app) throw new Error(`App "${appName}" not found`)

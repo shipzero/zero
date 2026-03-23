@@ -184,8 +184,8 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
     )
   }
 
-  const url = buildAppUrl(app.domains[0], app.hostPort ?? port)
-  log(appName, `🚀 Your app is live: ${url}`)
+  const url = buildAppUrl(app.domains[0], app.hostPort)
+  if (url) log(appName, `🚀 Your app is live: ${url}`)
   return { success: true, image: imageWithTag, port, containerId, url }
 }
 
@@ -279,8 +279,8 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   }
   addDeployment(appName, deployment)
 
-  const url = buildAppUrl(app.domains[0], app.hostPort ?? port)
-  log(appName, `🚀 Your app is live: ${url}`)
+  const url = buildAppUrl(app.domains[0], app.hostPort)
+  if (url) log(appName, `🚀 Your app is live: ${url}`)
   return { success: true, image: deployTag, port, containerId: 'compose', url }
 }
 

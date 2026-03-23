@@ -995,6 +995,34 @@ describe('API', () => {
       const app = state.getApp('envmerge')!
       expect(app.env).toEqual({ KEY1: 'val1', KEY2: 'updated', KEY3: 'val3' })
     })
+
+    it('does not auto-assign domain when hostPort is set', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/org/portonly:latest', hostPort: 8888 })
+      expect(res.status).toBe(200)
+      const app = state.getApp('portonly')!
+      expect(app.domains).toEqual([])
+      expect(app.hostPort).toBe(8888)
+    })
+
+    it('auto-assigns domain when no hostPort and explicit domain given', async () => {
+      const res = await requestSSE('/deploy', { image: 'ghcr.io/org/autodom:latest', domain: 'autodom.example.com' })
+      expect(res.status).toBe(200)
+      const app = state.getApp('autodom')!
+      expect(app.domains).toEqual(['autodom.example.com'])
+      expect(app.hostPort).toBeUndefined()
+    })
+
+    it('uses explicit domain even with hostPort', async () => {
+      const res = await requestSSE('/deploy', {
+        image: 'ghcr.io/org/both:latest',
+        domain: 'both.example.com',
+        hostPort: 9999
+      })
+      expect(res.status).toBe(200)
+      const app = state.getApp('both')!
+      expect(app.domains).toEqual(['both.example.com'])
+      expect(app.hostPort).toBe(9999)
+    })
   })
 
   describe('404 for unknown routes', () => {

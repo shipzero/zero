@@ -1,10 +1,11 @@
 import { createClient, unwrap } from '../client.ts'
-import { logSuccess, logError, logInfo, dim, requireAppName, spinner, printCommandHelp } from '../ui.ts'
+import { logSuccess, logError, logWarn, logInfo, dim, requireAppName, spinner, printCommandHelp } from '../ui.ts'
 
 interface DomainsResponse {
   domains: string[]
   added?: string
   removed?: string
+  hostPort?: number
 }
 
 export async function domain(
@@ -66,9 +67,12 @@ async function domainRemove(positionals: string[]): Promise<void> {
     `/apps/${encodeURIComponent(appName)}/domains/${encodeURIComponent(domainName)}`
   )
   spin.stop()
-  unwrap(res, logError)
+  const data = unwrap(res, logError)
 
   logSuccess(`Removed ${domainName} from ${appName}`)
+  if (data.domains.length === 0 && data.hostPort) {
+    logInfo(`App is now reachable on port ${data.hostPort}`)
+  }
 }
 
 async function domainList(positionals: string[]): Promise<void> {

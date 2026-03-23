@@ -143,7 +143,7 @@ function printDeployHelp(): void {
       ['--name <n>', 'App name (overrides inferred name)'],
       ['--domain <d>', 'Domain for routing and TLS'],
       ['--port <p>', 'Internal container port (auto-detected from EXPOSE)'],
-      ['--host-port <p>', 'Expose directly on a host port'],
+      ['--host-port <p>', 'Expose directly on a host port (skips auto-domain)'],
       ['--tag <t>', 'Image tag to deploy'],
       ['--preview <label>', 'Deploy as a preview environment'],
       ['--ttl <duration>', 'Time to live for previews (e.g. 24h, 7d)'],
