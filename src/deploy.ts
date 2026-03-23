@@ -128,10 +128,10 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
     log(appName, `Health check failed — container did not respond on port ${opts.internalPort}`, label)
     log(appName, `Make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`, label)
     try {
-      await stopContainer(containerId)
       log(appName, 'Container logs:', label)
       const lines = await tailLogs(containerId)
       for (const line of lines) log(appName, `  ${line}`, label)
+      await stopContainer(containerId)
     } catch {
       /* container may already be gone */
     }
@@ -176,13 +176,16 @@ export async function deploy(appName: string, imageWithTag?: string): Promise<De
     } else {
       return deploySingleContainer(appName, imageWithTag)
     }
-  }).catch((err) => ({
-    success: false,
-    image: imageWithTag ?? '',
-    port: 0,
-    containerId: '',
-    error: getErrorMessage(err)
-  }))
+  }).catch((err) => {
+    log(appName, `Deploy failed: ${getErrorMessage(err)}`)
+    return {
+      success: false,
+      image: imageWithTag ?? '',
+      port: 0,
+      containerId: '',
+      error: getErrorMessage(err)
+    }
+  })
 }
 
 async function deploySingleContainer(appName: string, imageWithTag: string): Promise<DeployResult> {
