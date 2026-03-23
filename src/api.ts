@@ -48,7 +48,6 @@ import type {
   AddAppResponse,
   StopResponse,
   StartResponse,
-  PreviewDeployResponse,
   PreviewSummary
 } from './types.ts'
 
@@ -351,7 +350,7 @@ route('POST', '/deploy', async (req, res) => {
       return
     }
 
-    const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image)
+    const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image!)
 
     const domain = body.domain ?? (hasDomain() ? `${appName}.${DOMAIN}` : undefined)
 
