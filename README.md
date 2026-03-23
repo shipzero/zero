@@ -20,7 +20,7 @@ zero deploy ghcr.io/you/myapp:latest
 
 ## Why zero
 
-You want to deploy a Docker image. You don't want to configure Nginx, manage TLS certificates, write YAML pipelines,
+You want to deploy a Docker image. You don't want to configure nginx, manage TLS certificates, write YAML pipelines,
 or pay $20/month per app on a managed platform.
 
 zero is the simplest way to get from "I have a server" to "my app is live with HTTPS":
@@ -28,7 +28,7 @@ zero is the simplest way to get from "I have a server" to "my app is live with H
 - **One command to deploy** — name, port, domain, and TLS are inferred automatically
 - **Zero-downtime** — new containers are health-checked before traffic is swapped
 - **HTTPS just works** — Let's Encrypt certificates provisioned and renewed automatically
-- **No Nginx. No Traefik.** — reverse proxy is built in
+- **No nginx. No Traefik.** — reverse proxy is built in
 - **Rollback instantly** — revert to the previous deployment with one command
 - **Preview deployments** — spin up a temporary version of any app with one command
 - **Webhooks** — push an image to your registry, zero deploys it automatically
@@ -336,7 +336,7 @@ If the health check fails, the new container is discarded. Traffic stays on the 
 
 ### Reverse proxy
 
-No Nginx. No Traefik. zero includes a built-in reverse proxy:
+No nginx. No Traefik. zero includes a built-in reverse proxy:
 
 - Routes requests to containers based on the `Host` header
 - TLS termination with automatic certificate selection (SNI)
@@ -354,8 +354,10 @@ env <set|list|remove> <app> [args]       Manage environment variables
 history <app>                           Show deployment history
 list                                    List all apps
 login <user@server>                     Authenticate via SSH
-logs <app> [--preview <label>]          Stream app logs
-metrics <app> [--preview <label>]       Show live resource usage
+logs <app|--server> [--tail <n>] [--preview <label>]
+                                        Stream app or server logs
+metrics <app|--server> [--preview <label>]
+                                        Show live resource usage
 registry <login|logout|list> [server]   Manage registry credentials
 remove <app> [--preview <label>] [--force]
                                         Remove an app or preview

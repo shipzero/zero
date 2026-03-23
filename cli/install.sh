@@ -55,6 +55,6 @@ if [[ ":$PATH:" != *":${INSTALL_DIR}:"* ]]; then
 fi
 
 echo "  Get started:"
-echo "    zero login http://<your-server> <token>"
-echo "    zero ls"
+echo "    zero login user@your-server.com"
+echo "    zero deploy ghcr.io/you/myapp:latest"
 echo ""
