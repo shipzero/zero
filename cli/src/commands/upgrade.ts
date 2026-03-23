@@ -71,10 +71,13 @@ async function upgradeCli(isForce: boolean, isCanary: boolean): Promise<void> {
 async function upgradeServer(isCanary: boolean): Promise<void> {
   const { tag } = fetchLatestRelease(isCanary)
   const client = createClient()
-  const spin = spinner(`Upgrading server to ${tag}...`)
-  const res = await client.post<MessageResponse>('/upgrade', { tag })
-  spin.stop()
-  const data = unwrap(res, logError)
 
-  logSuccess(data.message)
+  const { data: versionData } = await client.get<{ version: string }>('/version')
+  const currentVersion = 'version' in versionData ? versionData.version : 'unknown'
+
+  logInfo(`Upgrading server ${currentVersion} → ${tag}...`)
+  const res = await client.post<MessageResponse>('/upgrade', { tag })
+  unwrap(res, logError)
+
+  logSuccess(`Server upgraded to ${tag} — zero will restart`)
 }
