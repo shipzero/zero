@@ -21,13 +21,14 @@ export async function login(positionals: string[], _flags: Record<string, string
   const jwt = await sshMintJwt(ssh)
   if (!jwt) {
     spin.stop()
+    logError(`Connection failed — check that you can ssh to ${ssh}`)
     process.exit(1)
   }
 
   const host = await resolveApiUrl(server, jwt)
   spin.stop()
   if (!host) {
-    logError('Authentication failed')
+    logError('Server unreachable — is zero running?')
     process.exit(1)
   }
 
@@ -43,7 +44,6 @@ function sshExec(ssh: string, command: string): Promise<{ stdout: string; ok: bo
   return new Promise((resolve) => {
     execFile('ssh', [ssh, command], { timeout: 30_000 }, (err, stdout) => {
       if (err) {
-        logError(`SSH connection failed — check that you can ssh to ${ssh}`)
         resolve({ stdout: '', ok: false })
         return
       }
