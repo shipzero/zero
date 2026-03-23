@@ -202,6 +202,7 @@ zero deploy mystack --preview pr-21        # preview with tag :pr-21
 
 ```bash
 zero logs myapp              # stream app logs
+zero logs myapp --tail 500   # last 500 lines (default: 100)
 zero logs --server           # stream server logs
 zero metrics myapp           # live CPU, memory, network
 ```

@@ -18,6 +18,7 @@ import {
   requireApp,
   requirePreview,
   previewExpiresAt,
+  parseTail,
   resolveContainerStatus,
   findComposeContainer,
   getErrorMessage
@@ -138,15 +139,17 @@ route('DELETE', '/apps/:name/previews/:label', async (_req, res, { name, label }
   json<MessageResponse>(res, 200, { message: `Preview ${label} removed` })
 })
 
-route('GET', '/apps/:name/previews/:label/logs', async (_req, res, { name, label }) => {
+route('GET', '/apps/:name/previews/:label/logs', async (req, res, { name, label }) => {
   const preview = requirePreview(name, label, res)
   if (!preview) return
 
+  const tail = parseTail(req.url)
+
   startSSE(res)
   if (preview.isCompose) {
-    await pipeSSE(res, composeLogs(composeDir(preview.containerId)))
+    await pipeSSE(res, composeLogs(composeDir(preview.containerId), tail))
   } else {
-    await pipeSSE(res, streamLogs(preview.containerId))
+    await pipeSSE(res, streamLogs(preview.containerId, tail))
   }
 })
 

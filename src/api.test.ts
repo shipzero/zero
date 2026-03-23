@@ -56,6 +56,7 @@ const state = await import('./state.ts')
 const dockerMock = await import('./docker.ts')
 const composeMock = await import('./compose.ts')
 const { signJwt } = await import('./jwt.ts')
+const { parseTail } = await import('./api/router.ts')
 
 // We need to dynamically import api after mocks
 const { startApi } = await import('./api.ts')
@@ -1000,5 +1001,32 @@ describe('API', () => {
       const res = await request('GET', '/nonexistent')
       expect(res.status).toBe(404)
     })
+  })
+})
+
+describe('parseTail', () => {
+  it('returns default for no query string', () => {
+    expect(parseTail('/apps/myapp/logs')).toBe(100)
+  })
+
+  it('returns default for missing tail param', () => {
+    expect(parseTail('/apps/myapp/logs?foo=bar')).toBe(100)
+  })
+
+  it('parses valid tail value', () => {
+    expect(parseTail('/apps/myapp/logs?tail=500')).toBe(500)
+  })
+
+  it('returns default for non-positive values', () => {
+    expect(parseTail('/apps/myapp/logs?tail=0')).toBe(100)
+    expect(parseTail('/apps/myapp/logs?tail=-1')).toBe(100)
+  })
+
+  it('returns default for non-numeric values', () => {
+    expect(parseTail('/apps/myapp/logs?tail=abc')).toBe(100)
+  })
+
+  it('returns default for undefined', () => {
+    expect(parseTail(undefined)).toBe(100)
   })
 })

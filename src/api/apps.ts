@@ -37,6 +37,7 @@ import {
   previewExpiresAt,
   resolveContainerStatus,
   resolveImageWithTag,
+  parseTail,
   findComposeContainer,
   getErrorMessage
 } from './router.ts'
@@ -409,9 +410,11 @@ route('POST', '/apps/:name/webhook', async (_req, res, { name }) => {
   json(res, 200, { webhookSecret: secret, webhookUrl: buildWebhookUrl(secret) })
 })
 
-route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
+route('GET', '/apps/:name/logs', async (req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
+
+  const tail = parseTail(req.url)
 
   startSSE(res)
 
@@ -420,11 +423,11 @@ route('GET', '/apps/:name/logs', async (_req, res, { name }) => {
   res.on('close', () => deployEvents.removeListener(`log:${name}`, onDeployLog))
 
   if (isComposeApp(app)) {
-    await pipeSSE(res, composeLogs(composeDir(name)))
+    await pipeSSE(res, composeLogs(composeDir(name), tail))
   } else {
     const deployment = getCurrentDeployment(app)
     if (deployment) {
-      await pipeSSE(res, streamLogs(deployment.containerId))
+      await pipeSSE(res, streamLogs(deployment.containerId, tail))
     }
   }
 })

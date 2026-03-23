@@ -118,8 +118,10 @@ export function composeDown(projectDir: string, removeVolumes = false): Promise<
 }
 
 /** Streams `docker compose logs -f` as an async generator. */
-export async function* composeLogs(projectDir: string): AsyncGenerator<string> {
-  const proc = execFile('docker', ['compose', 'logs', '-f', '--tail', '100', '--timestamps'], { cwd: projectDir })
+export async function* composeLogs(projectDir: string, tail = 100): AsyncGenerator<string> {
+  const proc = execFile('docker', ['compose', 'logs', '-f', '--tail', String(tail), '--timestamps'], {
+    cwd: projectDir
+  })
 
   let buffer = ''
 

@@ -12,6 +12,7 @@ const BEARER_PREFIX = 'Bearer '
 const MAX_BODY_SIZE = 1024 * 1024
 const AUTH_WINDOW_MS = 60_000
 const MAX_AUTH_FAILURES = 10
+const DEFAULT_TAIL = 100
 
 export type Handler = (
   req: http.IncomingMessage,
@@ -155,6 +156,13 @@ export function parseImageRef(ref: string): { image: string; tag: string } {
     image: hasTag ? ref.substring(0, colonIdx) : ref,
     tag: hasTag ? ref.substring(colonIdx + 1) : 'latest'
   }
+}
+
+export function parseTail(url?: string): number {
+  const raw = new URLSearchParams(url?.split('?')[1] ?? '').get('tail')
+  if (!raw) return DEFAULT_TAIL
+  const n = parseInt(raw, 10)
+  return n > 0 ? n : DEFAULT_TAIL
 }
 
 export function previewExpiresAt(ttlMs: number): string {

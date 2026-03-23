@@ -11,6 +11,8 @@ function formatLogLine(line: string): string {
 
 export async function logs(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const target = buildStreamPath(positionals, flags, 'logs', 'server')
+  const tail = flags['tail'] as string | undefined
+  const path = tail ? `${target.path}?tail=${encodeURIComponent(tail)}` : target.path
   const client = createClient()
 
   process.on('SIGINT', () => {
@@ -19,7 +21,7 @@ export async function logs(positionals: string[], flags: Record<string, string |
   })
 
   let isFirst = true
-  await client.streamSSE(target.path, (line) => {
+  await client.streamSSE(path, (line) => {
     if (isFirst) {
       console.log(dim('ctrl+c to stop\n'))
       isFirst = false

@@ -11,14 +11,7 @@ import {
   AppConfig
 } from './state.ts'
 import type { Preview } from './state.ts'
-import {
-  pullImage,
-  inspectImage,
-  runContainer,
-  removeContainer,
-  waitForHealthy,
-  getFreePort
-} from './docker.ts'
+import { pullImage, inspectImage, runContainer, removeContainer, waitForHealthy, getFreePort } from './docker.ts'
 import {
   writeComposeFiles,
   composePull,

@@ -152,13 +152,13 @@ export async function tailLogs(containerId: string, tail = 50): Promise<string[]
   return parseDockerStreamFrames(buffer)
 }
 
-export async function* streamLogs(containerId: string): AsyncGenerator<string> {
+export async function* streamLogs(containerId: string, tail = 100): AsyncGenerator<string> {
   const container = docker.getContainer(containerId)
   const logStream = await container.logs({
     follow: true,
     stdout: true,
     stderr: true,
-    tail: 100,
+    tail,
     timestamps: true
   })
 

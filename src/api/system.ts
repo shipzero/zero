@@ -13,6 +13,7 @@ import {
   readBody,
   parseJSON,
   getErrorMessage,
+  parseTail,
   ZERO_CONTAINER,
   isZeroContainerRunning
 } from './router.ts'
@@ -68,14 +69,16 @@ route('POST', '/upgrade', async (req, res) => {
   }
 })
 
-route('GET', '/logs', async (_req, res) => {
+route('GET', '/logs', async (req, res) => {
   if (!(await isZeroContainerRunning())) {
     json(res, 400, { error: 'Server logs are only available in production (zero container not found)' })
     return
   }
 
+  const tail = parseTail(req.url)
+
   startSSE(res)
-  await pipeSSE(res, streamLogs(ZERO_CONTAINER))
+  await pipeSSE(res, streamLogs(ZERO_CONTAINER, tail))
   sendSSE(res, '[log stream ended]')
 })
 
