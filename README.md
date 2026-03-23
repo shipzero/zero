@@ -95,12 +95,12 @@ your server domain, provisions a TLS certificate, and routes traffic.
 
 Only the image is required. Everything else is inferred:
 
-| What     | How it works                                               |
-|----------|------------------------------------------------------------|
-| **Name** | Last segment of the image path (`ghcr.io/you/myapp` → `myapp`) |
-| **Port** | Read from the image's `EXPOSE` directive, falls back to `3000` |
+| What       | How it works                                                     |
+| ---------- | ---------------------------------------------------------------- |
+| **Name**   | Last segment of the image path (`ghcr.io/you/myapp` → `myapp`)   |
+| **Port**   | Read from the image's `EXPOSE` directive, falls back to `3000`   |
 | **Domain** | `<name>.<server-domain>` when the server has a domain configured |
-| **Health** | TCP connection check, or HTTP `GET` when `--health-path` is set |
+| **Health** | TCP connection check, or HTTP `GET` when `--health-path` is set  |
 
 ```bash
 # Deploy with all defaults
@@ -119,10 +119,10 @@ zero deploy myapp --tag v1.2.3
 All options:
 
 | Flag               | Description                                                       | Default                    |
-|--------------------|-------------------------------------------------------------------|----------------------------|
-| `--name`           | App name (overrides inferred name)                                | *(from image)*             |
-| `--domain`         | Domain for routing and TLS                                        | *`<name>.<server-domain>`* |
-| `--port`           | Internal container port                                           | *(auto-detect)*            |
+| ------------------ | ----------------------------------------------------------------- | -------------------------- |
+| `--name`           | App name (overrides inferred name)                                | _(from image)_             |
+| `--domain`         | Domain for routing and TLS                                        | _`<name>.<server-domain>`_ |
+| `--port`           | Internal container port                                           | _(auto-detect)_            |
 | `--host-port`      | Expose directly on a host port (skips reverse proxy)              | —                          |
 | `--tag`            | Image tag to deploy                                               | `latest`                   |
 | `--command`        | Container startup command                                         | —                          |
@@ -167,7 +167,7 @@ zero deploy --compose docker-compose.yml --service web --name mystack --domain m
 ```
 
 | Flag        | Description                                                           |
-|-------------|-----------------------------------------------------------------------|
+| ----------- | --------------------------------------------------------------------- |
 | `--compose` | Path to a `docker-compose.yml` file (required)                        |
 | `--service` | The entry service that receives traffic (required)                    |
 | `--name`    | App name (required)                                                   |
@@ -262,10 +262,10 @@ Non-matching tags automatically create preview deployments when the app has a do
 Configuration is stored in `/opt/zero/.env`:
 
 | Variable                 | Description                                     | Default       |
-|--------------------------|-------------------------------------------------|---------------|
-| `TOKEN`                  | Internal auth token (do not share)              | *(generated)* |
-| `JWT_SECRET`             | Secret for signing JWT tokens                   | *(generated)* |
-| `DOMAIN`                 | Server domain (used for app subdomains and TLS) | *(server IP)* |
+| ------------------------ | ----------------------------------------------- | ------------- |
+| `TOKEN`                  | Internal auth token (do not share)              | _(generated)_ |
+| `JWT_SECRET`             | Secret for signing JWT tokens                   | _(generated)_ |
+| `DOMAIN`                 | Server domain (used for app subdomains and TLS) | _(server IP)_ |
 | `EMAIL`                  | Let's Encrypt email (enables automatic TLS)     | —             |
 | `API_PORT`               | API server port                                 | `2020`        |
 | `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`          |
