@@ -25,7 +25,7 @@ export async function rollback(positionals: string[], flags: Record<string, stri
     }
   }
 
-  const spin = spinner(`rolling back ${appName}...`)
+  const spin = spinner(`Rolling back ${appName}...`)
   const res = await client.post<RollbackResponse>(`/apps/${encodeURIComponent(appName)}/rollback`)
   spin.stop()
   const data = unwrap(res, logError)

@@ -30,16 +30,16 @@ export function inferNameFromImage(imageRef: string): string {
 }
 
 const DONE_MESSAGES: Record<string, string> = {
-  'pulling image done': 'pulling image',
-  'pulling images done': 'pulling images',
-  'starting container done': 'starting container',
-  'starting services done': 'starting services'
+  'Pulling image done': 'Pulling image',
+  'Pulling images done': 'Pulling images',
+  'Starting container done': 'Starting container',
+  'Starting services done': 'Starting services'
 }
 
 export function formatDeployLog(line: string): string | null {
   const stripped = line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s*/, '')
 
-  if (stripped.startsWith('deploying ')) {
+  if (stripped.startsWith('Deploying ')) {
     return null
   }
 
@@ -47,15 +47,15 @@ export function formatDeployLog(line: string): string | null {
     return logLine(green('✓'), DONE_MESSAGES[stripped])
   }
 
-  if (stripped.startsWith('detected port:') || stripped.startsWith('using default port:')) {
+  if (stripped.startsWith('Detected port:') || stripped.startsWith('Using default port:')) {
     return logLine(green('✓'), stripped)
   }
 
-  if (stripped === 'health check passed') {
+  if (stripped === 'Health check passed') {
     return logLine(green('✓'), stripped)
   }
 
-  if (stripped.startsWith('your app is live:') || stripped.startsWith('preview is live:')) {
+  if (stripped.includes('Your app is live:') || stripped.includes('Preview is live:')) {
     return null
   }
 
@@ -63,11 +63,11 @@ export function formatDeployLog(line: string): string | null {
     return logLine(red('✗'), stripped)
   }
 
-  if (stripped.startsWith('make sure')) {
+  if (stripped.startsWith('Make sure')) {
     return logLine(' ', dim(stripped))
   }
 
-  if (stripped.startsWith('container logs:') || stripped.startsWith('  ')) {
+  if (stripped.startsWith('Container logs:') || stripped.startsWith('  ')) {
     return logLine(' ', dim(stripped))
   }
 
@@ -210,7 +210,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
   if (result?.success) {
     if (preview) {
       logSuccess(`Preview deployed: ${cyan(result.url ?? '')}`)
-      logHint(`Remove with: zero preview rm ${appName} ${preview}`)
+      logHint(`Remove with: zero remove ${appName} --preview ${preview}`)
     } else {
       logSuccess(`Your app is live: ${cyan(result.url ?? `port ${result.port}`)}`)
       if (result.isNew && domain && !isLocalDomain(domain)) {

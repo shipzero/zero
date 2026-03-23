@@ -14,7 +14,6 @@ import { status } from './commands/status.ts'
 import { registry } from './commands/registry.ts'
 import { upgrade } from './commands/upgrade.ts'
 import { webhook } from './commands/webhook.ts'
-import { preview } from './commands/preview.ts'
 import { VERSION } from './version.ts'
 import { bold, cyan, dim, logInfo, logError } from './ui.ts'
 
@@ -49,10 +48,7 @@ function parseArgs(argv: string[]): ParsedArgs {
           flags[arg.slice(2)] = true
         }
       }
-    } else if (
-      isFirstPositional &&
-      (command === 'env' || command === 'registry' || command === 'webhook' || command === 'preview')
-    ) {
+    } else if (isFirstPositional && (command === 'env' || command === 'registry' || command === 'webhook')) {
       subcommand = arg
       isFirstPositional = false
     } else {
@@ -73,9 +69,8 @@ function formatHelp(): string {
     ['login <user@server>', 'Authenticate via SSH'],
     ['logs <app> [--preview <label>]', 'Stream app logs'],
     ['metrics <app> [--preview <label>]', 'Show live resource usage'],
-    ['preview <list|remove> <app> [label]', 'Manage preview deployments'],
     ['registry <login|logout|list> [server]', 'Manage registry credentials'],
-    ['remove <app> [--force]', 'Remove an app and its containers'],
+    ['remove <app> [--preview <label>] [--force]', 'Remove an app or preview'],
     ['rollback <app> [--force]', 'Roll back to previous deployment'],
     ['start <app>', 'Start a stopped app'],
     ['status', 'Show server connection info'],
@@ -129,9 +124,6 @@ async function main() {
         break
       case 'metrics':
         await metrics(parsed.positionals, parsed.flags)
-        break
-      case 'preview':
-        await preview(parsed.subcommand, parsed.positionals, parsed.flags)
         break
       case 'registry':
         await registry(parsed.subcommand, parsed.positionals, parsed.flags)

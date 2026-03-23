@@ -82,11 +82,11 @@ That's it. zero infers the app name from the image, detects the port from `EXPOS
 your server domain, provisions a TLS certificate, and routes traffic.
 
 ```
-  ✓ pulling image
-  ✓ starting container
-  ✓ detected port: 3000
-  ✓ health check passed
-  ✓ your app is live: https://myapp.your-server.com
+✓ pulling image
+✓ starting container
+✓ detected port: 3000
+✓ health check passed
+✓ Your app is live: https://myapp.your-server.com
 ```
 
 ## Deploying
@@ -129,6 +129,8 @@ All options:
 | `--volume`         | Volumes, comma-separated (e.g. `pgdata:/var/lib/postgresql/data`) | —                          |
 | `--health-path`    | HTTP health check endpoint                                        | —                          |
 | `--health-timeout` | Health check timeout (e.g. `30s`, `3m`)                           | `60s`                      |
+| `--preview`        | Deploy as a preview environment                                   | —                          |
+| `--ttl`            | Time to live for previews (e.g. `24h`, `7d`)                      | `7d`                       |
 
 ### Environment variables
 
@@ -229,15 +231,10 @@ Previews expire automatically (default: 7 days). One command, temporary URL, aut
 
 ```bash
 zero deploy myapp --preview feat-1 --tag feat-branch --ttl 24h
-zero preview list myapp
-zero preview remove myapp pr-42
-```
-
-Previews get their own subdomain, logs, and metrics:
-
-```bash
+zero history myapp                                               # shows deploys + previews
 zero logs myapp --preview pr-42
 zero metrics myapp --preview pr-42
+zero remove myapp --preview pr-42
 ```
 
 ## Webhooks
@@ -278,7 +275,8 @@ Configuration is stored in `/opt/zero/.env`:
 ### Upgrade
 
 ```bash
-zero upgrade --server        # upgrade remotely via CLI
+zero upgrade --server        # Upgrade remotely via CLI
+zero upgrade --canary        # Install canary (pre-release) version
 ```
 
 Or re-run the install script on the server.
@@ -337,9 +335,9 @@ list                                    List all apps
 login <user@server>                     Authenticate via SSH
 logs <app> [--preview <label>]          Stream app logs
 metrics <app> [--preview <label>]       Show live resource usage
-preview <list|remove> <app> [label]      Manage preview deployments
 registry <login|logout|list> [server]   Manage registry credentials
-remove <app> [--force]                  Remove an app and its containers
+remove <app> [--preview <label>] [--force]
+                                        Remove an app or preview
 rollback <app> [--force]                Roll back to previous deployment
 start <app>                             Start a stopped app
 status                                  Show server connection info

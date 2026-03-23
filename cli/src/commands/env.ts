@@ -83,7 +83,7 @@ async function envList(positionals: string[]): Promise<void> {
   const appName = requireAppName(positionals, 'zero env list <app>')
 
   const client = createClient()
-  const spin = spinner('loading environment...')
+  const spin = spinner('Loading environment...')
   const res = await client.get<AppDetail>(`/apps/${encodeURIComponent(appName)}`)
   spin.stop()
   const data = unwrap(res, logError)

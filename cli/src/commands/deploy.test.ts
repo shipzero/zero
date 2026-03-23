@@ -37,8 +37,8 @@ const mockClient = {
   postSSE: vi.fn().mockImplementation(
     makePostSSE([
       { event: 'accepted', appName: 'myapp', isNew: false },
-      { event: 'log', message: 'pulling image done' },
-      { event: 'log', message: 'health check passed' },
+      { event: 'log', message: 'Pulling image done' },
+      { event: 'log', message: 'Health check passed' },
       { event: 'complete', success: true, url: 'http://localhost:3000', appName: 'myapp', isNew: false }
     ])
   ),
@@ -89,41 +89,41 @@ describe('inferNameFromImage', () => {
 
 describe('formatDeployLog', () => {
   it('hides deploying line', () => {
-    expect(formatDeployLog('deploying nginx:latest')).toBeNull()
+    expect(formatDeployLog('Deploying nginx:latest')).toBeNull()
   })
 
   it('shows pulling image done as success', () => {
-    const result = formatDeployLog('pulling image done')
-    expect(result).toContain('pulling image')
+    const result = formatDeployLog('Pulling image done')
+    expect(result).toContain('Pulling image')
   })
 
   it('shows starting container done as success', () => {
-    const result = formatDeployLog('starting container done')
-    expect(result).toContain('starting container')
+    const result = formatDeployLog('Starting container done')
+    expect(result).toContain('Starting container')
   })
 
   it('shows detected port', () => {
-    const result = formatDeployLog('detected port: 8080')
-    expect(result).toContain('detected port: 8080')
+    const result = formatDeployLog('Detected port: 8080')
+    expect(result).toContain('Detected port: 8080')
   })
 
   it('shows default port', () => {
-    const result = formatDeployLog('using default port: 3000')
-    expect(result).toContain('using default port: 3000')
+    const result = formatDeployLog('Using default port: 3000')
+    expect(result).toContain('Using default port: 3000')
   })
 
   it('shows health check passed', () => {
-    const result = formatDeployLog('health check passed')
-    expect(result).toContain('health check passed')
+    const result = formatDeployLog('Health check passed')
+    expect(result).toContain('Health check passed')
   })
 
   it('hides app is live line (shown from complete event instead)', () => {
-    expect(formatDeployLog('your app is live: https://myapp.example.com')).toBeNull()
+    expect(formatDeployLog('Your app is live: https://myapp.example.com')).toBeNull()
   })
 
   it('formats error line', () => {
-    const result = formatDeployLog('health check failed — container did not respond on port 3000')
-    expect(result).toContain('health check failed')
+    const result = formatDeployLog('Health check failed — container did not respond on port 3000')
+    expect(result).toContain('Health check failed')
   })
 
   it('hides docker pull progress', () => {

@@ -6,7 +6,7 @@ export async function status(): Promise<void> {
 
   logInfo(`Server: ${client.config.host}`)
 
-  const spin = spinner('connecting...')
+  const spin = spinner('Connecting...')
   try {
     const { data } = await client.get<{ version: string }>('/version')
     const { data: apps } = await client.get<unknown[]>('/apps')

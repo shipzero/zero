@@ -1,33 +1,53 @@
 import { createClient, unwrap } from '../client.ts'
-import type { DeploymentInfo } from '../../../src/types.ts'
-import { dim, green, logInfo, logError, printTable, requireAppName, spinner } from '../ui.ts'
+import type { DeploymentInfo, PreviewSummary } from '../../../src/types.ts'
+import { dim, green, cyan, logInfo, logError, printTable, requireAppName, spinner, timeAgo, timeUntil } from '../ui.ts'
 
 export async function history(positionals: string[]): Promise<void> {
   const appName = requireAppName(positionals, 'zero history <app>')
 
   const client = createClient()
-  const spin = spinner('loading deployments...')
-  const res = await client.get<DeploymentInfo[]>(`/apps/${encodeURIComponent(appName)}/deployments`)
+  const spin = spinner('Loading history...')
+  const [deploymentsRes, previewsRes] = await Promise.all([
+    client.get<DeploymentInfo[]>(`/apps/${encodeURIComponent(appName)}/deployments`),
+    client.get<PreviewSummary[]>(`/apps/${encodeURIComponent(appName)}/previews`)
+  ])
   spin.stop()
-  const data = unwrap(res, logError)
 
-  if (data.length === 0) {
+  const deployments = unwrap(deploymentsRes, logError)
+  const previews = unwrap(previewsRes, logError)
+
+  if (deployments.length === 0 && previews.length === 0) {
     logInfo('No deployments')
     return
   }
 
-  const rows = data.map((d) => ({
-    id: d.containerId.slice(0, 12),
-    image: d.image + (d.isCurrent ? green(' ← current') : ''),
-    deployed: dim(new Date(d.deployedAt).toLocaleString())
-  }))
+  const rows: Record<string, string>[] = []
 
-  printTable(
-    [
-      { header: 'ID', key: 'id', minWidth: 12 },
-      { header: 'IMAGE', key: 'image' },
-      { header: 'DEPLOYED', key: 'deployed' }
-    ],
-    rows
-  )
+  for (const d of deployments) {
+    rows.push({
+      type: d.isCurrent ? green('deploy') : dim('deploy'),
+      image: d.image + (d.isCurrent ? green(' ← current') : ''),
+      deployed: dim(timeAgo(d.deployedAt)),
+      expires: ''
+    })
+  }
+
+  for (const p of previews) {
+    rows.push({
+      type: cyan('preview'),
+      image: `${p.label} ${dim(`(${p.image ?? '—'})`)}`,
+      deployed: dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
+      expires: dim(p.expiresAt ? timeUntil(p.expiresAt) : '')
+    })
+  }
+
+  const hasExpires = rows.some((r) => r.expires !== '')
+  const columns = [
+    { header: 'TYPE', key: 'type' },
+    { header: 'IMAGE', key: 'image' },
+    { header: 'DEPLOYED', key: 'deployed' },
+    ...(hasExpires ? [{ header: 'EXPIRES', key: 'expires' }] : [])
+  ]
+
+  printTable(columns, rows)
 }

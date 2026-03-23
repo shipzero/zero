@@ -61,7 +61,7 @@ async function registryLogout(positionals: string[]): Promise<void> {
 
 async function registryList(): Promise<void> {
   const client = createClient()
-  const spin = spinner('loading registries...')
+  const spin = spinner('Loading registries...')
   const res = await client.get<string[]>('/registries')
   spin.stop()
   const servers = unwrap(res, logError)

@@ -84,10 +84,10 @@ interface ContainerDeployResult {
 async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerDeployResult> {
   const { appName, label } = opts
 
-  log(appName, `deploying ${opts.imageWithTag}`, label)
+  log(appName, `Deploying ${opts.imageWithTag}`, label)
 
   await pullImage(opts.imageWithTag, (line) => log(appName, line, label))
-  log(appName, 'pulling image done', label)
+  log(appName, 'Pulling image done', label)
 
   const inspection = await inspectImage(opts.imageWithTag)
 
@@ -95,10 +95,10 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
     const detected = inspection.exposedPorts[0]
     if (detected) {
       opts.internalPort = detected
-      log(appName, `detected port: ${detected}`, label)
+      log(appName, `Detected port: ${detected}`, label)
     } else {
       opts.internalPort = DEFAULT_PORT
-      log(appName, `using default port: ${DEFAULT_PORT}`, label)
+      log(appName, `Using default port: ${DEFAULT_PORT}`, label)
     }
     updateInternalPort(opts.appName, opts.internalPort)
   }
@@ -113,7 +113,7 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
     command: opts.command,
     volumes: opts.volumes
   })
-  log(appName, 'starting container done', label)
+  log(appName, 'Starting container done', label)
 
   try {
     await waitForHealthy(
@@ -122,14 +122,14 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
       opts.healthTimeout ? parseDuration(opts.healthTimeout) : undefined,
       containerId
     )
-    log(appName, 'health check passed', label)
+    log(appName, 'Health check passed', label)
   } catch {
     const healthPath = opts.healthPath ?? '/'
-    log(appName, `health check failed — container did not respond on port ${opts.internalPort}`, label)
-    log(appName, `make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`, label)
+    log(appName, `Health check failed — container did not respond on port ${opts.internalPort}`, label)
+    log(appName, `Make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`, label)
     try {
       await stopContainer(containerId)
-      log(appName, 'container logs:', label)
+      log(appName, 'Container logs:', label)
       const lines = await tailLogs(containerId)
       for (const line of lines) log(appName, `  ${line}`, label)
     } catch {
@@ -211,12 +211,12 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
 
   for (const oldContainerId of oldContainerIds) {
     removeContainer(oldContainerId).catch((err) =>
-      log(appName, `warning: cleanup ${oldContainerId.slice(0, 12)} failed: ${err}`)
+      log(appName, `Warning: cleanup ${oldContainerId.slice(0, 12)} failed: ${err}`)
     )
   }
 
   const url = buildAppUrl(app.domain, app.hostPort ?? port)
-  log(appName, `🚀 your app is live: ${url}`)
+  log(appName, `🚀 Your app is live: ${url}`)
   return { success: true, image: imageWithTag, port, containerId, url }
 }
 
@@ -242,7 +242,7 @@ interface ComposeDeployContext {
 async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: number; deployTag: string }> {
   const { app, projectName, appName, tag, label } = ctx
   const deployTag = resolveComposeTag(app, tag)
-  log(appName, `deploying compose${tag ? ` (tag: ${tag})` : ''}`, label)
+  log(appName, `Deploying compose${tag ? ` (tag: ${tag})` : ''}`, label)
 
   const composeContent = resolveComposeContent(app, deployTag)
 
@@ -261,14 +261,14 @@ async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: numb
   } catch (err) {
     throw new Error(`Pull failed: ${getErrorMessage(err)}`)
   }
-  log(appName, 'pulling images done', label)
+  log(appName, 'Pulling images done', label)
 
   try {
     await composeUp(projectDir, (line) => log(appName, line, label))
   } catch (err) {
     throw new Error(`Compose up failed: ${getErrorMessage(err)}`)
   }
-  log(appName, 'starting services done', label)
+  log(appName, 'Starting services done', label)
 
   try {
     await waitForHealthy(
@@ -276,13 +276,13 @@ async function runComposeDeploy(ctx: ComposeDeployContext): Promise<{ port: numb
       app.healthPath,
       app.healthTimeout ? parseDuration(app.healthTimeout) : undefined
     )
-    log(appName, 'health check passed', label)
+    log(appName, 'Health check passed', label)
   } catch {
     const healthPath = app.healthPath ?? '/'
-    log(appName, `health check failed — entry service did not respond on port ${app.internalPort}`, label)
+    log(appName, `Health check failed — entry service did not respond on port ${app.internalPort}`, label)
     log(
       appName,
-      `make sure service "${app.entryService}" listens on port ${app.internalPort} and responds to GET ${healthPath}`,
+      `Make sure service "${app.entryService}" listens on port ${app.internalPort} and responds to GET ${healthPath}`,
       label
     )
     try {
@@ -318,7 +318,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   addDeployment(appName, deployment)
 
   const url = buildAppUrl(app.domain, app.hostPort ?? port)
-  log(appName, `🚀 your app is live: ${url}`)
+  log(appName, `🚀 Your app is live: ${url}`)
   return { success: true, image: deployTag, port, containerId: 'compose', url }
 }
 
@@ -337,7 +337,7 @@ export async function deployPreview(
 
     const existing = getPreview(appName, label)
     if (existing) {
-      log(appName, `removing old container ${existing.containerId.slice(0, 12)}`, label)
+      log(appName, `Removing old container ${existing.containerId.slice(0, 12)}`, label)
       await removeContainer(existing.containerId)
     }
 
@@ -367,7 +367,7 @@ export async function deployPreview(
     }
     setPreview(appName, label, preview)
 
-    log(appName, `preview is live: ${buildDomainUrl(domain)}`, label)
+    log(appName, `Preview is live: ${buildDomainUrl(domain)}`, label)
     return preview
   })
 }
@@ -387,7 +387,7 @@ export async function deployComposePreview(
 
     const existing = getPreview(appName, label)
     if (existing) {
-      log(appName, 'removing old compose preview', label)
+      log(appName, 'Removing old compose preview', label)
       try {
         await composeDown(composeDir(previewProjectName))
       } catch {
@@ -418,7 +418,7 @@ export async function deployComposePreview(
     }
     setPreview(appName, label, preview)
 
-    log(appName, `preview is live: ${buildDomainUrl(domain)}`, label)
+    log(appName, `Preview is live: ${buildDomainUrl(domain)}`, label)
     return preview
   })
 }

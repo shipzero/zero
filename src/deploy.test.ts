@@ -248,8 +248,8 @@ describe('deploy', () => {
 
       const logs = getDeployLogs('web')
       expect(logs.length).toBeGreaterThan(0)
-      expect(logs.some((l) => l.includes('deploying'))).toBe(true)
-      expect(logs.some((l) => l.includes('your app is live'))).toBe(true)
+      expect(logs.some((l) => l.includes('Deploying'))).toBe(true)
+      expect(logs.some((l) => l.includes('Your app is live'))).toBe(true)
     })
 
     it('clears logs at the start of a new deploy', async () => {
@@ -278,7 +278,7 @@ describe('deploy', () => {
       await deploy('web', 'nginx:latest')
 
       expect(received.length).toBeGreaterThan(0)
-      expect(received.some((l) => l.includes('deploying'))).toBe(true)
+      expect(received.some((l) => l.includes('Deploying'))).toBe(true)
 
       deployEvents.removeAllListeners('log:web')
     })

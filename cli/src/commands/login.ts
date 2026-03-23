@@ -17,7 +17,7 @@ export async function login(positionals: string[], _flags: Record<string, string
 
   const server = ssh.split('@').pop()!
 
-  const spin = spinner(`connecting to ${ssh}...`)
+  const spin = spinner(`Connecting to ${ssh}...`)
   const jwt = await sshMintJwt(ssh)
   if (!jwt) {
     spin.stop()

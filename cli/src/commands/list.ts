@@ -17,7 +17,7 @@ function formatUrl(
 
 export async function list(): Promise<void> {
   const client = createClient()
-  const spin = spinner('loading apps...')
+  const spin = spinner('Loading apps...')
   const res = await client.get<AppSummary[]>('/apps')
   spin.stop()
   const data = unwrap(res, logError)
