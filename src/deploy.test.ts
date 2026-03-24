@@ -31,7 +31,12 @@ vi.mock('./compose.ts', () => ({
   writeComposeFiles: (...args: unknown[]) => mockWriteComposeFiles(...args),
   composePull: (...args: unknown[]) => mockComposePull(...args),
   composeUp: (...args: unknown[]) => mockComposeUp(...args),
-  substituteImageTags: (content: string, _repo: string, tag: string) => content.replace(/:[\w.-]+/g, `:${tag}`)
+  substituteImageTags: (content: string, _repo: string, tag: string) => content.replace(/:[\w.-]+/g, `:${tag}`),
+  extractImageTag: (content: string, prefix: string) => {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const match = content.match(new RegExp(`image:\\s*${escaped}/[^:]+:([^\\s]+)`))
+    return match?.[1] ?? null
+  }
 }))
 
 vi.mock('./proxy.ts', () => ({
@@ -194,13 +199,88 @@ describe('deploy', () => {
       const result = await deploy('stack')
 
       expect(result.success).toBe(true)
-      expect(result.image).toBe('compose')
+      expect(result.image).toBe('')
       expect(result.containerId).toBe('compose')
       expect(mockWriteComposeFiles).toHaveBeenCalled()
       expect(mockComposePull).toHaveBeenCalled()
       expect(mockComposeUp).toHaveBeenCalled()
       expect(mockWaitForHealthy).toHaveBeenCalledWith(4444, undefined, undefined)
       expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domains: ['stack.com'] }), 4444)
+    })
+
+    it('uses explicit tag when provided', async () => {
+      state.addApp({
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        domains: ['stack.com'],
+        env: {},
+        composeFile: 'version: "3"',
+        entryService: 'web'
+      })
+
+      const result = await deploy('stack', 'v2')
+
+      expect(result.success).toBe(true)
+      expect(result.image).toBe('v2')
+    })
+
+    it('uses trackTag and substitutes when no explicit tag', async () => {
+      state.addApp({
+        name: 'stack',
+        image: '',
+        trackTag: 'main',
+        internalPort: 80,
+        domains: ['stack.com'],
+        env: {},
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:old',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+
+      const result = await deploy('stack')
+
+      expect(result.success).toBe(true)
+      expect(result.image).toBe('main')
+      expect(mockWriteComposeFiles).toHaveBeenCalledWith('stack', expect.stringContaining(':main'), 'web', 4444, 80, {})
+    })
+
+    it('substitutes image tags when imagePrefix is set and tag is explicit', async () => {
+      state.addApp({
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        domains: ['stack.com'],
+        env: {},
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:old',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+
+      await deploy('stack', 'v3')
+
+      expect(mockWriteComposeFiles).toHaveBeenCalledWith('stack', expect.stringContaining(':v3'), 'web', 4444, 80, {})
+    })
+
+    it('extracts tag from compose file when no explicit tag and imagePrefix set', async () => {
+      state.addApp({
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        domains: ['stack.com'],
+        env: {},
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:test',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+
+      const result = await deploy('stack')
+
+      expect(result.image).toBe('test')
+      expect(mockWriteComposeFiles).toHaveBeenCalledWith('stack', expect.stringContaining(':test'), 'web', 4444, 80, {})
     })
 
     it('returns failure when compose pull fails', async () => {

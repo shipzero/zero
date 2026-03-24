@@ -66,7 +66,7 @@ That's it. zero figures out the port, assigns a domain, provisions a TLS certifi
 
 ## Features
 
-- **HTTPS by default** — certificates happen automatically
+- **HTTPS by default** — certificates are provisioned automatically
 - **Zero-downtime** — traffic switches only after the new version is healthy
 - **Preview deployments** — `zero deploy myapp --preview pr-21`
 - **One-command rollback** — `zero rollback myapp`
