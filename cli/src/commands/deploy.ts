@@ -220,7 +220,12 @@ export async function deploy(positionals: string[], flags: Record<string, string
     process.exit(0)
   })
 
-  const preview = flags['preview'] as string | undefined
+  const rawPreview = flags['preview']
+  if (rawPreview === true) {
+    logError('--preview requires a label (e.g. --preview pr-21)')
+    process.exit(1)
+  }
+  const preview = rawPreview as string | undefined
   const ttl = flags['ttl'] as string | undefined
 
   if (domain) body.domain = domain

@@ -123,6 +123,7 @@ route('GET', '/apps/:name/previews', async (_req, res, { name }) => {
         domain: preview.domain,
         status,
         image: preview.image,
+        digest: preview.digest,
         deployedAt: preview.deployedAt,
         expiresAt: preview.expiresAt
       }

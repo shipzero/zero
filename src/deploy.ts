@@ -344,7 +344,7 @@ export async function deployPreview(
       await removeContainer(existing.containerId)
     }
 
-    const { containerId, port } = await deployContainer({
+    const { containerId, port, digest } = await deployContainer({
       imageWithTag,
       containerName: `${appName}-preview-${label}`,
       internalPort: app.internalPort,
@@ -363,6 +363,7 @@ export async function deployPreview(
       label,
       domain,
       image: imageWithTag,
+      digest,
       containerId,
       port,
       deployedAt: new Date().toISOString(),

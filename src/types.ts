@@ -76,6 +76,7 @@ export interface PreviewSummary {
   domain: string
   status: 'running' | 'stopped' | 'no deployment'
   image?: string
+  digest?: string
   deployedAt?: string
   expiresAt?: string
 }

@@ -93,6 +93,7 @@ route('GET', '/apps', async (_req, res) => {
             domain: preview.domain,
             status: previewStatus,
             image: preview.image,
+            digest: preview.digest,
             deployedAt: preview.deployedAt,
             expiresAt: preview.expiresAt
           }
