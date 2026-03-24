@@ -34,6 +34,8 @@ The installer sets up Docker, prompts for your domain and email (for TLS), and s
 
 ### 2. Install the CLI
 
+On your local machine:
+
 ```bash
 curl -fsSL https://shipzero.sh/cli/install.sh | bash
 ```
@@ -66,7 +68,7 @@ That's it. zero figures out the port, assigns a domain, provisions a TLS certifi
 
 - **HTTPS by default** — certificates happen automatically
 - **Zero-downtime** — traffic switches only after the new version is healthy
-- **Preview deployments** — `zero deploy myapp --preview pr-42`
+- **Preview deployments** — `zero deploy myapp --preview pr-21`
 - **One-command rollback** — `zero rollback myapp`
 - **Webhooks** — push to your registry, zero deploys it
 - **No reverse proxy config** — routing is built in
