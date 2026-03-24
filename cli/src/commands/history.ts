@@ -47,8 +47,8 @@ export async function history(positionals: string[]): Promise<void> {
 
   for (const p of previews) {
     rows.push({
-      type: cyan('preview'),
-      image: `${p.label} ${dim(`(${p.image ?? '—'})`)}`,
+      type: cyan(`preview/${p.label}`),
+      image: p.image ?? '—',
       digest: formatDigest(p.digest),
       deployed: dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
       expires: dim(p.expiresAt ? timeUntil(p.expiresAt) : '')
