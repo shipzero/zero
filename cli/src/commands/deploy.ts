@@ -102,10 +102,7 @@ export function createDeployLogger(): { handleLog: (line: string) => void; stop:
       return
     }
 
-    if (stripped.startsWith('Make sure') || stripped.startsWith('Run ') || stripped.startsWith('  ')) {
-      console.log(`  ${dim(stripped)}`)
-      return
-    }
+    console.log(`  ${dim(stripped)}`)
   }
 
   return { handleLog, stop: () => stopSpinner() }
