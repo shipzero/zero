@@ -17,11 +17,12 @@ export async function webhook(subcommand: string | null, positionals: string[]):
 
 async function webhookUrl(positionals: string[]): Promise<void> {
   const appName = requireAppName(positionals, 'zero webhook url <app>')
+  const client = createClient()
+
+  unwrap(await client.get(`/apps/${encodeURIComponent(appName)}`), logError)
 
   const ok = await confirm(`Rotate webhook secret for ${bold(appName)}? The current secret will stop working.`)
   if (!ok) process.exit(0)
-
-  const client = createClient()
   const data = unwrap(await client.post<WebhookResponse>(`/apps/${encodeURIComponent(appName)}/webhook`), logError)
 
   logSuccess(`Webhook secret rotated for ${appName}`)
