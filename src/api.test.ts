@@ -16,8 +16,10 @@ process.env.EMAIL = ''
 
 // Mock docker module to avoid needing a real Docker socket
 import { vi } from 'vitest'
+const mockListContainers = vi.fn().mockResolvedValue([])
+
 vi.mock('./docker.ts', () => ({
-  docker: {},
+  docker: { listContainers: (...args: unknown[]) => mockListContainers(...args) },
   pullImage: vi.fn().mockResolvedValue(undefined),
   inspectImage: vi.fn().mockResolvedValue({ exposedPorts: [], digest: 'sha256:mock' }),
   runContainer: vi.fn().mockResolvedValue('mock-container-id'),
@@ -1124,6 +1126,31 @@ describe('API', () => {
       addTestApp({ name: 'noport', domain: 'noport.com' })
       const res = await request('DELETE', '/apps/noport/host-port')
       expect(res.status).toBe(400)
+    })
+  })
+
+  describe('compose container resolution', () => {
+    it('GET /apps list passes project filter for compose app status', async () => {
+      addTestApp({
+        name: 'complist',
+        domain: 'complist.com',
+        composeFile: 'version: "3"',
+        entryService: 'api'
+      })
+      state.addDeployment('complist', {
+        image: 'latest',
+        containerId: 'compose',
+        port: 5556,
+        deployedAt: new Date().toISOString()
+      })
+      mockListContainers.mockResolvedValueOnce([{ Id: 'prod-container' }])
+
+      await request('GET', '/apps')
+      expect(mockListContainers).toHaveBeenCalledWith({
+        filters: {
+          label: ['com.docker.compose.service=api', 'com.docker.compose.project=complist']
+        }
+      })
     })
   })
 })
