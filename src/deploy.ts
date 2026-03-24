@@ -141,9 +141,10 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
       containerId
     )
     log(appName, 'Health check passed', label)
-  } catch {
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'unknown error'
     const healthPath = opts.healthPath ?? '/'
-    log(appName, `Health check failed — container did not respond on port ${opts.internalPort}`, label)
+    log(appName, `Health check failed — ${reason}`, label)
     log(appName, `Make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`, label)
     log(appName, 'Run `zero logs --server` to see full server logs', label)
     await removeContainer(containerId)

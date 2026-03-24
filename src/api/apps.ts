@@ -7,6 +7,7 @@ import {
   updateEnv,
   removeEnv,
   removeApp,
+  saveState,
   clearHostPort,
   resetWebhookSecret,
   getCurrentDeployment,
@@ -176,6 +177,15 @@ route('POST', '/deploy', async (req, res) => {
         : {})
     })
     isNew = true
+  } else if (app.deployments.length === 0) {
+    if (body.port) app.internalPort = body.port
+    if (body.hostPort) app.hostPort = body.hostPort
+    if (body.command) app.command = body.command
+    if (body.volumes) app.volumes = body.volumes
+    if (body.healthPath) app.healthPath = body.healthPath
+    if (body.healthTimeout) app.healthTimeout = body.healthTimeout
+    if (body.env) updateEnv(appName, body.env)
+    saveState()
   } else if (body.env) {
     updateEnv(appName, body.env)
   }

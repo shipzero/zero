@@ -234,7 +234,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
   if (flags['volume']) body.volumes = (flags['volume'] as string).split(',')
   if (flags['health-path']) body.healthPath = flags['health-path']
   if (flags['health-timeout']) body.healthTimeout = flags['health-timeout']
-  if (flags['env']) body.env = parseEnvFlag(flags['env'] as string)
+  if (flags['env'] && typeof flags['env'] === 'string') body.env = parseEnvFlag(flags['env'])
 
   let result: DeployEvent | undefined
   const deployLogger = createDeployLogger()
