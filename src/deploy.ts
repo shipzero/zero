@@ -11,7 +11,15 @@ import {
   AppConfig
 } from './state.ts'
 import type { Preview } from './state.ts'
-import { pullImage, inspectImage, runContainer, removeContainer, waitForHealthy, getFreePort } from './docker.ts'
+import {
+  pullImage,
+  inspectImage,
+  runContainer,
+  removeContainer,
+  tailLogs,
+  waitForHealthy,
+  getFreePort
+} from './docker.ts'
 import {
   writeComposeFiles,
   composePull,
@@ -141,10 +149,20 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
       containerId
     )
     log(appName, 'Health check passed', label)
-  } catch {
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'unknown error'
     const healthPath = opts.healthPath ?? '/'
-    log(appName, `Health check failed — container did not respond on port ${opts.internalPort}`, label)
+    log(appName, `Health check failed — ${reason}`, label)
     log(appName, `Make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`, label)
+    try {
+      const lines = await tailLogs(containerId)
+      if (lines.length > 0) {
+        log(appName, 'Container logs:', label)
+        for (const line of lines) log(appName, `  ${line}`, label)
+      }
+    } catch {
+      /* container may already be gone */
+    }
     log(appName, 'Run `zero logs --server` to see full server logs', label)
     await removeContainer(containerId)
     throw new Error('Health check failed')
@@ -326,7 +344,7 @@ export async function deployPreview(
       await removeContainer(existing.containerId)
     }
 
-    const { containerId, port } = await deployContainer({
+    const { containerId, port, digest } = await deployContainer({
       imageWithTag,
       containerName: `${appName}-preview-${label}`,
       internalPort: app.internalPort,
@@ -345,6 +363,7 @@ export async function deployPreview(
       label,
       domain,
       image: imageWithTag,
+      digest,
       containerId,
       port,
       deployedAt: new Date().toISOString(),

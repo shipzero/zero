@@ -102,9 +102,8 @@ export function createDeployLogger(): { handleLog: (line: string) => void; stop:
       return
     }
 
-    if (stripped.startsWith('Make sure') || stripped.startsWith('Run ') || stripped.startsWith('  ')) {
+    if (!active) {
       console.log(`  ${dim(stripped)}`)
-      return
     }
   }
 
@@ -221,7 +220,12 @@ export async function deploy(positionals: string[], flags: Record<string, string
     process.exit(0)
   })
 
-  const preview = flags['preview'] as string | undefined
+  const rawPreview = flags['preview']
+  if (rawPreview === true) {
+    logError('--preview requires a label (e.g. --preview pr-21)')
+    process.exit(1)
+  }
+  const preview = rawPreview as string | undefined
   const ttl = flags['ttl'] as string | undefined
 
   if (domain) body.domain = domain
@@ -234,7 +238,7 @@ export async function deploy(positionals: string[], flags: Record<string, string
   if (flags['volume']) body.volumes = (flags['volume'] as string).split(',')
   if (flags['health-path']) body.healthPath = flags['health-path']
   if (flags['health-timeout']) body.healthTimeout = flags['health-timeout']
-  if (flags['env']) body.env = parseEnvFlag(flags['env'] as string)
+  if (flags['env'] && typeof flags['env'] === 'string') body.env = parseEnvFlag(flags['env'])
 
   let result: DeployEvent | undefined
   const deployLogger = createDeployLogger()

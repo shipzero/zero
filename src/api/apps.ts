@@ -93,6 +93,7 @@ route('GET', '/apps', async (_req, res) => {
             domain: preview.domain,
             status: previewStatus,
             image: preview.image,
+            digest: preview.digest,
             deployedAt: preview.deployedAt,
             expiresAt: preview.expiresAt
           }
@@ -264,6 +265,11 @@ route('POST', '/deploy', async (req, res) => {
     }
 
     const result = await deploy(appName, resolveImageWithTag(app, body.tag))
+
+    if (isNew && !result.success) {
+      removeApp(appName)
+    }
+
     sendSSE(res, JSON.stringify({ event: 'complete', ...result, appName, isNew }))
     res.end()
   } finally {

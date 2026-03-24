@@ -22,6 +22,7 @@ export interface Preview {
   label: string
   domain: string
   image: string
+  digest?: string
   containerId: string
   port: number
   deployedAt: string

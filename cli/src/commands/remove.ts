@@ -1,5 +1,5 @@
 import { createClient, unwrap } from '../client.ts'
-import type { AppDetail, MessageResponse } from '../../../src/types.ts'
+import type { AppDetail, PreviewSummary, MessageResponse } from '../../../src/types.ts'
 import { logSuccess, logError, confirm, bold, requireAppName, spinner } from '../ui.ts'
 
 export async function remove(positionals: string[], flags: Record<string, string | true>): Promise<void> {
@@ -8,6 +8,15 @@ export async function remove(positionals: string[], flags: Record<string, string
   const client = createClient()
 
   if (previewLabel) {
+    const previews = unwrap(
+      await client.get<PreviewSummary[]>(`/apps/${encodeURIComponent(appName)}/previews`),
+      logError
+    )
+    if (!previews.some((p) => p.label === previewLabel)) {
+      logError(`Preview "${previewLabel}" not found on app "${appName}"`)
+      process.exit(1)
+    }
+
     if (!flags['force']) {
       const ok = await confirm(`Remove preview ${bold(previewLabel)} for ${bold(appName)}?`)
       if (!ok) process.exit(0)

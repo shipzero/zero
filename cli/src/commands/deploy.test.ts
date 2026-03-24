@@ -170,7 +170,8 @@ describe('createDeployLogger', () => {
     expect(output).toHaveLength(0)
   })
 
-  it('does not output docker pull progress', () => {
+  it('does not output docker pull progress while spinner is active', () => {
+    logger.handleLog('Deploying nginx:latest')
     logger.handleLog('Pulling fs layer')
     expect(output).toHaveLength(0)
   })
@@ -318,6 +319,18 @@ describe('deploy command', () => {
 
     await expect(deploy([], { compose: 'docker-compose.yml', service: 'web' })).rejects.toThrow('process.exit')
     expect(mockExit).toHaveBeenCalledWith(1)
+
+    mockExit.mockRestore()
+  })
+
+  it('exits with error when --preview is used without a label', async () => {
+    const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit')
+    })
+
+    await expect(deploy(['myapp'], { preview: true as unknown as string })).rejects.toThrow('process.exit')
+    expect(mockExit).toHaveBeenCalledWith(1)
+    expect(mockClient.postSSE).not.toHaveBeenCalled()
 
     mockExit.mockRestore()
   })

@@ -1,6 +1,18 @@
 import { createClient, unwrap } from '../client.ts'
 import type { DeploymentInfo, PreviewSummary } from '../../../src/types.ts'
-import { dim, green, cyan, logInfo, logError, printTable, requireAppName, spinner, timeAgo, timeUntil } from '../ui.ts'
+import {
+  dim,
+  green,
+  cyan,
+  logInfo,
+  logError,
+  formatDigest,
+  printTable,
+  requireAppName,
+  spinner,
+  timeAgo,
+  timeUntil
+} from '../ui.ts'
 
 export async function history(positionals: string[]): Promise<void> {
   const appName = requireAppName(positionals, 'zero history <app>')
@@ -27,6 +39,7 @@ export async function history(positionals: string[]): Promise<void> {
     rows.push({
       type: d.isCurrent ? green('production') : dim('production'),
       image: d.image + (d.isCurrent ? green(' ← current') : ''),
+      digest: formatDigest(d.digest),
       deployed: dim(timeAgo(d.deployedAt)),
       expires: ''
     })
@@ -34,8 +47,9 @@ export async function history(positionals: string[]): Promise<void> {
 
   for (const p of previews) {
     rows.push({
-      type: cyan('preview'),
-      image: `${p.label} ${dim(`(${p.image ?? '—'})`)}`,
+      type: cyan(`preview/${p.label}`),
+      image: p.image ?? '—',
+      digest: formatDigest(p.digest),
       deployed: dim(p.deployedAt ? timeAgo(p.deployedAt) : '—'),
       expires: dim(p.expiresAt ? timeUntil(p.expiresAt) : '')
     })
@@ -45,6 +59,7 @@ export async function history(positionals: string[]): Promise<void> {
   const columns = [
     { header: 'TYPE', key: 'type' },
     { header: 'IMAGE', key: 'image' },
+    { header: 'DIGEST', key: 'digest' },
     { header: 'DEPLOYED', key: 'deployed' },
     ...(hasExpires ? [{ header: 'EXPIRES', key: 'expires' }] : [])
   ]

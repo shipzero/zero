@@ -216,6 +216,11 @@ export async function confirm(message: string): Promise<boolean> {
   })
 }
 
+export function formatDigest(digest: string | undefined): string {
+  if (!digest) return dim('—')
+  return dim(digest.replace('sha256:', '').slice(0, 12))
+}
+
 export function formatAppUrl(domain: string | undefined, hostPort: number | undefined, serverUrl: URL): string {
   if (domain) return `${serverUrl.protocol}//${domain}`
   if (hostPort) return `http://${serverUrl.hostname}:${hostPort}`
