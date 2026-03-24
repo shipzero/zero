@@ -76,7 +76,7 @@ route('GET', '/apps', async (_req, res) => {
       const deployment = getCurrentDeployment(app)
       let status: AppSummary['status'] = 'no deployment'
       if (deployment) {
-        status = await resolveContainerStatus(deployment.containerId, isComposeApp(app), app.entryService)
+        status = await resolveContainerStatus(deployment.containerId, isComposeApp(app), app.entryService, app.name)
       }
 
       const previews: PreviewSummary[] = await Promise.all(
@@ -450,7 +450,7 @@ route('GET', '/apps/:name/metrics', async (_req, res, { name }) => {
     return
   }
 
-  const containerId = isComposeApp(app) ? await findComposeContainer(app.entryService!) : deployment.containerId
+  const containerId = isComposeApp(app) ? await findComposeContainer(app.entryService!, name) : deployment.containerId
 
   if (!containerId) {
     json(res, 400, { error: 'Container not found' })
