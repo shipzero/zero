@@ -38,14 +38,23 @@ function parseServiceNames(composeContent: string): string[] {
 
 const VALID_TAG_PATTERN = /^[a-zA-Z0-9._-]+$/
 
+function imagePrefixPattern(imagePrefix: string): string {
+  const escaped = imagePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return `image:\\s*${escaped}/[^:]+`
+}
+
+/** Extracts the tag from the first image matching the prefix, or null if none found. */
+export function extractImageTag(composeContent: string, imagePrefix: string): string | null {
+  const match = composeContent.match(new RegExp(`${imagePrefixPattern(imagePrefix)}:([^\\s]+)`))
+  return match?.[1] ?? null
+}
+
 /** Replaces image tags for all images matching the image prefix. Throws on invalid tags. */
 export function substituteImageTags(composeContent: string, imagePrefix: string, tag: string): string {
   if (!VALID_TAG_PATTERN.test(tag)) {
     throw new Error(`Invalid image tag: "${tag}"`)
   }
-  const escaped = imagePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const pattern = new RegExp(`(image:\\s*${escaped}/[^:]+):[^\\s]+`, 'g')
-  return composeContent.replace(pattern, `$1:${tag}`)
+  return composeContent.replace(new RegExp(`(${imagePrefixPattern(imagePrefix)}):[^\\s]+`, 'g'), `$1:${tag}`)
 }
 
 /** Writes the compose file and an override that binds the entry service to a host port. */

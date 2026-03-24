@@ -27,7 +27,8 @@ import {
   composeDown,
   composeDir,
   removeComposeDir,
-  substituteImageTags
+  substituteImageTags,
+  extractImageTag
 } from './compose.ts'
 import { routeApp, updateProxyRoute } from './proxy.ts'
 import { buildDomainUrl, buildAppUrl } from './url.ts'
@@ -208,11 +209,16 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
 }
 
 function resolveComposeTag(app: AppConfig, tag?: string): string {
-  return tag ?? (app.trackTag || 'compose')
+  if (tag) return tag
+  if (app.trackTag) return app.trackTag
+  if (app.imagePrefix && app.composeFile) {
+    return extractImageTag(app.composeFile, app.imagePrefix) ?? ''
+  }
+  return ''
 }
 
 function resolveComposeContent(app: AppConfig, tag: string): string {
-  if (tag !== 'compose' && app.imagePrefix) {
+  if (tag && app.imagePrefix) {
     return substituteImageTags(app.composeFile!, app.imagePrefix, tag)
   }
   return app.composeFile!

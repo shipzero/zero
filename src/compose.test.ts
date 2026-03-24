@@ -12,7 +12,8 @@ vi.mock('./state.ts', () => ({
   getRegistryAuths: vi.fn().mockReturnValue({})
 }))
 
-const { composeDir, writeComposeFiles, removeComposeDir, substituteImageTags } = await import('./compose.ts')
+const { composeDir, writeComposeFiles, removeComposeDir, substituteImageTags, extractImageTag } =
+  await import('./compose.ts')
 
 describe('compose', () => {
   beforeEach(() => {
@@ -98,6 +99,29 @@ describe('compose', () => {
 
     it('does not throw when directory does not exist', () => {
       expect(() => removeComposeDir('nonexistent')).not.toThrow()
+    })
+  })
+
+  describe('extractImageTag', () => {
+    it('extracts tag from first matching image', () => {
+      const content = 'services:\n  web:\n    image: ghcr.io/org/app/web:test'
+      expect(extractImageTag(content, 'ghcr.io/org/app')).toBe('test')
+    })
+
+    it('returns null when no image matches prefix', () => {
+      const content = 'services:\n  db:\n    image: postgres:16-alpine'
+      expect(extractImageTag(content, 'ghcr.io/org/app')).toBeNull()
+    })
+
+    it('extracts from first match when multiple images match', () => {
+      const content = [
+        'services:',
+        '  backend:',
+        '    image: ghcr.io/org/app/backend:v2',
+        '  frontend:',
+        '    image: ghcr.io/org/app/frontend:v3'
+      ].join('\n')
+      expect(extractImageTag(content, 'ghcr.io/org/app')).toBe('v2')
     })
   })
 })
