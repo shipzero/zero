@@ -7,6 +7,10 @@
   One command. Automatic HTTPS. Zero config.
 </p>
 
+<p align="center">
+  <img src="zero.gif" alt="zero deploy demo" width="720" />
+</p>
+
 ```bash
 zero deploy ghcr.io/shipzero/demo:latest
 # 🚀 Your app is live: https://demo.example.com

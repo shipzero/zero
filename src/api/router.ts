@@ -264,14 +264,13 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   const isWebhook = url.startsWith('/webhooks/')
   const isAuthToken = url === '/auth/token' && method === 'POST'
 
-  if (!isWebhook && isRateLimited(clientIp)) {
-    res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '60' })
-    res.end(JSON.stringify({ error: 'Too many requests' }))
-    return
-  }
-
   const isAuthorized = isWebhook || (isAuthToken ? authenticateStaticToken(req) : authenticate(req))
   if (!isAuthorized) {
+    if (isRateLimited(clientIp)) {
+      res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '60' })
+      res.end(JSON.stringify({ error: 'Too many requests' }))
+      return
+    }
     recordAuthFailure(clientIp)
     console.warn(`[api] Auth failure from ${clientIp}: ${method} ${url}`)
     json(res, 401, { error: 'Unauthorized' })
