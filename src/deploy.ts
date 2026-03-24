@@ -11,7 +11,15 @@ import {
   AppConfig
 } from './state.ts'
 import type { Preview } from './state.ts'
-import { pullImage, inspectImage, runContainer, removeContainer, waitForHealthy, getFreePort } from './docker.ts'
+import {
+  pullImage,
+  inspectImage,
+  runContainer,
+  removeContainer,
+  tailLogs,
+  waitForHealthy,
+  getFreePort
+} from './docker.ts'
 import {
   writeComposeFiles,
   composePull,
@@ -146,6 +154,15 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
     const healthPath = opts.healthPath ?? '/'
     log(appName, `Health check failed — ${reason}`, label)
     log(appName, `Make sure your app listens on port ${opts.internalPort} and responds to GET ${healthPath}`, label)
+    try {
+      const lines = await tailLogs(containerId)
+      if (lines.length > 0) {
+        log(appName, 'Container logs:', label)
+        for (const line of lines) log(appName, `  ${line}`, label)
+      }
+    } catch {
+      /* container may already be gone */
+    }
     log(appName, 'Run `zero logs --server` to see full server logs', label)
     await removeContainer(containerId)
     throw new Error('Health check failed')
