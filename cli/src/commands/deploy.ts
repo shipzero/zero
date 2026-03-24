@@ -102,7 +102,9 @@ export function createDeployLogger(): { handleLog: (line: string) => void; stop:
       return
     }
 
-    console.log(`  ${dim(stripped)}`)
+    if (!active) {
+      console.log(`  ${dim(stripped)}`)
+    }
   }
 
   return { handleLog, stop: () => stopSpinner() }
