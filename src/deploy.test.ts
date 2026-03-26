@@ -98,13 +98,14 @@ describe('deploy', () => {
 
     it('auto-assigns hostPort when no domain and no hostPort', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      mockGetFreePort.mockResolvedValueOnce(4444).mockResolvedValueOnce(5555)
 
       await deploy('web', 'nginx:latest')
 
       const app = state.getApp('web')!
-      expect(app.hostPort).toBe(4444)
+      expect(app.hostPort).toBe(5555)
       expect(app.isAutoHostPort).toBe(true)
-      expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ hostPort: 4444 }), 4444)
+      expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ hostPort: 5555 }), 4444)
     })
 
     it('does not auto-assign hostPort when domain exists', async () => {
@@ -129,10 +130,11 @@ describe('deploy', () => {
 
     it('returns URL with auto-assigned hostPort', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      mockGetFreePort.mockResolvedValueOnce(4444).mockResolvedValueOnce(5555)
 
       const result = await deploy('web', 'nginx:latest')
 
-      expect(result.url).toContain(':4444')
+      expect(result.url).toContain(':5555')
     })
 
     it('returns failure when pull fails', async () => {
@@ -249,11 +251,12 @@ describe('deploy', () => {
         composeFile: 'version: "3"',
         entryService: 'web'
       })
+      mockGetFreePort.mockResolvedValueOnce(4444).mockResolvedValueOnce(5555)
 
       await deploy('stack')
 
       const app = state.getApp('stack')!
-      expect(app.hostPort).toBe(4444)
+      expect(app.hostPort).toBe(5555)
       expect(app.isAutoHostPort).toBe(true)
     })
 

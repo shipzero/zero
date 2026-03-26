@@ -189,8 +189,9 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
   })
 
   if (app.domains.length === 0 && !app.hostPort) {
-    updateHostPort(appName, port, true)
-    app.hostPort = port
+    const externalPort = await getFreePort()
+    updateHostPort(appName, externalPort, true)
+    app.hostPort = externalPort
   }
 
   routeApp(app, port)
@@ -300,8 +301,9 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   })
 
   if (app.domains.length === 0 && !app.hostPort) {
-    updateHostPort(appName, port, true)
-    app.hostPort = port
+    const externalPort = await getFreePort()
+    updateHostPort(appName, externalPort, true)
+    app.hostPort = externalPort
   }
 
   routeApp(app, port)
