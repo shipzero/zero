@@ -110,7 +110,7 @@ route('GET', '/apps', async (_req, res) => {
         port: deployment?.port,
         deployedAt: deployment?.deployedAt,
         status,
-        webhookUrl: buildWebhookUrl(app.webhookSecret),
+        webhookUrl: buildWebhookUrl(app.name),
         previews
       }
     })
@@ -188,7 +188,7 @@ route('POST', '/deploy', async (req, res) => {
       event: 'accepted',
       appName,
       isNew,
-      ...(isNew ? { webhookUrl: buildWebhookUrl(app.webhookSecret) } : {})
+      ...(isNew ? { webhookUrl: buildWebhookUrl(app.name), webhookSecret: app.webhookSecret } : {})
     })
   )
 
@@ -294,7 +294,8 @@ route('GET', '/apps/:name', async (_req, res, { name }) => {
     port: deployment?.port,
     deployedAt: deployment?.deployedAt,
     deployments: app.deployments.length,
-    webhookUrl: buildWebhookUrl(app.webhookSecret)
+    webhookUrl: buildWebhookUrl(app.name),
+    webhookSecret: app.webhookSecret
   })
 })
 
@@ -415,7 +416,7 @@ route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
 route('POST', '/apps/:name/webhook', async (_req, res, { name }) => {
   if (!requireApp(name, res)) return
   const secret = resetWebhookSecret(name)
-  json(res, 200, { webhookSecret: secret, webhookUrl: buildWebhookUrl(secret) })
+  json(res, 200, { webhookSecret: secret, webhookUrl: buildWebhookUrl(name) })
 })
 
 route('GET', '/apps/:name/logs', async (req, res, { name }) => {

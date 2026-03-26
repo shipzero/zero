@@ -562,7 +562,7 @@ describe('API', () => {
       const body = res.body as { webhookSecret: string; webhookUrl: string }
       expect(body.webhookSecret).toBeTruthy()
       expect(body.webhookSecret).not.toBe(oldSecret)
-      expect(body.webhookUrl).toContain(body.webhookSecret)
+      expect(body.webhookUrl).toContain('/webhooks/hookapp')
     })
 
     it('returns 404 for unknown app', async () => {
@@ -603,7 +603,7 @@ describe('API', () => {
 
     it('skips auth for webhook endpoints', async () => {
       const app = state.addApp({ name: 'hook', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.name}`, {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(202)
@@ -616,14 +616,14 @@ describe('API', () => {
 
     it('rejects webhook without signature', async () => {
       const app = state.addApp({ name: 'hook-nosig', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      const res = await request('POST', `/webhooks/${app.webhookSecret}`, { push_data: { tag: 'latest' } }, '')
+      const res = await request('POST', `/webhooks/${app.name}`, { push_data: { tag: 'latest' } }, '')
       expect(res.status).toBe(401)
       expect((res.body as { error: string }).error).toBe('Missing signature')
     })
 
     it('rejects webhook with invalid signature', async () => {
       const app = state.addApp({ name: 'hook-badsig', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest('wrong-secret', `/webhooks/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest('wrong-secret', `/webhooks/${app.name}`, {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(401)
@@ -632,7 +632,7 @@ describe('API', () => {
 
     it('ignores when tag does not match tracked tag and no domain', async () => {
       const app = state.addApp({ name: 'hook2', image: 'nginx', trackTag: 'stable', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.name}`, {
         push_data: { tag: 'latest' }
       })
       expect(res.status).toBe(200)
@@ -648,7 +648,7 @@ describe('API', () => {
         internalPort: 80,
         env: {}
       })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.name}`, {
         push_data: { tag: 'pr-21' }
       })
       expect(res.status).toBe(202)
@@ -667,7 +667,7 @@ describe('API', () => {
         entryService: 'web',
         imagePrefix: 'ghcr.io/org/app'
       })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.name}`, {
         push_data: { tag: 'pr-99' }
       })
       expect(res.status).toBe(202)
@@ -676,7 +676,7 @@ describe('API', () => {
 
     it('deploys when trackTag is "any"', async () => {
       const app = state.addApp({ name: 'hook3', image: 'nginx', trackTag: 'any', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.name}`, {
         push_data: { tag: 'v5' }
       })
       expect(res.status).toBe(202)
@@ -684,7 +684,7 @@ describe('API', () => {
 
     it('extracts tag from GHCR payload', async () => {
       const app = state.addApp({ name: 'ghcr', image: 'ghcr.io/user/app', trackTag: 'v3', internalPort: 80, env: {} })
-      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.webhookSecret}`, {
+      const res = await signedWebhookRequest(app.webhookSecret, `/webhooks/${app.name}`, {
         action: 'published',
         package: {
           package_version: {

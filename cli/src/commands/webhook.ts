@@ -26,6 +26,7 @@ async function webhookUrl(positionals: string[]): Promise<void> {
   const data = unwrap(await client.post<WebhookResponse>(`/apps/${encodeURIComponent(appName)}/webhook`), logError)
 
   logSuccess(`Webhook secret rotated for ${appName}`)
-  console.log(`  URL: ${data.webhookUrl}`)
-  logHint('Update the webhook URL in your registry')
+  console.log(`  URL:    ${data.webhookUrl}`)
+  console.log(`  Secret: ${data.webhookSecret}`)
+  logHint('Configure both the URL and secret in your registry')
 }

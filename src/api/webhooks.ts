@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { isComposeApp, buildPreviewDomain, findAppBySecret } from '../state.ts'
+import { getApp, isComposeApp, buildPreviewDomain } from '../state.ts'
 import { deploy, deployPreview, deployComposePreview } from '../deploy.ts'
 import { PREVIEW_TTL_MS } from '../env.ts'
 import { route, json, readBody, parseJSON, previewExpiresAt } from './router.ts'
@@ -17,10 +17,10 @@ function extractTag(payload: Record<string, unknown>): string | null {
   return null
 }
 
-route('POST', '/webhooks/:secret', async (req, res, { secret }) => {
-  const app = findAppBySecret(secret)
+route('POST', '/webhooks/:name', async (req, res, { name }) => {
+  const app = getApp(name)
   if (!app) {
-    json(res, 404, { error: 'Unknown webhook' })
+    json(res, 404, { error: 'Unknown app' })
     return
   }
 

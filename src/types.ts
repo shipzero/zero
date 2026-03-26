@@ -37,6 +37,7 @@ export interface AppDetail {
   deployedAt?: string
   deployments: number
   webhookUrl: string
+  webhookSecret: string
 }
 
 export interface RollbackResponse {

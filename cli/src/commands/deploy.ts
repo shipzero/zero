@@ -116,6 +116,7 @@ interface DeployEvent {
   appName?: string
   isNew?: boolean
   webhookUrl?: string
+  webhookSecret?: string
   success?: boolean
   url?: string
   port?: number
@@ -250,7 +251,9 @@ export async function deploy(positionals: string[], flags: Record<string, string
       const target = preview ? `preview ${preview} for ${event.appName ?? body.name}` : `${event.appName ?? body.name}`
       logInfo(`Deploying ${target}...`)
       if (event.isNew && event.webhookUrl) {
-        logInfo(`Webhook: ${event.webhookUrl}`)
+        logInfo(`Webhook URL:    ${event.webhookUrl}`)
+        if (event.webhookSecret) logInfo(`Webhook secret: ${event.webhookSecret}`)
+        logHint('Set up auto-deploy: https://shipzero.sh/docs#webhooks')
       }
       return
     }
