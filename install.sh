@@ -124,7 +124,7 @@ echo "┌──────────┐"
 echo "│   zero   │"
 echo "└──────────┘"
 echo ""
-log "Zero is running!"
+log "zero is running!"
 log "API:    ${API_URL}"
 log "CLI:    zero login $(whoami)@${DOMAIN}"
 if [ -n "$EMAIL" ] && [ "$IS_IP_ONLY" = false ]; then
