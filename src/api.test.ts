@@ -43,7 +43,12 @@ vi.mock('./compose.ts', () => ({
   composeStart: vi.fn().mockResolvedValue(undefined),
   composeLogs: vi.fn().mockReturnValue((async function* () {})()),
   removeComposeDir: vi.fn(),
-  substituteImageTags: vi.fn().mockImplementation((content: string) => content)
+  substituteImageTags: vi.fn().mockImplementation((content: string) => content),
+  extractImageTag: vi.fn().mockImplementation((content: string, prefix: string) => {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const match = content.match(new RegExp(`image:\\s*${escaped}/[^:]+:([^\\s]+)`))
+    return match?.[1] ?? null
+  })
 }))
 
 vi.mock('./proxy.ts', () => ({
@@ -982,6 +987,29 @@ describe('API', () => {
       await requestSSE('/deploy', { image: 'ghcr.io/org/notag', tag: 'pr-1' })
       const app = state.getApp('notag')!
       expect(app.trackTag).toBe('pr-1')
+    })
+
+    it('sets trackTag from compose file image tag when imagePrefix is set', async () => {
+      await requestSSE('/deploy', {
+        name: 'comptagtest',
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:latest',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+      const app = state.getApp('comptagtest')!
+      expect(app.trackTag).toBe('latest')
+    })
+
+    it('prefers explicit --tag over compose file tag', async () => {
+      await requestSSE('/deploy', {
+        name: 'comptagprio',
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:latest',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app',
+        tag: 'stable'
+      })
+      const app = state.getApp('comptagprio')!
+      expect(app.trackTag).toBe('stable')
     })
 
     it('returns 400 without image or name', async () => {

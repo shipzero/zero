@@ -17,7 +17,15 @@ import {
 } from '../state.ts'
 import { deploy, deployPreview, deployComposePreview, rollback, deployEvents } from '../deploy.ts'
 import { streamLogs, streamStats, stopContainer, startContainer, waitForHealthy, removeContainer } from '../docker.ts'
-import { composeDir, composeDown, composeStop, composeStart, composeLogs, removeComposeDir } from '../compose.ts'
+import {
+  composeDir,
+  composeDown,
+  composeStop,
+  composeStart,
+  composeLogs,
+  removeComposeDir,
+  extractImageTag
+} from '../compose.ts'
 import { routeApp, unrouteApp, removePortRoute } from '../proxy.ts'
 import { destroyPreview } from '../preview.ts'
 import { buildDomainUrl, buildWebhookUrl, hasDomain } from '../url.ts'
@@ -155,7 +163,9 @@ route('POST', '/deploy', async (req, res) => {
       return
     }
 
-    const { image, tag } = isCompose ? { image: '', tag: '' } : parseImageRef(body.image!)
+    const { image, tag } = isCompose
+      ? { image: '', tag: body.imagePrefix ? (extractImageTag(body.composeFile!, body.imagePrefix) ?? '') : '' }
+      : parseImageRef(body.image!)
 
     const domain = body.domain ?? (!body.hostPort && hasDomain() ? `${appName}.${DOMAIN}` : undefined)
     const domains = domain ? [domain] : []
