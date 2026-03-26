@@ -96,12 +96,45 @@ describe('deploy', () => {
       expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ hostPort: 7777 }), 4444)
     })
 
-    it('calls routeApp even without domain and hostPort', async () => {
+    it('auto-assigns hostPort when no domain and no hostPort', async () => {
       state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      mockGetFreePort.mockResolvedValueOnce(4444).mockResolvedValueOnce(5555)
 
       await deploy('web', 'nginx:latest')
 
-      expect(mockRouteApp).toHaveBeenCalled()
+      const app = state.getApp('web')!
+      expect(app.hostPort).toBe(5555)
+      expect(app.isAutoHostPort).toBe(true)
+      expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ hostPort: 5555 }), 4444)
+    })
+
+    it('does not auto-assign hostPort when domain exists', async () => {
+      state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, domains: ['web.com'], env: {} })
+
+      await deploy('web', 'nginx:latest')
+
+      const app = state.getApp('web')!
+      expect(app.hostPort).toBeUndefined()
+      expect(app.isAutoHostPort).toBeUndefined()
+    })
+
+    it('does not auto-assign hostPort when explicit hostPort is set', async () => {
+      state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, hostPort: 7777, env: {} })
+
+      await deploy('web', 'nginx:latest')
+
+      const app = state.getApp('web')!
+      expect(app.hostPort).toBe(7777)
+      expect(app.isAutoHostPort).toBeUndefined()
+    })
+
+    it('returns URL with auto-assigned hostPort', async () => {
+      state.addApp({ name: 'web', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+      mockGetFreePort.mockResolvedValueOnce(4444).mockResolvedValueOnce(5555)
+
+      const result = await deploy('web', 'nginx:latest')
+
+      expect(result.url).toContain(':5555')
     })
 
     it('returns failure when pull fails', async () => {
@@ -206,6 +239,25 @@ describe('deploy', () => {
       expect(mockComposeUp).toHaveBeenCalled()
       expect(mockWaitForHealthy).toHaveBeenCalledWith(4444, undefined, undefined)
       expect(mockRouteApp).toHaveBeenCalledWith(expect.objectContaining({ domains: ['stack.com'] }), 4444)
+    })
+
+    it('auto-assigns hostPort for compose without domain', async () => {
+      state.addApp({
+        name: 'stack',
+        image: '',
+        trackTag: '',
+        internalPort: 80,
+        env: {},
+        composeFile: 'version: "3"',
+        entryService: 'web'
+      })
+      mockGetFreePort.mockResolvedValueOnce(4444).mockResolvedValueOnce(5555)
+
+      await deploy('stack')
+
+      const app = state.getApp('stack')!
+      expect(app.hostPort).toBe(5555)
+      expect(app.isAutoHostPort).toBe(true)
     })
 
     it('uses explicit tag when provided', async () => {
