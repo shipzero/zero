@@ -966,6 +966,24 @@ describe('API', () => {
       expect(accepted?.appName).toBe('web')
     })
 
+    it('sets trackTag from image tag', async () => {
+      await requestSSE('/deploy', { image: 'ghcr.io/org/tagtest:v2' })
+      const app = state.getApp('tagtest')!
+      expect(app.trackTag).toBe('v2')
+    })
+
+    it('sets trackTag from explicit --tag over image tag', async () => {
+      await requestSSE('/deploy', { image: 'ghcr.io/org/tagprio:latest', tag: 'stable' })
+      const app = state.getApp('tagprio')!
+      expect(app.trackTag).toBe('stable')
+    })
+
+    it('sets trackTag from explicit --tag when image has no tag', async () => {
+      await requestSSE('/deploy', { image: 'ghcr.io/org/notag', tag: 'pr-1' })
+      const app = state.getApp('notag')!
+      expect(app.trackTag).toBe('pr-1')
+    })
+
     it('returns 400 without image or name', async () => {
       const res = await request('POST', '/deploy', {})
       expect(res.status).toBe(400)

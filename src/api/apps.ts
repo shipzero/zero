@@ -170,7 +170,7 @@ route('POST', '/deploy', async (req, res) => {
       volumes: body.volumes,
       healthPath: body.healthPath,
       healthTimeout: body.healthTimeout,
-      trackTag: tag,
+      trackTag: body.tag ?? tag,
       env: body.env ?? {},
       ...(isCompose
         ? { composeFile: body.composeFile, entryService: body.entryService, imagePrefix: body.imagePrefix }

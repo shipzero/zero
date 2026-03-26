@@ -216,7 +216,13 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
   return logLiveUrlAndReturn(appName, app, imageWithTag, port, containerId)
 }
 
-function logLiveUrlAndReturn(appName: string, app: AppConfig, image: string, port: number, containerId: string): DeployResult {
+function logLiveUrlAndReturn(
+  appName: string,
+  app: AppConfig,
+  image: string,
+  port: number,
+  containerId: string
+): DeployResult {
   const url = buildAppUrl(app.domains[0], app.hostPort)
   if (url) log(appName, `🚀 Your app is live: ${url}`)
   return { success: true, image, port, containerId, url }
