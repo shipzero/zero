@@ -8,6 +8,7 @@ import {
   getPreview,
   setPreview,
   updateInternalPort,
+  updateHostPort,
   AppConfig
 } from './state.ts'
 import type { Preview } from './state.ts'
@@ -187,6 +188,11 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
     appName
   })
 
+  if (app.domains.length === 0 && !app.hostPort) {
+    updateHostPort(appName, port, true)
+    app.hostPort = port
+  }
+
   routeApp(app, port)
 
   const deployment = { image: imageWithTag, digest, containerId, port, deployedAt: new Date().toISOString() }
@@ -292,6 +298,11 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
     appName,
     tag
   })
+
+  if (app.domains.length === 0 && !app.hostPort) {
+    updateHostPort(appName, port, true)
+    app.hostPort = port
+  }
 
   routeApp(app, port)
 

@@ -24,6 +24,8 @@ zero closes that gap. You point it at a Docker image, and it handles everything 
 
 ### 1. Set up the server
 
+> On your VPS
+
 Any Linux VPS with root access:
 
 ```bash
@@ -34,13 +36,15 @@ The installer sets up Docker, prompts for your domain and email (for TLS), and s
 
 ### 2. Install the CLI
 
-On your local machine:
+> On your machine
 
 ```bash
 curl -fsSL https://shipzero.sh/cli/install.sh | bash
 ```
 
 ### 3. Connect
+
+> On your machine
 
 ```bash
 zero login root@example.com
@@ -49,6 +53,8 @@ zero login root@example.com
 Authentication uses SSH — if you can SSH into the server, you can use zero.
 
 ### 4. Deploy
+
+> On your machine
 
 ```bash
 zero deploy ghcr.io/shipzero/demo:latest
