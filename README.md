@@ -266,13 +266,15 @@ zero remove myapp --preview pr-21
 
 ## Webhooks
 
-Every app gets a unique webhook URL. Push an image to your registry, zero deploys it automatically.
+Every app gets a webhook URL and a secret. Push an image to your registry, zero deploys it automatically.
 
 ```bash
 zero webhook url myapp
+# URL:    https://example.com/webhooks/myapp
+# Secret: a1b2c3d4e5f6...
 ```
 
-Add the URL as a webhook in GitHub Container Registry or Docker Hub. Payloads are verified with HMAC-SHA256.
+Configure both the URL and secret in GitHub Container Registry or Docker Hub. Payloads are verified with HMAC-SHA256.
 
 Non-matching tags automatically create preview deployments when the app has a domain.
 

@@ -25,9 +25,9 @@ export function buildAppUrl(domain: string | undefined, hostPort: number | undef
   return `http://${host}:${hostPort}`
 }
 
-/** Builds a webhook URL with the correct host and port. */
-export function buildWebhookUrl(secret: string): string {
+/** Builds a webhook URL for an app. */
+export function buildWebhookUrl(appName: string): string {
   const base = buildDomainUrl(DOMAIN || 'localhost')
   const needsPort = !isDomain(DOMAIN)
-  return `${base}${needsPort ? `:${API_PORT}` : ''}/webhooks/${secret}`
+  return `${base}${needsPort ? `:${API_PORT}` : ''}/webhooks/${appName}`
 }

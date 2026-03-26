@@ -209,17 +209,6 @@ describe('state', () => {
     })
   })
 
-  describe('findAppBySecret', () => {
-    it('finds app by webhook secret', () => {
-      const app = state.addApp({ name: 'app', image: 'img', trackTag: 'latest', internalPort: 80, env: {} })
-      expect(state.findAppBySecret(app.webhookSecret)!.name).toBe('app')
-    })
-
-    it('returns undefined for unknown secret', () => {
-      expect(state.findAppBySecret('unknown')).toBeUndefined()
-    })
-  })
-
   describe('isComposeApp', () => {
     it('returns true when composeFile is set', () => {
       const app = state.addApp({

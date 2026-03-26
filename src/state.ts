@@ -89,10 +89,6 @@ export function getApps(): AppConfig[] {
   return Object.values(_state.apps)
 }
 
-export function findAppBySecret(secret: string): AppConfig | undefined {
-  return getApps().find((app) => app.webhookSecret === secret)
-}
-
 export function addApp(
   config: Omit<AppConfig, 'webhookSecret' | 'deployments' | 'previews' | 'domains'> & { domains?: string[] }
 ): AppConfig {
