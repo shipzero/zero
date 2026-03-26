@@ -173,6 +173,14 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
   return { containerId, port, digest: inspection.digest }
 }
 
+async function assignAutoHostPortIfNeeded(appName: string, app: AppConfig): Promise<void> {
+  if (app.domains.length === 0 && !app.hostPort) {
+    const externalPort = await getFreePort()
+    updateHostPort(appName, externalPort, true)
+    app.hostPort = externalPort
+  }
+}
+
 async function deploySingleContainer(appName: string, imageWithTag: string): Promise<DeployResult> {
   const app = getApp(appName)!
 
@@ -188,12 +196,7 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
     appName
   })
 
-  if (app.domains.length === 0 && !app.hostPort) {
-    const externalPort = await getFreePort()
-    updateHostPort(appName, externalPort, true)
-    app.hostPort = externalPort
-  }
-
+  await assignAutoHostPortIfNeeded(appName, app)
   routeApp(app, port)
 
   const deployment = { image: imageWithTag, digest, containerId, port, deployedAt: new Date().toISOString() }
@@ -210,9 +213,13 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
     )
   }
 
+  return logLiveUrlAndReturn(appName, app, imageWithTag, port, containerId)
+}
+
+function logLiveUrlAndReturn(appName: string, app: AppConfig, image: string, port: number, containerId: string): DeployResult {
   const url = buildAppUrl(app.domains[0], app.hostPort)
   if (url) log(appName, `🚀 Your app is live: ${url}`)
-  return { success: true, image: imageWithTag, port, containerId, url }
+  return { success: true, image, port, containerId, url }
 }
 
 function resolveComposeTag(app: AppConfig, tag?: string): string {
@@ -300,12 +307,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
     tag
   })
 
-  if (app.domains.length === 0 && !app.hostPort) {
-    const externalPort = await getFreePort()
-    updateHostPort(appName, externalPort, true)
-    app.hostPort = externalPort
-  }
-
+  await assignAutoHostPortIfNeeded(appName, app)
   routeApp(app, port)
 
   const deployment = {
@@ -316,9 +318,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   }
   addDeployment(appName, deployment)
 
-  const url = buildAppUrl(app.domains[0], app.hostPort)
-  if (url) log(appName, `🚀 Your app is live: ${url}`)
-  return { success: true, image: deployTag, port, containerId: 'compose', url }
+  return logLiveUrlAndReturn(appName, app, deployTag, port, 'compose')
 }
 
 export async function deploy(appName: string, imageWithTag?: string): Promise<DeployResult> {
