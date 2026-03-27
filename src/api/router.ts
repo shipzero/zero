@@ -4,12 +4,11 @@ import type { AppConfig, Preview } from '../state.ts'
 import { getApp, getPreview, isComposeApp } from '../state.ts'
 import { getErrorMessage } from '../errors.ts'
 import { docker, getContainerState } from '../docker.ts'
-import { TOKEN, JWT_SECRET, API_PORT } from '../env.ts'
+import { TOKEN, JWT_SECRET, API_PORT, MAX_BODY_BYTES } from '../env.ts'
 import { verifyJwt } from '../jwt.ts'
 import { isTLSEnabled } from '../url.ts'
 
 const BEARER_PREFIX = 'Bearer '
-const MAX_BODY_SIZE = 1024 * 1024
 const AUTH_WINDOW_MS = 60_000
 const MAX_AUTH_FAILURES = 10
 const DEFAULT_TAIL = 100
@@ -94,7 +93,7 @@ export function readBody(req: http.IncomingMessage): Promise<Buffer> {
     let size = 0
     req.on('data', (chunk: Buffer) => {
       size += chunk.length
-      if (size > MAX_BODY_SIZE) {
+      if (size > MAX_BODY_BYTES) {
         req.destroy()
         reject(new Error('Request body too large'))
         return
@@ -141,22 +140,6 @@ export function maskValues(env: Record<string, string>): Record<string, string> 
   return masked
 }
 
-export function inferNameFromImage(imageRef: string): string {
-  const colonIdx = imageRef.lastIndexOf(':')
-  const hasTag = colonIdx > 0 && !imageRef.substring(colonIdx).includes('/')
-  const withoutTag = hasTag ? imageRef.substring(0, colonIdx) : imageRef
-  const segments = withoutTag.split('/')
-  return segments[segments.length - 1]
-}
-
-export function parseImageRef(ref: string): { image: string; tag: string } {
-  const colonIdx = ref.lastIndexOf(':')
-  const hasTag = colonIdx > 0 && !ref.substring(colonIdx).includes('/')
-  return {
-    image: hasTag ? ref.substring(0, colonIdx) : ref,
-    tag: hasTag ? ref.substring(colonIdx + 1) : 'latest'
-  }
-}
 
 export function parseTail(url?: string): number {
   const raw = new URLSearchParams(url?.split('?')[1] ?? '').get('tail')

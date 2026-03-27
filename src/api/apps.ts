@@ -31,6 +31,7 @@ import { destroyPreview } from '../preview.ts'
 import { buildDomainUrl, buildWebhookUrl, hasDomain } from '../url.ts'
 import { DOMAIN, PREVIEW_TTL_MS } from '../env.ts'
 import type { MessageResponse, AppSummary, AppDetail, StopResponse, StartResponse, PreviewSummary } from '../types.ts'
+import { inferNameFromImage, parseImageRef } from '../../shared/image.ts'
 import {
   route,
   json,
@@ -41,8 +42,6 @@ import {
   parseJSON,
   requireApp,
   maskValues,
-  inferNameFromImage,
-  parseImageRef,
   previewExpiresAt,
   resolveContainerStatus,
   resolveImageWithTag,

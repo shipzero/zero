@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { parseEnvPair } from '../../../shared/env.ts'
 import { createClient } from '../client.ts'
 import {
   logInfo,
@@ -18,17 +19,7 @@ function isLocalDomain(domain: string): boolean {
   return domain === 'localhost' || domain.endsWith('.localhost') || /^\d+\.\d+\.\d+\.\d+/.test(domain)
 }
 
-export function isImageReference(arg: string): boolean {
-  return arg.includes('/') || arg.includes(':')
-}
-
-export function inferNameFromImage(imageRef: string): string {
-  const colonIdx = imageRef.lastIndexOf(':')
-  const hasTag = colonIdx > 0 && !imageRef.substring(colonIdx).includes('/')
-  const withoutTag = hasTag ? imageRef.substring(0, colonIdx) : imageRef
-  const segments = withoutTag.split('/')
-  return segments[segments.length - 1]
-}
+import { isImageReference, inferNameFromImage } from '../../../shared/image.ts'
 
 const STEP_DONE: Record<string, string> = {
   'Pulling image done': 'Pulling image',
@@ -126,12 +117,12 @@ interface DeployEvent {
 export function parseEnvFlag(value: string): Record<string, string> {
   const env: Record<string, string> = {}
   for (const pair of value.split(',')) {
-    const equalsIndex = pair.indexOf('=')
-    if (equalsIndex === -1) {
+    const parsed = parseEnvPair(pair)
+    if (!parsed) {
       logError(`Invalid env format: "${pair}" — expected KEY=val`)
       process.exit(1)
     }
-    env[pair.slice(0, equalsIndex)] = pair.slice(equalsIndex + 1)
+    env[parsed[0]] = parsed[1]
   }
   return env
 }

@@ -55,8 +55,8 @@ const mockClient = {
   streamSSE: vi.fn().mockResolvedValue(undefined)
 }
 
-const { createDeployLogger, stripTimestamp, parseEnvFlag, isImageReference, inferNameFromImage, deploy } =
-  await import('./deploy.ts')
+const { inferNameFromImage, isImageReference } = await import('../../../shared/image.ts')
+const { createDeployLogger, stripTimestamp, parseEnvFlag, deploy } = await import('./deploy.ts')
 
 describe('isImageReference', () => {
   it('detects image with registry path', () => {
