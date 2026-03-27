@@ -1,3 +1,4 @@
+import { parseEnvPair } from '../../../shared/env.ts'
 import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
 import {
@@ -44,12 +45,12 @@ async function envSet(positionals: string[]): Promise<void> {
 
   const envObj: Record<string, string> = {}
   for (const pair of pairs) {
-    const equalsIndex = pair.indexOf('=')
-    if (equalsIndex === -1) {
+    const parsed = parseEnvPair(pair)
+    if (!parsed) {
       logError(`Invalid format: "${pair}" — expected KEY=val`)
       process.exit(1)
     }
-    envObj[pair.slice(0, equalsIndex)] = pair.slice(equalsIndex + 1)
+    envObj[parsed[0]] = parsed[1]
   }
 
   const client = createClient()
