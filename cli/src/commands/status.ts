@@ -1,5 +1,5 @@
 import { createClient } from '../client.ts'
-import { logInfo, logError, spinner } from '../ui.ts'
+import { logError, logInfo, spinner } from '../ui.ts'
 
 export async function status(): Promise<void> {
   const client = createClient()

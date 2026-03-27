@@ -1,6 +1,6 @@
-import { createClient } from '../client.ts'
-import { bold, dim, cyan, yellow, green, red, buildStreamPath } from '../ui.ts'
 import type { ContainerStats } from '../../../src/types.ts'
+import { createClient } from '../client.ts'
+import { bold, buildStreamPath, cyan, dim, green, red, yellow } from '../ui.ts'
 
 const BAR_WIDTH = 20
 

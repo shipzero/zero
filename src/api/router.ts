@@ -1,11 +1,11 @@
-import http from 'node:http'
 import crypto from 'node:crypto'
+import http from 'node:http'
+import { docker, getContainerState } from '../docker.ts'
+import { API_PORT, JWT_SECRET, MAX_BODY_BYTES, TOKEN } from '../env.ts'
+import { getErrorMessage } from '../errors.ts'
+import { verifyJwt } from '../jwt.ts'
 import type { AppConfig, Preview } from '../state.ts'
 import { getApp, getPreview, isComposeApp } from '../state.ts'
-import { getErrorMessage } from '../errors.ts'
-import { docker, getContainerState } from '../docker.ts'
-import { TOKEN, JWT_SECRET, API_PORT, MAX_BODY_BYTES } from '../env.ts'
-import { verifyJwt } from '../jwt.ts'
 import { isTLSEnabled } from '../url.ts'
 
 const BEARER_PREFIX = 'Bearer '
@@ -139,7 +139,6 @@ export function maskValues(env: Record<string, string>): Record<string, string> 
   }
   return masked
 }
-
 
 export function parseTail(url?: string): number {
   const raw = new URLSearchParams(url?.split('?')[1] ?? '').get('tail')

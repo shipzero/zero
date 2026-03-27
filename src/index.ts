@@ -1,18 +1,18 @@
-import { loadState, getApps } from './state.ts'
-import {
-  startTLSProxy,
-  startHTTPProxy,
-  startDevProxy,
-  restoreRoutes,
-  updateProxyRoute,
-  closeAllPortListeners
-} from './proxy.ts'
 import { startApi } from './api.ts'
 import { renewExpiringCerts } from './certs.ts'
+import { API_PORT, CERT_RENEW_INTERVAL_MS, DOMAIN, IS_DEV, JWT_SECRET, TOKEN } from './env.ts'
+import { cleanupExpiredPreviews, startPreviewCleanupInterval } from './preview.ts'
+import {
+  closeAllPortListeners,
+  restoreRoutes,
+  startDevProxy,
+  startHTTPProxy,
+  startTLSProxy,
+  updateProxyRoute
+} from './proxy.ts'
+import { getApps, loadState } from './state.ts'
 import { isTLSEnabled } from './url.ts'
-import { IS_DEV, DOMAIN, TOKEN, JWT_SECRET, API_PORT, CERT_RENEW_INTERVAL_MS } from './env.ts'
 import { VERSION } from './version.ts'
-import { startPreviewCleanupInterval, cleanupExpiredPreviews } from './preview.ts'
 
 if (!TOKEN) {
   if (IS_DEV) {

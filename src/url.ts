@@ -1,4 +1,4 @@
-import { IS_DEV, EMAIL, DOMAIN, API_PORT } from './env.ts'
+import { API_PORT, DOMAIN, EMAIL, IS_DEV } from './env.ts'
 
 export function isDomain(value: string): boolean {
   return value !== '' && !/^\d+\.\d+\.\d+\.\d+$/.test(value)

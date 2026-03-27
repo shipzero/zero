@@ -1,8 +1,8 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import tls from 'node:tls'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const tmpDir = path.join(os.tmpdir(), `zero-test-certs-${process.pid}`)
 process.env.NODE_ENV = 'production'

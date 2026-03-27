@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { getRegistryAuths } from './state.ts'
 import { COMPOSE_BASE_DIR } from './env.ts'
 import { ensureDir } from './fs.ts'
+import { getRegistryAuths } from './state.ts'
 
 export function composeDir(appName: string): string {
   return path.join(COMPOSE_BASE_DIR, appName)

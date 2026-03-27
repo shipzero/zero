@@ -1,39 +1,39 @@
 import { EventEmitter } from 'node:events'
-import { parseDuration } from './duration.ts'
 import {
-  getApp,
-  addDeployment,
-  findRollbackTarget,
-  isComposeApp,
-  getPreview,
-  setPreview,
-  updateInternalPort,
-  updateHostPort,
-  AppConfig
-} from './state.ts'
-import type { Preview } from './state.ts'
-import {
-  pullImage,
-  inspectImage,
-  runContainer,
-  removeContainer,
-  tailLogs,
-  waitForHealthy,
-  getFreePort
-} from './docker.ts'
-import {
-  writeComposeFiles,
+  composeDir,
+  composeDown,
   composePull,
   composeUp,
-  composeDown,
-  composeDir,
+  extractImageTag,
   removeComposeDir,
   substituteImageTags,
-  extractImageTag
+  writeComposeFiles
 } from './compose.ts'
-import { routeApp, updateProxyRoute } from './proxy.ts'
-import { buildDomainUrl, buildAppUrl } from './url.ts'
+import {
+  getFreePort,
+  inspectImage,
+  pullImage,
+  removeContainer,
+  runContainer,
+  tailLogs,
+  waitForHealthy
+} from './docker.ts'
+import { parseDuration } from './duration.ts'
 import { getErrorMessage } from './errors.ts'
+import { routeApp, updateProxyRoute } from './proxy.ts'
+import type { Preview } from './state.ts'
+import {
+  AppConfig,
+  addDeployment,
+  findRollbackTarget,
+  getApp,
+  getPreview,
+  isComposeApp,
+  setPreview,
+  updateHostPort,
+  updateInternalPort
+} from './state.ts'
+import { buildAppUrl, buildDomainUrl } from './url.ts'
 
 const DEFAULT_PORT = 3000
 const MAX_LOG_LINES = 500

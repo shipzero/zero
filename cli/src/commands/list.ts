@@ -1,7 +1,7 @@
-import { createClient, unwrap } from '../client.ts'
 import type { AppSummary } from '../../../src/types.ts'
-import { dim, logInfo, logError, timeAgo, timeUntil, formatStatus, formatAppUrl, printTable, spinner } from '../ui.ts'
+import { createClient, unwrap } from '../client.ts'
 import type { Column } from '../ui.ts'
+import { dim, formatAppUrl, formatStatus, logError, logInfo, printTable, spinner, timeAgo, timeUntil } from '../ui.ts'
 
 export async function list(): Promise<void> {
   const client = createClient()

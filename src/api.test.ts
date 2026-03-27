@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import http from 'node:http'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import path from 'node:path'
+import http from 'node:http'
 import os from 'node:os'
+import path from 'node:path'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 // Set up isolated environment before imports
 const tmpDir = path.join(os.tmpdir(), `zero-test-api-${process.pid}`)
@@ -16,6 +16,7 @@ process.env.EMAIL = ''
 
 // Mock docker module to avoid needing a real Docker socket
 import { vi } from 'vitest'
+
 const mockListContainers = vi.fn().mockResolvedValue([])
 
 vi.mock('./docker.ts', () => ({

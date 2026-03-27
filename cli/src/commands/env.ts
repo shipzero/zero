@@ -1,16 +1,16 @@
 import { parseEnvPair } from '../../../shared/env.ts'
-import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, MessageResponse } from '../../../src/types.ts'
+import { createClient, unwrap } from '../client.ts'
 import {
-  logSuccess,
-  logInfo,
-  logWarn,
+  bold,
   logError,
   logHint,
-  bold,
+  logInfo,
+  logSuccess,
+  logWarn,
+  printCommandHelp,
   requireAppName,
-  spinner,
-  printCommandHelp
+  spinner
 } from '../ui.ts'
 
 export async function env(

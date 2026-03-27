@@ -4,7 +4,7 @@ import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
 import { saveConfig } from '../config.ts'
-import { logSuccess, logInfo, logError, spinner } from '../ui.ts'
+import { logError, logInfo, logSuccess, spinner } from '../ui.ts'
 
 export async function login(positionals: string[], _flags: Record<string, string | true>): Promise<void> {
   const ssh = positionals[0]

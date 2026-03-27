@@ -2,24 +2,24 @@ import fs from 'node:fs'
 import { parseEnvPair } from '../../../shared/env.ts'
 import { createClient } from '../client.ts'
 import {
-  logInfo,
-  logSuccess,
-  logError,
-  logHint,
   cyan,
   dim,
   green,
-  red,
-  spinner,
+  logError,
+  logHint,
+  logInfo,
+  logSuccess,
+  printCommandHelp,
   printDnsTable,
-  printCommandHelp
+  red,
+  spinner
 } from '../ui.ts'
 
 function isLocalDomain(domain: string): boolean {
   return domain === 'localhost' || domain.endsWith('.localhost') || /^\d+\.\d+\.\d+\.\d+/.test(domain)
 }
 
-import { isImageReference, inferNameFromImage } from '../../../shared/image.ts'
+import { inferNameFromImage, isImageReference } from '../../../shared/image.ts'
 
 const STEP_DONE: Record<string, string> = {
   'Pulling image done': 'Pulling image',

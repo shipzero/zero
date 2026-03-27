@@ -1,9 +1,9 @@
+import http from 'node:http'
 import net from 'node:net'
 import tls from 'node:tls'
-import http from 'node:http'
-import { getCachedCert, loadCachedCert, obtainCert, handleAcmeChallenge } from './certs.ts'
+import { getCachedCert, handleAcmeChallenge, loadCachedCert, obtainCert } from './certs.ts'
+import { API_PORT, DEV_PORT, MAX_BODY_BYTES } from './env.ts'
 import { isTLSEnabled } from './url.ts'
-import { DEV_PORT, API_PORT, MAX_BODY_BYTES } from './env.ts'
 
 const REQUEST_TIMEOUT_MS = 60_000 // 60 seconds
 const HEADERS_TIMEOUT_MS = 10_000 // 10 seconds

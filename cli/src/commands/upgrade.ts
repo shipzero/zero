@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process'
-import { createClient, unwrap, type MessageResponse } from '../client.ts'
+import { createClient, type MessageResponse, unwrap } from '../client.ts'
+import { logError, logInfo, logSuccess, spinner } from '../ui.ts'
 import { VERSION } from '../version.ts'
-import { logSuccess, logInfo, logError, spinner } from '../ui.ts'
 
 const REPO = 'shipzero/zero'
 
