@@ -1,6 +1,6 @@
-import { createClient, unwrap } from '../client.ts'
 import type { AppDetail, StopResponse } from '../../../src/types.ts'
-import { logSuccess, logError, logHint, confirm, bold, requireAppName, spinner } from '../ui.ts'
+import { createClient, unwrap } from '../client.ts'
+import { bold, confirm, logError, logHint, logSuccess, requireAppName, spinner } from '../ui.ts'
 
 export async function stop(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const appName = requireAppName(positionals, 'zero stop <app> [--force]')

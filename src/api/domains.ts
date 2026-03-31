@@ -1,16 +1,16 @@
+import { obtainCert } from '../certs.ts'
+import { getFreePort } from '../docker.ts'
+import { removePortRoute, removeProxyRoute, routeApp, updateProxyRoute } from '../proxy.ts'
 import {
   addDomain,
-  removeDomain,
   clearHostPort,
   getCurrentDeployment,
   getPreviewsForApp,
+  removeDomain,
   updateHostPort
 } from '../state.ts'
-import { updateProxyRoute, removeProxyRoute, removePortRoute, routeApp } from '../proxy.ts'
-import { obtainCert } from '../certs.ts'
-import { getFreePort } from '../docker.ts'
 import { isTLSEnabled } from '../url.ts'
-import { route, json, readBody, parseJSON, requireApp, getErrorMessage } from './router.ts'
+import { getErrorMessage, json, parseJSON, readBody, requireApp, route } from './router.ts'
 
 route('GET', '/apps/:name/domains', async (_req, res, { name }) => {
   const app = requireApp(name, res)

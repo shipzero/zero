@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
 import fs from 'node:fs'
-import path from 'node:path'
 import os from 'node:os'
+import path from 'node:path'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const tmpDir = path.join(os.tmpdir(), `zero-test-deploy-${process.pid}`)
 process.env.STATE_PATH = path.join(tmpDir, 'state.json')

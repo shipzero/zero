@@ -1,8 +1,9 @@
 import http from 'node:http'
 import https from 'node:https'
-import { loadConfig, saveConfig, type Config } from './config.ts'
-import { sshMintJwt } from './commands/login.ts'
 import type { ErrorResponse } from '../../src/types.ts'
+import { sshMintJwt } from './commands/login.ts'
+import { type Config, loadConfig, saveConfig } from './config.ts'
+
 export type { ErrorResponse, MessageResponse } from '../../src/types.ts'
 
 interface RequestOptions {

@@ -1,5 +1,5 @@
 import { createClient, unwrap } from '../client.ts'
-import { logSuccess, logError, logHint, confirm, bold, requireAppName } from '../ui.ts'
+import { bold, confirm, logError, logHint, logSuccess, requireAppName } from '../ui.ts'
 
 interface WebhookResponse {
   webhookSecret: string

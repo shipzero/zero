@@ -1,6 +1,6 @@
+import type { AppDetail, MessageResponse, PreviewSummary } from '../../../src/types.ts'
 import { createClient, unwrap } from '../client.ts'
-import type { AppDetail, PreviewSummary, MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logError, confirm, bold, requireAppName, spinner } from '../ui.ts'
+import { bold, confirm, logError, logSuccess, requireAppName, spinner } from '../ui.ts'
 
 export async function remove(positionals: string[], flags: Record<string, string | true>): Promise<void> {
   const appName = requireAppName(positionals, 'zero remove <app> [--preview <label>] [--force]')

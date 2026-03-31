@@ -1,19 +1,21 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
-import path from 'node:path'
 import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const tmpDir = path.join(os.tmpdir(), `zero-test-compose-${process.pid}`)
 process.env.COMPOSE_DIR = tmpDir
 
 // Mock state to avoid file conflicts
 import { vi } from 'vitest'
+
 vi.mock('./state.ts', () => ({
   getRegistryAuths: vi.fn().mockReturnValue({})
 }))
 
-const { composeDir, writeComposeFiles, removeComposeDir, substituteImageTags, extractImageTag } =
-  await import('./compose.ts')
+const { composeDir, writeComposeFiles, removeComposeDir, substituteImageTags, extractImageTag } = await import(
+  './compose.ts'
+)
 
 describe('compose', () => {
   beforeEach(() => {

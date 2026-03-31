@@ -1,6 +1,6 @@
-import { getRegistryAuths, setRegistryAuth, removeRegistryAuth } from '../state.ts'
+import { getRegistryAuths, removeRegistryAuth, setRegistryAuth } from '../state.ts'
 import type { MessageResponse } from '../types.ts'
-import { route, json, readBody, parseJSON } from './router.ts'
+import { json, parseJSON, readBody, route } from './router.ts'
 
 route('GET', '/registries', async (_req, res) => {
   const auths = getRegistryAuths()

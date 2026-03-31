@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
 import http from 'node:http'
 import net from 'node:net'
+import { describe, expect, it } from 'vitest'
 
 // Don't load ACME module
 process.env.EMAIL = ''
@@ -8,6 +8,7 @@ process.env.EMAIL = ''
 process.env.DEV_PORT = '0'
 
 import { vi } from 'vitest'
+
 vi.mock('./certs.ts', () => ({
   getCachedCert: vi.fn().mockReturnValue(undefined),
   loadCachedCert: vi.fn().mockReturnValue(null),

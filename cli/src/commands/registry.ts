@@ -1,6 +1,6 @@
-import { createClient, unwrap } from '../client.ts'
 import type { MessageResponse } from '../../../src/types.ts'
-import { logSuccess, logInfo, logError, dim, spinner, printCommandHelp } from '../ui.ts'
+import { createClient, unwrap } from '../client.ts'
+import { dim, logError, logInfo, logSuccess, printCommandHelp, spinner } from '../ui.ts'
 
 export async function registry(
   subcommand: string | null,

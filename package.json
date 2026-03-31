@@ -6,8 +6,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external",
     "start": "node dist/index.js",
-    "format": "prettier --write .",
-    "lint": "prettier --check .",
+    "format": "biome check --write .",
+    "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -16,10 +16,10 @@
     "dockerode": "^4.0.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
     "@types/dockerode": "^3.3.29",
     "@types/node": "^22.0.0",
     "esbuild": "^0.27.0",
-    "prettier": "^3.8.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0"

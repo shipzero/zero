@@ -1,9 +1,9 @@
-import Dockerode from 'dockerode'
 import http from 'node:http'
 import net from 'node:net'
+import Dockerode from 'dockerode'
+import { getErrorMessage } from './errors.ts'
 import { getRegistryAuth } from './state.ts'
 import type { ContainerStats } from './types.ts'
-import { getErrorMessage } from './errors.ts'
 
 export const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
 

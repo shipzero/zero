@@ -1,5 +1,5 @@
 import { createClient } from '../client.ts'
-import { dim, buildStreamPath } from '../ui.ts'
+import { buildStreamPath, dim } from '../ui.ts'
 
 function formatLogLine(line: string): string {
   const match = line.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s(.*)/)

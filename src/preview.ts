@@ -1,9 +1,9 @@
-import { getAllExpiredPreviews, removePreview } from './state.ts'
-import type { Preview } from './state.ts'
-import { removeContainer } from './docker.ts'
-import { composeDown, composeDir, removeComposeDir } from './compose.ts'
-import { removeProxyRoute } from './proxy.ts'
+import { composeDir, composeDown, removeComposeDir } from './compose.ts'
 import { clearDeployLogs } from './deploy.ts'
+import { removeContainer } from './docker.ts'
+import { removeProxyRoute } from './proxy.ts'
+import type { Preview } from './state.ts'
+import { getAllExpiredPreviews, removePreview } from './state.ts'
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 

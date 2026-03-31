@@ -1,15 +1,15 @@
 import { createClient, unwrap } from '../client.ts'
 import {
-  logSuccess,
-  logError,
-  logWarn,
-  logInfo,
-  dim,
   confirm,
+  dim,
   formatAppUrl,
+  logError,
+  logInfo,
+  logSuccess,
+  logWarn,
+  printCommandHelp,
   requireAppName,
-  spinner,
-  printCommandHelp
+  spinner
 } from '../ui.ts'
 
 interface DomainsResponse {

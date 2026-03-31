@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
 import net from 'node:net'
+import { describe, expect, it } from 'vitest'
 
 // Import only the pure/testable functions
 // We test getFreePort and waitForHealthy which don't need Docker

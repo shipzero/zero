@@ -1,12 +1,12 @@
-import { createClient, unwrap } from '../client.ts'
 import type { DeploymentInfo, PreviewSummary } from '../../../src/types.ts'
+import { createClient, unwrap } from '../client.ts'
 import {
-  dim,
-  green,
   cyan,
-  logInfo,
-  logError,
+  dim,
   formatDigest,
+  green,
+  logError,
+  logInfo,
   printTable,
   requireAppName,
   spinner,
