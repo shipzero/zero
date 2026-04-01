@@ -62,7 +62,7 @@ export async function inspectImage(imageRef: string): Promise<ImageInspection> {
   }
 }
 
-export interface RunOpts {
+export interface RunOptions {
   image: string
   appName: string
   internalPort: number
@@ -72,8 +72,8 @@ export interface RunOpts {
   volumes?: string[]
 }
 
-export async function runContainer(opts: RunOpts): Promise<string> {
-  const { image, appName, internalPort, hostPort, env, command, volumes } = opts
+export async function runContainer(options: RunOptions): Promise<string> {
+  const { image, appName, internalPort, hostPort, env, command, volumes } = options
 
   const container = await docker.createContainer({
     Image: image,
