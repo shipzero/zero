@@ -25,6 +25,8 @@ vi.mock('./docker.ts', () => ({
   inspectImage: vi.fn().mockResolvedValue({ exposedPorts: [], digest: 'sha256:mock' }),
   runContainer: vi.fn().mockResolvedValue('mock-container-id'),
   removeContainer: vi.fn().mockResolvedValue(undefined),
+  removeImage: vi.fn().mockResolvedValue(undefined),
+  pruneDanglingImages: vi.fn().mockResolvedValue(undefined),
   stopContainer: vi.fn().mockResolvedValue(undefined),
   startContainer: vi.fn().mockResolvedValue(undefined),
   waitForHealthy: vi.fn().mockResolvedValue(undefined),

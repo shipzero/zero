@@ -12,6 +12,7 @@ import {
 import {
   getFreePort,
   inspectImage,
+  pruneDanglingImages,
   pullImage,
   removeContainer,
   removeImage,
@@ -358,6 +359,10 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
     deployedAt: new Date().toISOString()
   }
   addDeployment(appName, deployment)
+
+  pruneDanglingImages().catch((err) =>
+    log(appName, `Warning: dangling image cleanup failed: ${getErrorMessage(err)}`)
+  )
 
   return logLiveUrlAndReturn(appName, app, deployTag, port, 'compose')
 }

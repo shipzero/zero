@@ -11,6 +11,8 @@ const mockPullImage = vi.fn().mockResolvedValue(undefined)
 const mockInspectImage = vi.fn().mockResolvedValue({ exposedPorts: [], digest: 'sha256:abc123' })
 const mockRunContainer = vi.fn().mockResolvedValue('new-container-id')
 const mockRemoveContainer = vi.fn().mockResolvedValue(undefined)
+const mockRemoveImage = vi.fn().mockResolvedValue(undefined)
+const mockPruneDanglingImages = vi.fn().mockResolvedValue(undefined)
 const mockWaitForHealthy = vi.fn().mockResolvedValue(undefined)
 const mockGetFreePort = vi.fn().mockResolvedValue(4444)
 const mockRouteApp = vi.fn()
@@ -23,6 +25,8 @@ vi.mock('./docker.ts', () => ({
   inspectImage: (...args: unknown[]) => mockInspectImage(...args),
   runContainer: (...args: unknown[]) => mockRunContainer(...args),
   removeContainer: (...args: unknown[]) => mockRemoveContainer(...args),
+  removeImage: (...args: unknown[]) => mockRemoveImage(...args),
+  pruneDanglingImages: (...args: unknown[]) => mockPruneDanglingImages(...args),
   waitForHealthy: (...args: unknown[]) => mockWaitForHealthy(...args),
   getFreePort: (...args: unknown[]) => mockGetFreePort(...args)
 }))
