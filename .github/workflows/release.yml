@@ -123,5 +123,11 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          draft: true
           prerelease: ${{ needs.version.outputs.is_preview == 'true' }}
           files: artifacts/zero-*
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
