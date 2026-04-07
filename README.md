@@ -241,6 +241,8 @@ The `--domain` flag on `zero deploy` sets the initial domain when creating an ap
 
 ### Deployment history
 
+zero keeps the last 10 deployments per app for rollback. Older deployments — and their container images — are removed automatically to keep disk usage in check.
+
 ```bash
 zero history myapp
 zero list                     # list all apps with status, URL, image
@@ -286,6 +288,7 @@ Non-matching tags automatically create preview deployments when the app has a do
 2. **Start** — new container started on an ephemeral port bound to localhost
 3. **Health check** — TCP or HTTP check, up to 60 seconds
 4. **Swap** — reverse proxy route updated atomically, old container removed
+5. **Cleanup** — images that fall out of the rollback retention window are removed; compose deploys also prune dangling images
 
 If the health check fails, the new container is discarded. Traffic stays on the previous version.
 

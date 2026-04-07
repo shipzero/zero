@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+### Added
+
+- **Automatic image cleanup** — old container images are removed automatically when they fall out of the rollback retention window (last 10 deployments per app)
+- **Compose dangling image cleanup** — compose deploys prune dangling images after each successful update, freeing disk space when rolling tags are repulled
+
+### Fixed
+
+- **Self-upgrade resilience** — `zero upgrade --server` now pulls the `docker:cli` helper image automatically if missing, instead of failing with a 404
+- **Install script** — skip Let's Encrypt email prompt when the server domain is an IP address or `localhost`
+
 ## v2025.3.24 — Initial Release
 
 ### Added
