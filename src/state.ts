@@ -179,6 +179,19 @@ export function addDeployment(appName: string, deployment: Deployment): Deployme
   return evicted
 }
 
+export function getDeploymentImageKey(deployment: { image: string; digest?: string }): string {
+  return deployment.digest ? `digest:${deployment.digest}` : `tag:${deployment.image}`
+}
+
+export function getReferencedImageKeys(): Set<string> {
+  const keys = new Set<string>()
+  for (const app of getApps()) {
+    for (const deployment of app.deployments) keys.add(getDeploymentImageKey(deployment))
+    for (const preview of Object.values(app.previews)) keys.add(getDeploymentImageKey(preview))
+  }
+  return keys
+}
+
 export function findRollbackTarget(appName: string): Deployment {
   const app = _state.apps[appName]
   if (!app) throw new Error(`App "${appName}" not found`)

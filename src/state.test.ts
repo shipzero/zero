@@ -188,6 +188,55 @@ describe('state', () => {
     })
   })
 
+  describe('getDeploymentImageKey', () => {
+    it('uses digest when present', () => {
+      expect(state.getDeploymentImageKey({ image: 'repo:v1', digest: 'sha256:abc' })).toBe('digest:sha256:abc')
+    })
+
+    it('falls back to tagged image when digest is missing', () => {
+      expect(state.getDeploymentImageKey({ image: 'repo:v1' })).toBe('tag:repo:v1')
+    })
+
+    it('treats two deployments with the same digest as equal', () => {
+      const a = state.getDeploymentImageKey({ image: 'repo:v1', digest: 'sha256:xyz' })
+      const b = state.getDeploymentImageKey({ image: 'repo:v2', digest: 'sha256:xyz' })
+      expect(a).toBe(b)
+    })
+  })
+
+  describe('getReferencedImageKeys', () => {
+    it('collects keys from all deployments and previews across all apps', () => {
+      state.addApp({ name: 'a', image: 'repo-a', trackTag: 'latest', internalPort: 80, env: {} })
+      state.addApp({ name: 'b', image: 'repo-b', trackTag: 'latest', internalPort: 80, env: {} })
+
+      state.addDeployment('a', { image: 'repo-a:v1', digest: 'sha256:a1', containerId: 'c1', port: 1, deployedAt: '' })
+      state.addDeployment('a', { image: 'repo-a:v2', containerId: 'c2', port: 2, deployedAt: '' })
+      state.addDeployment('b', { image: 'repo-b:v1', digest: 'sha256:b1', containerId: 'c3', port: 3, deployedAt: '' })
+
+      state.setPreview('a', 'pr-1', {
+        label: 'pr-1',
+        domain: 'pr-1.example.com',
+        image: 'repo-a:pr-1',
+        digest: 'sha256:p1',
+        containerId: 'cp1',
+        port: 4,
+        deployedAt: '',
+        expiresAt: '2099-01-01T00:00:00Z'
+      })
+
+      const keys = state.getReferencedImageKeys()
+      expect(keys.has('digest:sha256:a1')).toBe(true)
+      expect(keys.has('tag:repo-a:v2')).toBe(true)
+      expect(keys.has('digest:sha256:b1')).toBe(true)
+      expect(keys.has('digest:sha256:p1')).toBe(true)
+      expect(keys.size).toBe(4)
+    })
+
+    it('returns empty set when no apps exist', () => {
+      expect(state.getReferencedImageKeys().size).toBe(0)
+    })
+  })
+
   describe('findRollbackTarget', () => {
     it('finds a deployment with a different image than current', () => {
       state.addApp({ name: 'app', image: 'img', trackTag: 'latest', internalPort: 80, env: {} })

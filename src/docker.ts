@@ -116,6 +116,22 @@ export async function stopContainer(containerId: string, gracefulMs = 10_000): P
   }
 }
 
+export async function removeImage(imageRef: string): Promise<void> {
+  console.log(`[docker] removing image ${imageRef}`)
+  try {
+    await docker.getImage(imageRef).remove({ force: false })
+    console.log(`[docker] removed image ${imageRef}`)
+  } catch (err: unknown) {
+    const code = dockerStatusCode(err)
+    if (code === 404) return
+    if (code === 409) {
+      console.log(`[docker] keeping image ${imageRef} (still in use)`)
+      return
+    }
+    console.warn(`[docker] failed to remove image ${imageRef}: ${getErrorMessage(err)}`)
+  }
+}
+
 export async function removeContainer(containerId: string, gracefulMs = 10_000): Promise<void> {
   try {
     const container = docker.getContainer(containerId)
