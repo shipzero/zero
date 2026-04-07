@@ -23,9 +23,17 @@ if [ "$IS_UPGRADE" = false ]; then
   read -rp "Domain for zero (leave empty to use IP $SERVER_IP): " DOMAIN < /dev/tty
   DOMAIN="${DOMAIN:-$SERVER_IP}"
 
-  read -rp "Email for Let's Encrypt certificates (required for HTTPS on app domains): " EMAIL < /dev/tty
-  if [ -z "$EMAIL" ]; then
-    log "No email — HTTPS will not work for app domains. You can set it later in $INSTALL_DIR/.env"
+  IS_IP_OR_LOCALHOST=false
+  if echo "$DOMAIN" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || [ "$DOMAIN" = "localhost" ]; then
+    IS_IP_OR_LOCALHOST=true
+  fi
+
+  EMAIL=""
+  if [ "$IS_IP_OR_LOCALHOST" = false ]; then
+    read -rp "Email for Let's Encrypt certificates (required for HTTPS on app domains): " EMAIL < /dev/tty
+    if [ -z "$EMAIL" ]; then
+      log "No email — HTTPS will not work for app domains. You can set it later in $INSTALL_DIR/.env"
+    fi
   fi
 else
   # Load existing config

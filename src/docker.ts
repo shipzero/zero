@@ -116,6 +116,34 @@ export async function stopContainer(containerId: string, gracefulMs = 10_000): P
   }
 }
 
+export async function removeImage(imageRef: string): Promise<void> {
+  console.log(`[docker] removing image ${imageRef}`)
+  try {
+    await docker.getImage(imageRef).remove({ force: false })
+    console.log(`[docker] removed image ${imageRef}`)
+  } catch (err: unknown) {
+    const code = dockerStatusCode(err)
+    if (code === 404) return
+    if (code === 409) {
+      console.log(`[docker] keeping image ${imageRef} (still in use)`)
+      return
+    }
+    console.warn(`[docker] failed to remove image ${imageRef}: ${getErrorMessage(err)}`)
+  }
+}
+
+export async function pruneDanglingImages(): Promise<void> {
+  console.log('[docker] pruning dangling images')
+  try {
+    const result = await docker.pruneImages({ filters: { dangling: ['true'] } })
+    const reclaimed = result.SpaceReclaimed ?? 0
+    const deleted = result.ImagesDeleted?.length ?? 0
+    console.log(`[docker] pruned ${deleted} dangling image(s), reclaimed ${reclaimed} bytes`)
+  } catch (err: unknown) {
+    console.warn(`[docker] failed to prune dangling images: ${getErrorMessage(err)}`)
+  }
+}
+
 export async function removeContainer(containerId: string, gracefulMs = 10_000): Promise<void> {
   try {
     const container = docker.getContainer(containerId)

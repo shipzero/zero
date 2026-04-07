@@ -12,8 +12,10 @@ import {
 import {
   getFreePort,
   inspectImage,
+  pruneDanglingImages,
   pullImage,
   removeContainer,
+  removeImage,
   runContainer,
   tailLogs,
   waitForHealthy
@@ -25,9 +27,12 @@ import type { Preview } from './state.ts'
 import {
   AppConfig,
   addDeployment,
+  Deployment,
   findRollbackTarget,
   getApp,
+  getDeploymentImageKey,
   getPreview,
+  getReferencedImageKeys,
   isComposeApp,
   setPreview,
   updateHostPort,
@@ -173,6 +178,33 @@ async function deployContainer(opts: ContainerDeployOptions): Promise<ContainerD
   return { containerId, port, digest: inspection.digest }
 }
 
+function stripImageTag(image: string): string {
+  const lastSlash = image.lastIndexOf('/')
+  const lastColon = image.lastIndexOf(':')
+  if (lastColon > lastSlash) return image.slice(0, lastColon)
+  return image
+}
+
+function buildImageRef(deployment: Deployment): string {
+  if (deployment.digest) return `${stripImageTag(deployment.image)}@${deployment.digest}`
+  return deployment.image
+}
+
+async function pruneEvictedImages(appName: string, evicted: Deployment[]): Promise<void> {
+  if (evicted.length === 0) return
+
+  const stillReferenced = getReferencedImageKeys()
+
+  for (const deployment of evicted) {
+    if (stillReferenced.has(getDeploymentImageKey(deployment))) continue
+    try {
+      await removeImage(buildImageRef(deployment))
+    } catch (err) {
+      log(appName, `Warning: image cleanup for ${deployment.image} failed: ${getErrorMessage(err)}`)
+    }
+  }
+}
+
 async function assignAutoHostPortIfNeeded(appName: string, app: AppConfig): Promise<void> {
   if (app.domains.length === 0 && !app.hostPort) {
     const externalPort = await getFreePort()
@@ -212,6 +244,10 @@ async function deploySingleContainer(appName: string, imageWithTag: string): Pro
       log(appName, `Warning: cleanup ${oldContainerId.slice(0, 12)} failed: ${err}`)
     )
   }
+
+  pruneEvictedImages(appName, evicted).catch((err) =>
+    log(appName, `Warning: image cleanup failed: ${getErrorMessage(err)}`)
+  )
 
   return logLiveUrlAndReturn(appName, app, imageWithTag, port, containerId)
 }
@@ -323,6 +359,10 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
     deployedAt: new Date().toISOString()
   }
   addDeployment(appName, deployment)
+
+  pruneDanglingImages().catch((err) =>
+    log(appName, `Warning: dangling image cleanup failed: ${getErrorMessage(err)}`)
+  )
 
   return logLiveUrlAndReturn(appName, app, deployTag, port, 'compose')
 }
