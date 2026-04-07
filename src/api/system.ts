@@ -1,4 +1,4 @@
-import { docker, streamLogs, streamStats } from '../docker.ts'
+import { docker, pullImage, streamLogs, streamStats } from '../docker.ts'
 import { IS_DEV, JWT_SECRET } from '../env.ts'
 import { signJwt } from '../jwt.ts'
 import type { MessageResponse, VersionResponse } from '../types.ts'
@@ -52,6 +52,7 @@ route('POST', '/upgrade', async (req, res) => {
   const pullCmd = `${swapTag}docker compose -f ${COMPOSE_FILE} pull && docker compose -f ${COMPOSE_FILE} up -d`
 
   try {
+    await pullImage('docker:cli')
     const upgrader = await docker.createContainer({
       Image: 'docker:cli',
       Cmd: ['sh', '-c', `sleep 2 && ${pullCmd}`],
