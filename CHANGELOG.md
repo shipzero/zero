@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [v2026.4.8]
+
 ### Added
 
 - **Automatic image cleanup** — old container images are removed automatically when they fall out of the rollback retention window (last 10 deployments per app)
@@ -16,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - **Self-upgrade resilience** — `zero upgrade --server` now pulls the `docker:cli` helper image automatically if missing, instead of failing with a 404
 - **Install script** — skip Let's Encrypt email prompt when the server domain is an IP address or `localhost`
 
-## v2025.3.24 — Initial Release
+## [v2025.3.24] — Initial Release
 
 ### Added
 
@@ -36,3 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - **SSH-based authentication** — if you can SSH in, you can deploy
 - **Self-upgrade** — `zero upgrade --server` updates zero remotely
 - **CLI binaries** — prebuilt for Linux, macOS, and Windows
+
+[Unreleased]: https://github.com/shipzero/zero/compare/v2026.4.8...HEAD
+[v2026.4.8]: https://github.com/shipzero/zero/compare/v2025.3.24...v2026.4.8
+[v2025.3.24]: https://github.com/shipzero/zero/releases/tag/v2025.3.24
