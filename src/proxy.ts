@@ -2,14 +2,18 @@ import http from 'node:http'
 import net from 'node:net'
 import tls from 'node:tls'
 import { getCachedCert, handleAcmeChallenge, loadCachedCert, obtainCert } from './certs.ts'
-import { API_PORT, DEV_PORT, MAX_BODY_BYTES } from './env.ts'
+import {
+  API_PORT,
+  DEV_PORT,
+  MAX_BODY_BYTES,
+  PROXY_HEADERS_TIMEOUT_MS,
+  PROXY_REQUEST_TIMEOUT_MS,
+  PROXY_WS_IDLE_TIMEOUT_MS
+} from './env.ts'
 import { isTLSEnabled } from './url.ts'
 
-const REQUEST_TIMEOUT_MS = 60_000 // 60 seconds
-const HEADERS_TIMEOUT_MS = 10_000 // 10 seconds
 const MAX_CONNECTIONS = 1024
 const MAX_CONNECTIONS_PER_IP = 128
-const WS_IDLE_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 const HOP_BY_HOP_HEADERS = new Set(['keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer'])
 
@@ -120,7 +124,7 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
       path: req.url,
       method: req.method,
       headers,
-      timeout: isApiRequest ? 0 : REQUEST_TIMEOUT_MS
+      timeout: isApiRequest ? 0 : PROXY_REQUEST_TIMEOUT_MS
     },
     (proxyRes) => {
       const status = proxyRes.statusCode ?? 502
@@ -191,7 +195,7 @@ function proxyUpgrade(req: http.IncomingMessage, clientSocket: net.Socket, head:
   })
 
   function resetIdleTimeout(socket: net.Socket) {
-    socket.setTimeout(WS_IDLE_TIMEOUT_MS, () => {
+    socket.setTimeout(PROXY_WS_IDLE_TIMEOUT_MS, () => {
       clientSocket.destroy()
       upstream.destroy()
     })
@@ -253,8 +257,8 @@ export async function closeAllPortListeners(): Promise<void> {
 }
 
 function applyServerLimits(server: http.Server) {
-  server.requestTimeout = REQUEST_TIMEOUT_MS
-  server.headersTimeout = HEADERS_TIMEOUT_MS
+  server.requestTimeout = PROXY_REQUEST_TIMEOUT_MS
+  server.headersTimeout = PROXY_HEADERS_TIMEOUT_MS
   server.maxConnections = MAX_CONNECTIONS
 }
 
