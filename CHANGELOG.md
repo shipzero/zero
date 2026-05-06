@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [v2026.5.6]
+
+### Changed
+
+- **Reverse proxy timeouts** — defaults raised to `5m` request, `30s` headers, `30m` WebSocket idle (previously `60s`, `10s`, `5m`); now configurable via `PROXY_REQUEST_TIMEOUT`, `PROXY_HEADERS_TIMEOUT`, `PROXY_WS_IDLE_TIMEOUT` (duration strings, e.g. `10m`, `1h`)
+
 ## [v2026.4.8]
 
 ### Added
@@ -39,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - **Self-upgrade** — `zero upgrade --server` updates zero remotely
 - **CLI binaries** — prebuilt for Linux, macOS, and Windows
 
-[Unreleased]: https://github.com/shipzero/zero/compare/v2026.4.8...HEAD
+[Unreleased]: https://github.com/shipzero/zero/compare/v2026.5.6...HEAD
+[v2026.5.6]: https://github.com/shipzero/zero/compare/v2026.4.8...v2026.5.6
 [v2026.4.8]: https://github.com/shipzero/zero/compare/v2026.4.1...v2026.4.8
 [v2026.4.1]: https://github.com/shipzero/zero/releases/tag/v2026.4.1

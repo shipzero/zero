@@ -300,7 +300,8 @@ No nginx. No Traefik. zero includes a built-in reverse proxy:
 - TLS termination with automatic certificate selection (SNI)
 - Security headers: `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`
 - Forwarding headers: `X-Forwarded-For`, `X-Real-IP`, `X-Forwarded-Proto`
-- Request timeout: 60s, max body size: 100 MB (configurable via `MAX_BODY_SIZE`)
+- Request timeout: 5m, headers timeout: 30s, WebSocket idle timeout: 30m (all configurable)
+- Max body size: 100 MB (configurable via `MAX_BODY_SIZE`)
 
 ## Scope
 
@@ -329,6 +330,9 @@ Configuration is stored in `/opt/zero/.env`:
 | `CERT_RENEW_BEFORE_DAYS` | Renew certificates this many days before expiry | `30`          |
 | `PREVIEW_TTL`            | Default time to live for preview deployments    | `7d`          |
 | `MAX_BODY_SIZE`          | Maximum request body size for the reverse proxy | `100m`        |
+| `PROXY_REQUEST_TIMEOUT`  | Reverse proxy request timeout (e.g. `60s`, `5m`) | `5m`         |
+| `PROXY_HEADERS_TIMEOUT`  | Reverse proxy headers timeout                    | `30s`        |
+| `PROXY_WS_IDLE_TIMEOUT`  | WebSocket idle timeout                           | `30m`        |
 
 ### Upgrade
 

@@ -14,16 +14,31 @@ export const CERT_RENEW_BEFORE_DAYS = Number(process.env.CERT_RENEW_BEFORE_DAYS 
 export const CERT_RENEW_INTERVAL_MS = Number(process.env.CERT_RENEW_INTERVAL_MS ?? 12 * 60 * 60 * 1000)
 export const COMPOSE_BASE_DIR = process.env.COMPOSE_DIR ?? (IS_DEV ? '.zero/compose' : '/var/lib/zero/compose')
 
-function safeParseDuration(value: string, fallback: string): number {
+function safeParseDuration(name: string, value: string, fallback: string): number {
   try {
     return parseDuration(value)
   } catch {
-    console.error(`[config] Invalid PREVIEW_TTL "${value}", falling back to ${fallback}`)
+    console.error(`[config] Invalid ${name} "${value}", falling back to ${fallback}`)
     return parseDuration(fallback)
   }
 }
 
-export const PREVIEW_TTL_MS = safeParseDuration(process.env.PREVIEW_TTL ?? '7d', '7d')
+export const PREVIEW_TTL_MS = safeParseDuration('PREVIEW_TTL', process.env.PREVIEW_TTL ?? '7d', '7d')
+export const PROXY_REQUEST_TIMEOUT_MS = safeParseDuration(
+  'PROXY_REQUEST_TIMEOUT',
+  process.env.PROXY_REQUEST_TIMEOUT ?? '5m',
+  '5m'
+)
+export const PROXY_HEADERS_TIMEOUT_MS = safeParseDuration(
+  'PROXY_HEADERS_TIMEOUT',
+  process.env.PROXY_HEADERS_TIMEOUT ?? '30s',
+  '30s'
+)
+export const PROXY_WS_IDLE_TIMEOUT_MS = safeParseDuration(
+  'PROXY_WS_IDLE_TIMEOUT',
+  process.env.PROXY_WS_IDLE_TIMEOUT ?? '30m',
+  '30m'
+)
 
 function safeParseSize(value: string, fallback: string): number {
   try {
