@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
@@ -17,14 +17,14 @@ export async function login(positionals: string[], _flags: Record<string, string
 
   const server = ssh.split('@').pop()!
 
-  const spin = spinner(`Connecting to ${ssh}...`)
+  logInfo(`Connecting to ${ssh}...`)
   const jwt = await sshMintJwt(ssh)
   if (!jwt) {
-    spin.stop()
     logError(`Connection failed — check that you can ssh to ${ssh}`)
     process.exit(1)
   }
 
+  const spin = spinner(`Resolving zero API on ${server}...`)
   const host = await resolveApiUrl(server, jwt)
   spin.stop()
   if (!host) {
@@ -42,8 +42,14 @@ const SSH_COMMAND =
 
 function sshExec(ssh: string, command: string): Promise<{ stdout: string; ok: boolean }> {
   return new Promise((resolve) => {
-    execFile('ssh', [ssh, command], { timeout: 30_000 }, (err, stdout) => {
-      if (err) {
+    const child = spawn('ssh', [ssh, command], { stdio: ['inherit', 'pipe', 'inherit'] })
+    let stdout = ''
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+    child.on('error', () => resolve({ stdout: '', ok: false }))
+    child.on('close', (code) => {
+      if (code !== 0) {
         resolve({ stdout: '', ok: false })
         return
       }
