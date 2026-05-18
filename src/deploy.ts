@@ -360,9 +360,7 @@ async function deployCompose(appName: string, tag?: string): Promise<DeployResul
   }
   addDeployment(appName, deployment)
 
-  pruneDanglingImages().catch((err) =>
-    log(appName, `Warning: dangling image cleanup failed: ${getErrorMessage(err)}`)
-  )
+  pruneDanglingImages().catch((err) => log(appName, `Warning: dangling image cleanup failed: ${getErrorMessage(err)}`))
 
   return logLiveUrlAndReturn(appName, app, deployTag, port, 'compose')
 }

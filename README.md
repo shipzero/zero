@@ -79,6 +79,7 @@ That's it. zero figures out the port, assigns a domain, provisions a TLS certifi
 - **Webhooks** — push to your registry, zero deploys it
 - **No reverse proxy config** — routing is built in
 - **Live metrics** — CPU, memory, and network in the terminal
+- **Chat with your apps** — `zero mcp add` for Claude / MCP integration
 
 Two dependencies. One container. No database. No web UI. No YAML.
 
@@ -280,6 +281,47 @@ Configure both the URL and secret in GitHub Container Registry or Docker Hub. Pa
 
 Non-matching tags automatically create preview deployments when the app has a domain.
 
+## Claude / MCP integration
+
+Talk to your zero instance from Claude — list apps, deploy, view logs, manage environment variables — all from a chat prompt. zero ships an MCP (Model Context Protocol) server, supported by Claude Code, Claude Desktop, and any other MCP-aware client.
+
+### Setup
+
+In any project where you've run `zero login`:
+
+```bash
+zero mcp add
+```
+
+That's it. The command registers zero with both Claude Code (writes `.mcp.json` in the current project) and Claude Desktop (writes the system config). Restart Claude Desktop if you use it.
+
+Try it in a chat:
+
+> *List my zero apps*
+> *Deploy myapp with tag v1.2.3*
+> *Show me the last 50 log lines from api*
+> *Roll back myapp*
+
+### Available tools
+
+`list_apps`, `get_app`, `get_deployments`, `deploy_app`, `start_app`, `stop_app`, `rollback_app`, `remove_app`, `set_env`, `unset_env`, `get_logs`, `get_metrics`, `get_version`, `get_status`.
+
+The MCP server uses the same `.zero/config.json` as the CLI, so it always targets the project's linked server. JWT refresh via SSH works the same way.
+
+### Safety guards
+
+Every state-changing tool (`deploy_app`, `stop_app`, `start_app`, `rollback_app`, `remove_app`, `set_env`, `unset_env`) requires a mandatory `confirm: true` parameter. The MCP schema enforces it — Claude cannot call these tools without explicitly setting it. This is a deliberate forcing function against accidental mutations from misinterpreted prompts.
+
+Tools are also tagged with standard MCP annotations (`readOnlyHint`, `destructiveHint`) so clients can render appropriate UI affordances (e.g., destructive actions get extra prominence in approval dialogs).
+
+### Remove
+
+```bash
+zero mcp remove
+```
+
+Removes the entry from both `.mcp.json` and the Claude Desktop config. Pass a custom name if you registered it under one (`zero mcp remove zerozc1`).
+
 ## How it works
 
 ### Zero-downtime deployment
@@ -377,6 +419,7 @@ list                                         List all apps
 login <user@server>                          Authenticate via SSH
 logs <app|--server> [--tail <n>] [--preview <label>]
                                              Stream app or server logs
+mcp <add|remove> [name]                      Add or remove zero in Claude (Code + Desktop)
 metrics <app|--server> [--preview <label>]   Show live resource usage
 registry <login|logout|list> [server]        Manage registry credentials
 remove <app> [--preview <label>] [--force]   Remove an app or preview

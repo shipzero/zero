@@ -35,6 +35,7 @@ export async function login(positionals: string[], _flags: Record<string, string
   saveConfig({ host, token: jwt, ssh })
   ensureGitignore()
   logSuccess(`Linked to ${host}`)
+  logInfo('Use with Claude: run "zero mcp add"')
 }
 
 const SSH_COMMAND =
