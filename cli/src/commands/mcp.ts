@@ -122,11 +122,11 @@ function registerTools(server: McpServer, client: Client): void {
   server.registerTool(
     'deploy_app',
     {
-      title: 'Deploy app',
+      title: 'Redeploy existing app',
       description:
-        'Redeploy an existing app, optionally pinning an image tag. Replaces the current container after health checks pass. Requires confirm=true.',
+        "Redeploy an EXISTING app (pull a fresh image, swap container after health checks pass). Use list_apps first to confirm the app exists. For NEW apps from a Docker image, use create_app instead — this tool only works on apps that are already registered. Requires confirm=true.",
       inputSchema: {
-        name: z.string().describe('App name'),
+        name: z.string().describe('Existing app name (from list_apps)'),
         tag: z.string().optional().describe("Optional image tag to deploy (defaults to the app's tracked tag)"),
         confirm: confirmField
       },
@@ -138,6 +138,118 @@ function registerTools(server: McpServer, client: Client): void {
           await client.post<{ success: boolean; image?: string; port?: number; error?: string }>(
             `/apps/${encodeURIComponent(name)}/deploy`,
             tag ? { tag } : {}
+          )
+        )
+      )
+  )
+
+  server.registerTool(
+    'create_app',
+    {
+      title: 'Create new app from Docker image',
+      description:
+        "Create a NEW app from a Docker image. Pulls the image, starts a container, runs health checks, and routes traffic. Use list_apps first to make sure the app doesn't already exist (use deploy_app to redeploy in that case). Returns the deploy result once the deploy completes (may take 30-60 seconds while pulling and health-checking). Requires confirm=true.",
+      inputSchema: {
+        image: z
+          .string()
+          .describe('Full Docker image reference (e.g. "ghcr.io/shipzero/demo:latest" or "postgres:16")'),
+        name: z.string().optional().describe('App name. If omitted, derived from the last image-path segment.'),
+        domain: z
+          .string()
+          .optional()
+          .describe('Custom domain. If omitted and the server has a configured DOMAIN, "<name>.<server-domain>" is used.'),
+        port: z.number().int().positive().optional().describe("Internal container port. If omitted, the image's EXPOSE directive (or 3000) is used."),
+        hostPort: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Expose directly on this host port instead of via a domain (skips TLS).'),
+        env: z.record(z.string()).optional().describe('Environment variables as a key/value map.'),
+        healthPath: z
+          .string()
+          .optional()
+          .describe('HTTP path for health checks (e.g. "/health"). Without it, a plain TCP connect is used.'),
+        healthTimeout: z
+          .string()
+          .optional()
+          .describe('Health check timeout (e.g. "30s", "3m"). Default 60s.'),
+        volumes: z
+          .array(z.string())
+          .optional()
+          .describe('Volume mounts in "source:destination[:mode]" format (e.g. "pgdata:/var/lib/postgresql/data").'),
+        command: z.array(z.string()).optional().describe('Override the container start command.'),
+        confirm: confirmField
+      },
+      annotations: mutating
+    },
+    async ({ confirm: _confirm, ...payload }) =>
+      run(async () => consumeDeploySSE(client, '/deploy', payload))
+  )
+
+  server.registerTool(
+    'deploy_preview',
+    {
+      title: 'Deploy a preview',
+      description:
+        "Deploy a temporary preview environment for an existing app under a labeled subdomain (e.g. preview-pr21.myapp.example.com). The parent app must have a domain. Requires confirm=true.",
+      inputSchema: {
+        name: z.string().describe('Parent app name (must already exist and have a domain)'),
+        label: z.string().describe('Preview label, used in the subdomain (e.g. "pr-21", "feat-foo")'),
+        tag: z.string().optional().describe('Image tag for this preview. If omitted, the label is used as the tag.'),
+        ttl: z
+          .string()
+          .optional()
+          .describe('Time-to-live (e.g. "24h", "7d"). Defaults to the server PREVIEW_TTL setting.'),
+        confirm: confirmField
+      },
+      annotations: mutating
+    },
+    async ({ name, label, tag, ttl }) =>
+      run(async () =>
+        consumeDeploySSE(client, `/apps/${encodeURIComponent(name)}/previews`, {
+          label,
+          ...(tag ? { tag } : {}),
+          ...(ttl ? { ttl } : {})
+        })
+      )
+  )
+
+  server.registerTool(
+    'add_domain',
+    {
+      title: 'Add a domain to an app',
+      description:
+        "Add a domain to an existing app. If the server has TLS enabled and EMAIL is configured, a certificate is provisioned automatically in the background. Requires confirm=true.",
+      inputSchema: {
+        name: z.string().describe('App name'),
+        domain: z.string().describe('Domain to add (e.g. "api.example.com")'),
+        confirm: confirmField
+      },
+      annotations: mutating
+    },
+    async ({ name, domain }) =>
+      run(async () => unwrap(await client.post(`/apps/${encodeURIComponent(name)}/domains`, { domain })))
+  )
+
+  server.registerTool(
+    'remove_domain',
+    {
+      title: 'Remove a domain from an app',
+      description:
+        "Remove a domain from an app. Cannot remove the last domain while previews exist for that app. Requires confirm=true.",
+      inputSchema: {
+        name: z.string().describe('App name'),
+        domain: z.string().describe('Domain to remove'),
+        confirm: confirmField
+      },
+      annotations: destructive
+    },
+    async ({ name, domain }) =>
+      run(async () =>
+        unwrap(
+          await client.del<MessageResponse>(
+            `/apps/${encodeURIComponent(name)}/domains/${encodeURIComponent(domain)}`
           )
         )
       )
@@ -205,6 +317,29 @@ function registerTools(server: McpServer, client: Client): void {
   )
 
   server.registerTool(
+    'remove_preview',
+    {
+      title: 'Remove preview deployment',
+      description:
+        'Remove a single preview deployment by label (e.g. "pr-21"). Use list_apps first to see existing previews per app. Requires confirm=true.',
+      inputSchema: {
+        name: z.string().describe('Parent app name'),
+        label: z.string().describe('Preview label (e.g. "pr-21", "feat-1")'),
+        confirm: confirmField
+      },
+      annotations: destructive
+    },
+    async ({ name, label }) =>
+      run(async () =>
+        unwrap(
+          await client.del<MessageResponse>(
+            `/apps/${encodeURIComponent(name)}/previews/${encodeURIComponent(label)}`
+          )
+        )
+      )
+  )
+
+  server.registerTool(
     'set_env',
     {
       title: 'Set environment variables',
@@ -246,9 +381,10 @@ function registerTools(server: McpServer, client: Client): void {
     {
       title: 'Fetch app logs',
       description:
-        "Fetch the last N lines of an app's logs. Briefly attaches to the log stream and returns lines emitted within the timeout window.",
+        "Fetch the last N lines of an app's logs (or a preview's logs). Briefly attaches to the log stream and returns lines emitted within the timeout window.",
       inputSchema: {
         name: z.string().describe('App name'),
+        preview: z.string().optional().describe('Preview label — fetch logs for this preview instead of the main app'),
         tail: z.number().int().positive().max(1000).optional().describe('Number of lines to retrieve (default 100)'),
         timeoutMs: z
           .number()
@@ -260,14 +396,13 @@ function registerTools(server: McpServer, client: Client): void {
       },
       annotations: readOnly
     },
-    async ({ name, tail, timeoutMs }) => {
+    async ({ name, preview, tail, timeoutMs }) => {
+      const base = preview
+        ? `/apps/${encodeURIComponent(name)}/previews/${encodeURIComponent(preview)}/logs`
+        : `/apps/${encodeURIComponent(name)}/logs`
       const query = tail ? `?tail=${tail}` : ''
       return run(async () => {
-        const lines = await collectSSE(
-          client,
-          `/apps/${encodeURIComponent(name)}/logs${query}`,
-          timeoutMs ?? LOGS_DEFAULT_TIMEOUT_MS
-        )
+        const lines = await collectSSE(client, `${base}${query}`, timeoutMs ?? LOGS_DEFAULT_TIMEOUT_MS)
         return lines.join('\n') || '(no log output)'
       })
     }
@@ -277,9 +412,11 @@ function registerTools(server: McpServer, client: Client): void {
     'get_metrics',
     {
       title: 'Get container metrics',
-      description: 'Get a single snapshot of container resource usage (CPU, memory, network) for an app.',
+      description:
+        'Get a single snapshot of container resource usage (CPU, memory, network) for an app or one of its previews.',
       inputSchema: {
         name: z.string().describe('App name'),
+        preview: z.string().optional().describe('Preview label — sample this preview instead of the main app'),
         timeoutMs: z
           .number()
           .int()
@@ -290,13 +427,12 @@ function registerTools(server: McpServer, client: Client): void {
       },
       annotations: readOnly
     },
-    async ({ name, timeoutMs }) =>
-      run(async () => {
-        const lines = await collectSSE(
-          client,
-          `/apps/${encodeURIComponent(name)}/metrics`,
-          timeoutMs ?? METRICS_DEFAULT_TIMEOUT_MS
-        )
+    async ({ name, preview, timeoutMs }) => {
+      const url = preview
+        ? `/apps/${encodeURIComponent(name)}/previews/${encodeURIComponent(preview)}/metrics`
+        : `/apps/${encodeURIComponent(name)}/metrics`
+      return run(async () => {
+        const lines = await collectSSE(client, url, timeoutMs ?? METRICS_DEFAULT_TIMEOUT_MS)
         const last = lines[lines.length - 1]
         if (!last) return '(no metrics emitted within timeout)'
         try {
@@ -305,6 +441,7 @@ function registerTools(server: McpServer, client: Client): void {
           return last
         }
       })
+    }
   )
 
   server.registerTool(
@@ -352,6 +489,33 @@ async function collectSSE(client: Client, path: string, timeoutMs: number): Prom
     clearTimeout(timer)
   }
   return lines
+}
+
+interface DeployEvent {
+  event: string
+  [key: string]: unknown
+}
+
+async function consumeDeploySSE(
+  client: Client,
+  path: string,
+  body: unknown
+): Promise<DeployEvent | { success: false; error: string }> {
+  const events: DeployEvent[] = []
+  try {
+    await client.postSSE(path, body, (line) => {
+      try {
+        events.push(JSON.parse(line) as DeployEvent)
+      } catch {}
+    })
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+  const complete = events.find((e) => e.event === 'complete')
+  if (!complete) {
+    return { success: false, error: 'Deploy stream ended without complete event' }
+  }
+  return complete
 }
 
 async function runServer(cwd?: string): Promise<void> {

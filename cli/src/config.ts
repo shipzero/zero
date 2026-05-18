@@ -8,20 +8,23 @@ export interface Config {
   ssh: string
 }
 
-const CONFIG_DIR = path.join(process.cwd(), '.zero')
-const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json')
+function configPath(): string {
+  return path.join(process.cwd(), '.zero', 'config.json')
+}
 
 export function loadConfig(): Config {
-  if (!fs.existsSync(CONFIG_PATH)) {
+  const filePath = configPath()
+  if (!fs.existsSync(filePath)) {
     logError('Not linked — run: zero login user@server')
     process.exit(1)
   }
 
-  const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
+  const raw = fs.readFileSync(filePath, 'utf-8')
   return JSON.parse(raw) as Config
 }
 
 export function saveConfig(config: Config): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true })
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n')
+  const filePath = configPath()
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, JSON.stringify(config, null, 2) + '\n')
 }

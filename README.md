@@ -304,13 +304,18 @@ Try it in a chat:
 
 ### Available tools
 
-`list_apps`, `get_app`, `get_deployments`, `deploy_app`, `start_app`, `stop_app`, `rollback_app`, `remove_app`, `set_env`, `unset_env`, `get_logs`, `get_metrics`, `get_version`, `get_status`.
+- **Inspect:** `list_apps`, `get_app`, `get_deployments`, `get_logs` (accepts an optional `preview`), `get_metrics` (same), `get_version`, `get_status`
+- **Lifecycle:** `create_app` (new app from image), `deploy_app` (redeploy existing), `start_app`, `stop_app`, `rollback_app`
+- **Previews:** `deploy_preview`, `remove_preview`
+- **Domains:** `add_domain`, `remove_domain`
+- **Environment:** `set_env`, `unset_env`
+- **Destructive:** `remove_app`
 
 The MCP server uses the same `.zero/config.json` as the CLI, so it always targets the project's linked server. JWT refresh via SSH works the same way.
 
 ### Safety guards
 
-Every state-changing tool (`deploy_app`, `stop_app`, `start_app`, `rollback_app`, `remove_app`, `set_env`, `unset_env`) requires a mandatory `confirm: true` parameter. The MCP schema enforces it — Claude cannot call these tools without explicitly setting it. This is a deliberate forcing function against accidental mutations from misinterpreted prompts.
+Every state-changing tool (`create_app`, `deploy_app`, `deploy_preview`, `start_app`, `stop_app`, `rollback_app`, `remove_app`, `remove_preview`, `add_domain`, `remove_domain`, `set_env`, `unset_env`) requires a mandatory `confirm: true` parameter. The MCP schema enforces it — Claude cannot call these tools without explicitly setting it. This is a deliberate forcing function against accidental mutations from misinterpreted prompts.
 
 Tools are also tagged with standard MCP annotations (`readOnlyHint`, `destructiveHint`) so clients can render appropriate UI affordances (e.g., destructive actions get extra prominence in approval dialogs).
 
