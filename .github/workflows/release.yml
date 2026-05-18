@@ -82,6 +82,10 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - name: Install CLI dependencies
+        working-directory: cli
+        run: bun install --frozen-lockfile
+
       - name: Inject version
         shell: bash
         run: sed -i.bak "s/__VERSION__/${{ needs.version.outputs.version }}/g" cli/src/version.ts

@@ -6,6 +6,7 @@ import { history } from './commands/history.ts'
 import { list } from './commands/list.ts'
 import { login } from './commands/login.ts'
 import { logs } from './commands/logs.ts'
+import { mcp } from './commands/mcp.ts'
 import { metrics } from './commands/metrics.ts'
 import { registry } from './commands/registry.ts'
 import { remove } from './commands/remove.ts'
@@ -51,7 +52,11 @@ function parseArgs(argv: string[]): ParsedArgs {
       }
     } else if (
       isFirstPositional &&
-      (command === 'domain' || command === 'env' || command === 'registry' || command === 'webhook')
+      (command === 'domain' ||
+        command === 'env' ||
+        command === 'mcp' ||
+        command === 'registry' ||
+        command === 'webhook')
     ) {
       subcommand = arg
       isFirstPositional = false
@@ -73,6 +78,7 @@ function formatHelp(): string {
     ['list', 'List all apps'],
     ['login <user@server>', 'Authenticate via SSH'],
     ['logs <app|--server> [--tail <n>] [--preview <label>]', 'Stream app or server logs'],
+    ['mcp <add|remove> [name]', 'Add or remove zero in Claude (Code + Desktop)'],
     ['metrics <app|--server> [--preview <label>]', 'Show live resource usage'],
     ['registry <login|logout|list> [server]', 'Manage registry credentials'],
     ['remove <app> [--preview <label>] [--force]', 'Remove an app or preview'],
@@ -129,6 +135,9 @@ async function main() {
       case 'list':
       case 'ls':
         await list()
+        break
+      case 'mcp':
+        await mcp(parsed.subcommand, parsed.positionals, parsed.flags)
         break
       case 'metrics':
         await metrics(parsed.positionals, parsed.flags)

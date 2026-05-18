@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [v2026.5.18]
+
+### Added
+
+- **Claude / MCP integration** — chat with your zero instance from Claude Code, Claude Desktop, or any MCP-compatible AI client. Inspect, deploy, roll back, and manage apps from a chat prompt
+- **`zero mcp add` / `zero mcp remove`** — register or unregister the MCP server in both Claude Code (project `.mcp.json`) and Claude Desktop (system config) in one step; `rm` works as alias for `remove`
+- **19 MCP tools** covering the full lifecycle:
+  - Inspect: `list_apps`, `get_app`, `get_deployments`, `get_logs`, `get_metrics`, `get_version`, `get_status`
+  - App lifecycle: `create_app` (new from image), `deploy_app` (redeploy existing), `start_app`, `stop_app`, `rollback_app`, `remove_app`
+  - Previews: `deploy_preview`, `remove_preview` (`get_logs` and `get_metrics` also accept a `preview` label)
+  - Domains: `add_domain`, `remove_domain`
+  - Environment variables: `set_env`, `unset_env`
+- **Schema-level safety guards** — every state-changing MCP tool requires an explicit `confirm: true` parameter, enforced at schema validation before the call reaches the server. Standard MCP annotations (`readOnlyHint`, `destructiveHint`) let clients render appropriate UI affordances
+- **JWT auto-refresh in MCP server** — uses the same SSH-based token mint as the CLI, so MCP sessions never need a manual relogin
+
 ## [v2026.5.6]
 
 ### Changed
@@ -45,7 +60,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - **Self-upgrade** — `zero upgrade --server` updates zero remotely
 - **CLI binaries** — prebuilt for Linux, macOS, and Windows
 
-[Unreleased]: https://github.com/shipzero/zero/compare/v2026.5.6...HEAD
+[Unreleased]: https://github.com/shipzero/zero/compare/v2026.5.18...HEAD
+[v2026.5.18]: https://github.com/shipzero/zero/compare/v2026.5.6...v2026.5.18
 [v2026.5.6]: https://github.com/shipzero/zero/compare/v2026.4.8...v2026.5.6
 [v2026.4.8]: https://github.com/shipzero/zero/compare/v2026.4.1...v2026.4.8
 [v2026.4.1]: https://github.com/shipzero/zero/releases/tag/v2026.4.1
