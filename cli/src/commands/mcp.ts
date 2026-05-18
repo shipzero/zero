@@ -354,7 +354,15 @@ async function collectSSE(client: Client, path: string, timeoutMs: number): Prom
   return lines
 }
 
-async function runServer(): Promise<void> {
+async function runServer(cwd?: string): Promise<void> {
+  if (cwd) {
+    if (!fs.existsSync(cwd)) {
+      process.stderr.write(`[zero mcp] --cwd path does not exist: ${cwd}\n`)
+      process.exit(1)
+    }
+    process.chdir(cwd)
+  }
+
   const client = createClient()
 
   const server = new McpServer({ name: 'zero-mcp', version: VERSION })
@@ -362,7 +370,7 @@ async function runServer(): Promise<void> {
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  process.stderr.write(`[zero mcp] Connected to ${client.config.host}\n`)
+  process.stderr.write(`[zero mcp] Connected to ${client.config.host} (cwd: ${process.cwd()})\n`)
 }
 
 function claudeDesktopConfigPath(): string {
@@ -465,7 +473,7 @@ function installClaudeDesktop(name: string, binary: string, cwd: string): 'added
   const config = readJsonConfig(configPath)
   config.mcpServers = config.mcpServers ?? {}
   if (name in config.mcpServers) return 'exists'
-  config.mcpServers[name] = { command: binary, args: ['mcp'], cwd }
+  config.mcpServers[name] = { command: binary, args: ['mcp', '--cwd', cwd], cwd }
   writeJsonConfig(configPath, config)
   return 'added'
 }
@@ -548,7 +556,10 @@ export async function mcp(
 ): Promise<void> {
   if (subcommand === 'add') return mcpAdd(positionals, flags)
   if (subcommand === 'remove' || subcommand === 'rm') return mcpRemove(positionals, flags)
-  if (subcommand === null) return runServer()
+  if (subcommand === null) {
+    const cwd = typeof flags['cwd'] === 'string' ? flags['cwd'] : undefined
+    return runServer(cwd)
+  }
   logError(`Unknown mcp subcommand: ${subcommand}`)
   logHint('Usage: zero mcp <add|remove> [name]')
   process.exit(1)
