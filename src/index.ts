@@ -1,5 +1,5 @@
 import { startApi } from './api.ts'
-import { renewExpiringCerts } from './certs.ts'
+import { managedDomains, renewExpiringCerts } from './certs.ts'
 import { API_PORT, CERT_RENEW_INTERVAL_MS, DOMAIN, IS_DEV, JWT_SECRET, TOKEN } from './env.ts'
 import { cleanupExpiredPreviews, startPreviewCleanupInterval } from './preview.ts'
 import {
@@ -40,14 +40,10 @@ console.log(`[zero] ${IS_DEV ? 'dev' : `${VERSION} (production)`}`)
 loadState()
 restoreRoutes(getApps())
 
-function managedDomains(): string[] {
-  return getApps().flatMap((app) => app.domains)
-}
-
-void renewExpiringCerts(managedDomains())
+void renewExpiringCerts(managedDomains(getApps(), DOMAIN))
 
 const certRenewTimer = setInterval(() => {
-  void renewExpiringCerts(managedDomains())
+  void renewExpiringCerts(managedDomains(getApps(), DOMAIN))
 }, CERT_RENEW_INTERVAL_MS)
 certRenewTimer.unref()
 

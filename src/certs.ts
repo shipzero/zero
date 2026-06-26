@@ -70,6 +70,11 @@ export function shouldRenewCert(domain: string, now = Date.now()): boolean {
   return expiresAt.getTime() - now <= renewBeforeMs
 }
 
+export function managedDomains(apps: Array<{ domains: string[] }>, hostDomain: string): string[] {
+  const appDomains = apps.flatMap((app) => app.domains)
+  return hostDomain ? [hostDomain, ...appDomains] : appDomains
+}
+
 export async function renewExpiringCerts(
   domains: string[],
   renew: (domain: string) => Promise<tls.SecureContext> = obtainCert,
