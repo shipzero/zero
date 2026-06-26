@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ### Fixed
 
-- **Control-plane certificate renewal** — the server's own domain (`DOMAIN`) was routed but never included in the automatic renewal sweep, so its Let's Encrypt certificate expired after 90 days while app certificates kept renewing. `DOMAIN` is now part of the managed set and renews automatically
+- **Host domain certificate renewal** — the host domain (`DOMAIN`) was routed but never included in the automatic renewal sweep, so its Let's Encrypt certificate expired after 90 days while app certificates kept renewing. `DOMAIN` is now part of the managed set and renews automatically
 
 ## [v2026.5.18]
 
@@ -66,7 +66,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - **Self-upgrade** — `zero upgrade --server` updates zero remotely
 - **CLI binaries** — prebuilt for Linux, macOS, and Windows
 
-[Unreleased]: https://github.com/shipzero/zero/compare/v2026.5.18...HEAD
+[Unreleased]: https://github.com/shipzero/zero/compare/v2026.6.26...HEAD
+[v2026.6.26]: https://github.com/shipzero/zero/compare/v2026.5.18...v2026.6.26
 [v2026.5.18]: https://github.com/shipzero/zero/compare/v2026.5.6...v2026.5.18
 [v2026.5.6]: https://github.com/shipzero/zero/compare/v2026.4.8...v2026.5.6
 [v2026.4.8]: https://github.com/shipzero/zero/compare/v2026.4.1...v2026.4.8

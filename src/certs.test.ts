@@ -31,6 +31,20 @@ describe('cert renewal', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
+  it('includes the host domain alongside app domains', () => {
+    const apps = [{ domains: ['app1.example.com'] }, { domains: ['app2.example.com'] }]
+    expect(certs.managedDomains(apps, 'c1.example.com')).toEqual([
+      'c1.example.com',
+      'app1.example.com',
+      'app2.example.com'
+    ])
+  })
+
+  it('omits the host domain when none is configured (IP-only install)', () => {
+    const apps = [{ domains: ['app1.example.com'] }]
+    expect(certs.managedDomains(apps, '')).toEqual(['app1.example.com'])
+  })
+
   it('skips domains whose cert is not close to expiry', async () => {
     writeCert('stable.example.com')
 
