@@ -41,7 +41,8 @@ loadState()
 restoreRoutes(getApps())
 
 function managedDomains(): string[] {
-  return getApps().flatMap((app) => app.domains)
+  const appDomains = getApps().flatMap((app) => app.domains)
+  return DOMAIN ? [DOMAIN, ...appDomains] : appDomains
 }
 
 void renewExpiringCerts(managedDomains())
