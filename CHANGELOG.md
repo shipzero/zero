@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [v2026.6.26]
+
+### Fixed
+
+- **Control-plane certificate renewal** — the server's own domain (`DOMAIN`) was routed but never included in the automatic renewal sweep, so its Let's Encrypt certificate expired after 90 days while app certificates kept renewing. `DOMAIN` is now part of the managed set and renews automatically
+
 ## [v2026.5.18]
 
 ### Added
