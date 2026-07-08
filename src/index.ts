@@ -1,5 +1,6 @@
 import { startApi } from './api.ts'
 import { managedDomains, renewExpiringCerts } from './certs.ts'
+import { pruneDanglingImages, startImagePruneInterval } from './docker.ts'
 import { API_PORT, CERT_RENEW_INTERVAL_MS, DOMAIN, IS_DEV, JWT_SECRET, TOKEN } from './env.ts'
 import { cleanupExpiredPreviews, startPreviewCleanupInterval } from './preview.ts'
 import {
@@ -50,6 +51,10 @@ certRenewTimer.unref()
 void cleanupExpiredPreviews()
 const previewCleanupTimer = startPreviewCleanupInterval()
 previewCleanupTimer.unref()
+
+void pruneDanglingImages()
+const imagePruneTimer = startImagePruneInterval()
+imagePruneTimer.unref()
 
 const servers = IS_DEV ? [startDevProxy()] : isTLSEnabled() ? [startHTTPProxy(), startTLSProxy()] : [startHTTPProxy()]
 

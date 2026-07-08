@@ -46,6 +46,9 @@ vi.mock('./compose.ts', () => ({
   composeStart: vi.fn().mockResolvedValue(undefined),
   composeLogs: vi.fn().mockReturnValue((async function* () {})()),
   removeComposeDir: vi.fn(),
+  hasComposeService: vi
+    .fn()
+    .mockImplementation((content: string, service: string) => new RegExp(`^\\s{2}${service}:`, 'm').test(content)),
   substituteImageTags: vi.fn().mockImplementation((content: string) => content),
   extractImageTag: vi.fn().mockImplementation((content: string, prefix: string) => {
     const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -385,6 +388,62 @@ describe('API', () => {
       const res = await request('DELETE', '/apps/delme')
       expect(res.status).toBe(200)
       expect(state.getApp('delme')).toBeUndefined()
+    })
+
+    it('removes the images of all deployments', async () => {
+      addTestApp({ name: 'delimg' })
+      state.addDeployment('delimg', {
+        image: 'nginx:v1',
+        digest: 'sha256:d1',
+        containerId: 'c1',
+        port: 3001,
+        deployedAt: '2024-01-01'
+      })
+      state.addDeployment('delimg', {
+        image: 'nginx:v2',
+        digest: 'sha256:d2',
+        containerId: 'c2',
+        port: 3002,
+        deployedAt: '2024-01-02'
+      })
+
+      const res = await request('DELETE', '/apps/delimg')
+
+      expect(res.status).toBe(200)
+      expect(dockerMock.removeImage).toHaveBeenCalledWith('nginx@sha256:d1')
+      expect(dockerMock.removeImage).toHaveBeenCalledWith('nginx@sha256:d2')
+    })
+
+    it('keeps images still referenced by another app', async () => {
+      addTestApp({ name: 'delshared' })
+      addTestApp({ name: 'othershared' })
+      const sharedDeployment = {
+        image: 'nginx:v1',
+        digest: 'sha256:shared',
+        containerId: 'c1',
+        port: 3001,
+        deployedAt: '2024-01-01'
+      }
+      state.addDeployment('delshared', sharedDeployment)
+      state.addDeployment('othershared', { ...sharedDeployment, containerId: 'c9' })
+
+      const res = await request('DELETE', '/apps/delshared')
+
+      expect(res.status).toBe(200)
+      expect(dockerMock.removeImage).not.toHaveBeenCalledWith('nginx@sha256:shared')
+    })
+
+    it('removes compose project images', async () => {
+      addTestApp({
+        name: 'delcompose',
+        composeFile: 'services:\n  web:\n    image: nginx',
+        entryService: 'web'
+      })
+
+      const res = await request('DELETE', '/apps/delcompose')
+
+      expect(res.status).toBe(200)
+      expect(composeMock.composeDown).toHaveBeenCalledWith('/tmp/compose', { removeImages: true })
     })
 
     it('returns 404 for unknown app', async () => {
@@ -1013,6 +1072,116 @@ describe('API', () => {
       })
       const app = state.getApp('comptagprio')!
       expect(app.trackTag).toBe('stable')
+    })
+
+    it('updates the compose config when redeploying an existing compose app', async () => {
+      const oldCompose = 'services:\n  web:\n    image: ghcr.io/org/app/web:v1'
+      const newCompose = 'services:\n  web:\n    image: ghcr.io/org/app/web:v1\n    environment:\n      NEW_VAR: x'
+      await requestSSE('/deploy', {
+        name: 'confupd',
+        composeFile: oldCompose,
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+
+      const res = await requestSSE('/deploy', {
+        name: 'confupd',
+        composeFile: newCompose,
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+
+      expect(res.status).toBe(200)
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      expect(accepted?.updatedFields).toContain('composeFile')
+      expect(state.getApp('confupd')!.composeFile).toBe(newCompose)
+      const complete = res.events.find((e) => e.event === 'complete')
+      expect(complete?.success).toBe(true)
+    })
+
+    it('updates single-container config on redeploy', async () => {
+      addTestApp({ name: 'sconfupd' })
+
+      const res = await requestSSE('/deploy', {
+        name: 'sconfupd',
+        port: 8080,
+        command: ['node', 'server.js'],
+        volumes: ['data:/app/data'],
+        healthPath: '/health'
+      })
+
+      expect(res.status).toBe(200)
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      expect(accepted?.updatedFields).toEqual(
+        expect.arrayContaining(['internalPort', 'command', 'volumes', 'healthPath'])
+      )
+      const app = state.getApp('sconfupd')!
+      expect(app.internalPort).toBe(8080)
+      expect(app.command).toEqual(['node', 'server.js'])
+      expect(app.volumes).toEqual(['data:/app/data'])
+      expect(app.healthPath).toBe('/health')
+    })
+
+    it('does not report updatedFields when nothing changed', async () => {
+      addTestApp({ name: 'confsame' })
+
+      const res = await requestSSE('/deploy', { name: 'confsame' })
+
+      const accepted = res.events.find((e) => e.event === 'accepted')
+      expect(accepted?.updatedFields).toBeUndefined()
+    })
+
+    it('rejects a compose file for an existing single-container app', async () => {
+      addTestApp({ name: 'notcompose' })
+
+      const res = await request('POST', '/deploy', {
+        name: 'notcompose',
+        composeFile: 'services:\n  web:\n    image: nginx',
+        entryService: 'web'
+      })
+
+      expect(res.status).toBe(400)
+      expect((res.body as { error: string }).error).toContain('single-container')
+    })
+
+    it('rejects a compose file update when the entry service is missing', async () => {
+      await requestSSE('/deploy', {
+        name: 'confnosvc',
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:v1',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+
+      const res = await request('POST', '/deploy', {
+        name: 'confnosvc',
+        composeFile: 'services:\n  api:\n    image: ghcr.io/org/app/api:v1'
+      })
+
+      expect(res.status).toBe(400)
+      expect((res.body as { error: string }).error).toContain('web')
+      expect(state.getApp('confnosvc')!.composeFile).toContain('web')
+    })
+
+    it('does not update config on preview deploys', async () => {
+      const oldCompose = 'services:\n  web:\n    image: ghcr.io/org/app/web:v1'
+      await requestSSE('/deploy', {
+        name: 'confprev',
+        domain: 'confprev.example.com',
+        composeFile: oldCompose,
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+
+      await requestSSE('/deploy', {
+        name: 'confprev',
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:v1\n    environment:\n      X: y',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app',
+        preview: 'pr-9',
+        tag: 'pr-9'
+      })
+
+      expect(state.getApp('confprev')!.composeFile).toBe(oldCompose)
     })
 
     it('returns 400 without image or name', async () => {

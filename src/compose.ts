@@ -36,6 +36,11 @@ function parseServiceNames(composeContent: string): string[] {
   return services
 }
 
+/** Checks whether a service is defined in the compose file content. */
+export function hasComposeService(composeContent: string, service: string): boolean {
+  return parseServiceNames(composeContent).includes(service)
+}
+
 const VALID_TAG_PATTERN = /^[a-zA-Z0-9._-]+$/
 
 function imagePrefixPattern(imagePrefix: string): string {
@@ -119,10 +124,16 @@ export function composeStart(projectDir: string): Promise<void> {
   return runCompose(projectDir, ['start'])
 }
 
+export interface ComposeDownOptions {
+  removeVolumes?: boolean
+  removeImages?: boolean
+}
+
 /** Runs `docker compose down --remove-orphans` in the project directory. */
-export function composeDown(projectDir: string, removeVolumes = false): Promise<void> {
+export function composeDown(projectDir: string, options: ComposeDownOptions = {}): Promise<void> {
   const args = ['down', '--remove-orphans']
-  if (removeVolumes) args.push('-v')
+  if (options.removeVolumes) args.push('-v')
+  if (options.removeImages) args.push('--rmi', 'all')
   return runCompose(projectDir, args)
 }
 

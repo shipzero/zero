@@ -8,6 +8,7 @@ const mockComposeDir = vi.fn().mockReturnValue('/tmp/compose/project')
 const mockRemoveComposeDir = vi.fn()
 const mockRemoveProxyRoute = vi.fn()
 const mockClearDeployLogs = vi.fn()
+const mockRemoveImageIfUnreferenced = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('./state.ts', () => ({
   getAllExpiredPreviews: (...args: unknown[]) => mockGetAllExpiredPreviews(...args),
@@ -29,7 +30,8 @@ vi.mock('./proxy.ts', () => ({
 }))
 
 vi.mock('./deploy.ts', () => ({
-  clearDeployLogs: (...args: unknown[]) => mockClearDeployLogs(...args)
+  clearDeployLogs: (...args: unknown[]) => mockClearDeployLogs(...args),
+  removeImageIfUnreferenced: (...args: unknown[]) => mockRemoveImageIfUnreferenced(...args)
 }))
 
 const { destroyPreview, cleanupExpiredPreviews, startPreviewCleanupInterval } = await import('./preview.ts')
@@ -57,6 +59,26 @@ describe('destroyPreview', () => {
     expect(mockComposeDown).not.toHaveBeenCalled()
   })
 
+  it('removes the preview image after the preview is deregistered', async () => {
+    const preview = {
+      label: 'pr-img',
+      domain: 'pr-img.app.com',
+      image: 'nginx:pr-img',
+      digest: 'sha256:abc',
+      containerId: 'abc456',
+      port: 3005,
+      deployedAt: '2026-01-01T00:00:00Z',
+      expiresAt: '2026-01-08T00:00:00Z'
+    }
+
+    await destroyPreview('myapp', preview)
+
+    expect(mockRemoveImageIfUnreferenced).toHaveBeenCalledWith(preview)
+    const removePreviewOrder = mockRemovePreview.mock.invocationCallOrder[0]
+    const removeImageOrder = mockRemoveImageIfUnreferenced.mock.invocationCallOrder[0]
+    expect(removeImageOrder).toBeGreaterThan(removePreviewOrder)
+  })
+
   it('removes a compose preview', async () => {
     const preview = {
       label: 'pr-2',
@@ -72,10 +94,11 @@ describe('destroyPreview', () => {
     await destroyPreview('myapp', preview)
 
     expect(mockRemoveProxyRoute).toHaveBeenCalledWith('pr-2.app.com')
-    expect(mockComposeDown).toHaveBeenCalledWith('/tmp/compose/project', true)
+    expect(mockComposeDown).toHaveBeenCalledWith('/tmp/compose/project', { removeVolumes: true, removeImages: true })
     expect(mockRemoveComposeDir).toHaveBeenCalledWith('stack-project')
     expect(mockRemoveContainer).not.toHaveBeenCalled()
     expect(mockRemovePreview).toHaveBeenCalledWith('myapp', 'pr-2')
+    expect(mockRemoveImageIfUnreferenced).not.toHaveBeenCalled()
   })
 
   it('continues when composeDown fails', async () => {

@@ -1,9 +1,17 @@
 import net from 'node:net'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const mockPruneImages = vi.hoisted(() => vi.fn().mockResolvedValue({ ImagesDeleted: [], SpaceReclaimed: 0 }))
+
+vi.mock('dockerode', () => ({
+  default: class {
+    pruneImages = mockPruneImages
+  }
+}))
 
 // Import only the pure/testable functions
 // We test getFreePort and waitForHealthy which don't need Docker
-import { getFreePort, waitForHealthy } from './docker.ts'
+import { getFreePort, startImagePruneInterval, waitForHealthy } from './docker.ts'
 
 describe('docker utilities', () => {
   describe('getFreePort', () => {
@@ -36,6 +44,23 @@ describe('docker utilities', () => {
       const port = await getFreePort()
       await expect(waitForHealthy(port, undefined, 1000)).rejects.toThrow('did not become healthy')
     })
+  })
+})
+
+describe('startImagePruneInterval', () => {
+  it('prunes dangling images once per hour', async () => {
+    vi.useFakeTimers()
+    const interval = startImagePruneInterval()
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+    expect(mockPruneImages).toHaveBeenCalledTimes(1)
+    expect(mockPruneImages).toHaveBeenCalledWith({ filters: { dangling: ['true'] } })
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+    expect(mockPruneImages).toHaveBeenCalledTimes(2)
+
+    clearInterval(interval)
+    vi.useRealTimers()
   })
 })
 

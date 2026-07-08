@@ -13,9 +13,31 @@ vi.mock('./state.ts', () => ({
   getRegistryAuths: vi.fn().mockReturnValue({})
 }))
 
-const { composeDir, writeComposeFiles, removeComposeDir, substituteImageTags, extractImageTag } = await import(
-  './compose.ts'
-)
+const mockExecFile = vi.fn()
+
+vi.mock('node:child_process', () => ({
+  execFile: (...args: unknown[]) => mockExecFile(...args)
+}))
+
+const {
+  composeDir,
+  composeDown,
+  hasComposeService,
+  writeComposeFiles,
+  removeComposeDir,
+  substituteImageTags,
+  extractImageTag
+} = await import('./compose.ts')
+
+function fakeComposeProcess() {
+  return {
+    stdout: { on: vi.fn() },
+    stderr: { on: vi.fn() },
+    on(event: string, callback: (code: number) => void) {
+      if (event === 'close') queueMicrotask(() => callback(0))
+    }
+  }
+}
 
 describe('compose', () => {
   beforeEach(() => {
@@ -101,6 +123,50 @@ describe('compose', () => {
 
     it('does not throw when directory does not exist', () => {
       expect(() => removeComposeDir('nonexistent')).not.toThrow()
+    })
+  })
+
+  describe('hasComposeService', () => {
+    const content = 'services:\n  web:\n    image: nginx\n  db:\n    image: postgres'
+
+    it('returns true for a defined service', () => {
+      expect(hasComposeService(content, 'web')).toBe(true)
+      expect(hasComposeService(content, 'db')).toBe(true)
+    })
+
+    it('returns false for an unknown service', () => {
+      expect(hasComposeService(content, 'api')).toBe(false)
+    })
+  })
+
+  describe('composeDown', () => {
+    beforeEach(() => {
+      mockExecFile.mockReset()
+      mockExecFile.mockImplementation(() => fakeComposeProcess())
+    })
+
+    it('runs docker compose down with --remove-orphans', async () => {
+      await composeDown('/tmp/proj')
+
+      expect(mockExecFile).toHaveBeenCalledWith('docker', ['compose', 'down', '--remove-orphans'], expect.anything())
+    })
+
+    it('adds -v when removeVolumes is set', async () => {
+      await composeDown('/tmp/proj', { removeVolumes: true })
+
+      const args = mockExecFile.mock.calls[0][1] as string[]
+      expect(args).toContain('-v')
+      expect(args).not.toContain('--rmi')
+    })
+
+    it('adds --rmi all when removeImages is set', async () => {
+      await composeDown('/tmp/proj', { removeImages: true })
+
+      const args = mockExecFile.mock.calls[0][1] as string[]
+      const rmiIndex = args.indexOf('--rmi')
+      expect(rmiIndex).toBeGreaterThan(-1)
+      expect(args[rmiIndex + 1]).toBe('all')
+      expect(args).not.toContain('-v')
     })
   })
 

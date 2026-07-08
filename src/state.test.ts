@@ -129,6 +129,72 @@ describe('state', () => {
     })
   })
 
+  describe('updateAppConfig', () => {
+    function addComposeApp() {
+      state.addApp({
+        name: 'stack',
+        image: '',
+        trackTag: 'v1',
+        internalPort: 80,
+        env: {},
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:v1',
+        entryService: 'web',
+        imagePrefix: 'ghcr.io/org/app'
+      })
+    }
+
+    it('updates only the provided fields and returns their names', () => {
+      addComposeApp()
+
+      const updated = state.updateAppConfig('stack', {
+        composeFile: 'services:\n  web:\n    image: ghcr.io/org/app/web:v2',
+        internalPort: 3000
+      })
+
+      expect(updated.sort()).toEqual(['composeFile', 'internalPort'])
+      const app = state.getApp('stack')!
+      expect(app.composeFile).toContain('web:v2')
+      expect(app.internalPort).toBe(3000)
+      expect(app.entryService).toBe('web')
+      expect(app.imagePrefix).toBe('ghcr.io/org/app')
+    })
+
+    it('updates single-container fields', () => {
+      state.addApp({ name: 'app', image: 'nginx', trackTag: 'latest', internalPort: 80, env: {} })
+
+      const updated = state.updateAppConfig('app', {
+        command: ['node', 'server.js'],
+        volumes: ['data:/app/data'],
+        healthPath: '/health',
+        healthTimeout: '30s'
+      })
+
+      expect(updated.sort()).toEqual(['command', 'healthPath', 'healthTimeout', 'volumes'])
+      const app = state.getApp('app')!
+      expect(app.command).toEqual(['node', 'server.js'])
+      expect(app.volumes).toEqual(['data:/app/data'])
+      expect(app.healthPath).toBe('/health')
+      expect(app.healthTimeout).toBe('30s')
+    })
+
+    it('returns an empty array when nothing is provided', () => {
+      addComposeApp()
+      expect(state.updateAppConfig('stack', {})).toEqual([])
+    })
+
+    it('persists updates to disk', () => {
+      addComposeApp()
+      state.updateAppConfig('stack', { entryService: 'api' })
+
+      const raw = JSON.parse(fs.readFileSync(process.env.STATE_PATH!, 'utf8'))
+      expect(raw.apps.stack.entryService).toBe('api')
+    })
+
+    it('throws for non-existent app', () => {
+      expect(() => state.updateAppConfig('nope', { internalPort: 80 })).toThrow('App "nope" not found')
+    })
+  })
+
   describe('removeApp', () => {
     it('removes an app', () => {
       state.addApp({ name: 'doomed', image: 'img', trackTag: 'latest', internalPort: 80, env: {} })

@@ -214,6 +214,38 @@ describe('deploy command', () => {
     )
   })
 
+  it('logs updated config fields on redeploy', async () => {
+    const logSpy = vi.spyOn(console, 'log')
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'myapp', isNew: false, updatedFields: ['composeFile', 'internalPort'] },
+        { event: 'complete', success: true, appName: 'myapp', isNew: false }
+      ])
+    )
+
+    await deploy(['myapp'], {})
+
+    const output = logSpy.mock.calls.flat().join('\n')
+    expect(output).toContain('Config updated (composeFile, internalPort)')
+    logSpy.mockRestore()
+  })
+
+  it('does not log config update line without updatedFields', async () => {
+    const logSpy = vi.spyOn(console, 'log')
+    mockClient.postSSE.mockImplementation(
+      makePostSSE([
+        { event: 'accepted', appName: 'myapp', isNew: false },
+        { event: 'complete', success: true, appName: 'myapp', isNew: false }
+      ])
+    )
+
+    await deploy(['myapp'], {})
+
+    const output = logSpy.mock.calls.flat().join('\n')
+    expect(output).not.toContain('Config updated')
+    logSpy.mockRestore()
+  })
+
   it('includes tag when provided', async () => {
     mockClient.postSSE.mockImplementation(
       makePostSSE([

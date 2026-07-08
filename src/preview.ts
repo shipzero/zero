@@ -1,5 +1,5 @@
 import { composeDir, composeDown, removeComposeDir } from './compose.ts'
-import { clearDeployLogs } from './deploy.ts'
+import { clearDeployLogs, removeImageIfUnreferenced } from './deploy.ts'
 import { removeContainer } from './docker.ts'
 import { removeProxyRoute } from './proxy.ts'
 import type { Preview } from './state.ts'
@@ -12,7 +12,7 @@ export async function destroyPreview(appName: string, preview: Preview): Promise
   if (preview.isCompose) {
     const projectName = preview.containerId
     try {
-      await composeDown(composeDir(projectName), true)
+      await composeDown(composeDir(projectName), { removeVolumes: true, removeImages: true })
     } catch {
       /* project may already be gone */
     }
@@ -22,6 +22,10 @@ export async function destroyPreview(appName: string, preview: Preview): Promise
   }
   removePreview(appName, preview.label)
   clearDeployLogs(appName, preview.label)
+  // Remove the image only after removePreview so the preview's own reference no longer counts
+  if (!preview.isCompose) {
+    await removeImageIfUnreferenced(preview)
+  }
 }
 
 export async function cleanupExpiredPreviews(): Promise<number> {

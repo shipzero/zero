@@ -132,6 +132,15 @@ export async function removeImage(imageRef: string): Promise<void> {
   }
 }
 
+const IMAGE_PRUNE_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
+
+/** Periodically prunes dangling images so leftover layers can't fill up the disk. */
+export function startImagePruneInterval(): ReturnType<typeof setInterval> {
+  return setInterval(() => {
+    void pruneDanglingImages()
+  }, IMAGE_PRUNE_INTERVAL_MS)
+}
+
 export async function pruneDanglingImages(): Promise<void> {
   console.log('[docker] pruning dangling images')
   try {

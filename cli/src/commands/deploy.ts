@@ -106,6 +106,7 @@ interface DeployEvent {
   message?: string
   appName?: string
   isNew?: boolean
+  updatedFields?: string[]
   webhookUrl?: string
   webhookSecret?: string
   success?: boolean
@@ -241,6 +242,9 @@ export async function deploy(positionals: string[], flags: Record<string, string
     if (event.event === 'accepted') {
       const target = preview ? `preview ${preview} for ${event.appName ?? body.name}` : `${event.appName ?? body.name}`
       logInfo(`Deploying ${target}...`)
+      if (event.updatedFields?.length) {
+        logInfo(`Config updated (${event.updatedFields.join(', ')})`)
+      }
       if (event.isNew && event.webhookUrl) {
         logInfo(`Webhook URL:    ${event.webhookUrl}`)
         if (event.webhookSecret) logInfo(`Webhook secret: ${event.webhookSecret}`)

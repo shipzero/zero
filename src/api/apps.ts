@@ -6,9 +6,17 @@ import {
   composeStart,
   composeStop,
   extractImageTag,
+  hasComposeService,
   removeComposeDir
 } from '../compose.ts'
-import { deploy, deployComposePreview, deployEvents, deployPreview, rollback } from '../deploy.ts'
+import {
+  deploy,
+  deployComposePreview,
+  deployEvents,
+  deployPreview,
+  removeImageIfUnreferenced,
+  rollback
+} from '../deploy.ts'
 import { removeContainer, startContainer, stopContainer, streamLogs, streamStats, waitForHealthy } from '../docker.ts'
 import { parseDuration } from '../duration.ts'
 import { DOMAIN, PREVIEW_TTL_MS } from '../env.ts'
@@ -28,6 +36,7 @@ import {
   removeApp,
   removeEnv,
   resetWebhookSecret,
+  updateAppConfig,
   updateEnv
 } from '../state.ts'
 import type { AppDetail, AppSummary, MessageResponse, PreviewSummary, StartResponse, StopResponse } from '../types.ts'
@@ -149,6 +158,7 @@ route('POST', '/deploy', async (req, res) => {
   const appName = body.name ?? inferNameFromImage(body.image!)
   let app = getApp(appName)
   let isNew = false
+  let updatedFields: string[] = []
 
   if (!app) {
     if (!body.image && !body.composeFile) {
@@ -186,8 +196,39 @@ route('POST', '/deploy', async (req, res) => {
         : {})
     })
     isNew = true
-  } else if (body.env) {
-    updateEnv(appName, body.env)
+  } else {
+    if ((body.composeFile || body.entryService || body.imagePrefix) && !isComposeApp(app)) {
+      json(res, 400, {
+        error: `App "${appName}" is a single-container app — remove it first to redeploy it as a Compose app`
+      })
+      return
+    }
+
+    // Previews deploy the stored config without modifying it
+    if (!body.preview) {
+      if (body.composeFile) {
+        const entryService = body.entryService ?? app.entryService!
+        if (!hasComposeService(body.composeFile, entryService)) {
+          json(res, 400, { error: `Entry service "${entryService}" not found in the compose file` })
+          return
+        }
+      }
+
+      updatedFields = updateAppConfig(appName, {
+        composeFile: body.composeFile,
+        entryService: body.entryService,
+        imagePrefix: body.imagePrefix,
+        internalPort: body.port,
+        command: body.command,
+        volumes: body.volumes,
+        healthPath: body.healthPath,
+        healthTimeout: body.healthTimeout
+      })
+    }
+
+    if (body.env) {
+      updateEnv(appName, body.env)
+    }
   }
 
   startSSE(res)
@@ -197,6 +238,7 @@ route('POST', '/deploy', async (req, res) => {
       event: 'accepted',
       appName,
       isNew,
+      ...(updatedFields.length > 0 ? { updatedFields } : {}),
       ...(isNew ? { webhookUrl: buildWebhookUrl(app.name), webhookSecret: app.webhookSecret } : {})
     })
   )
@@ -480,7 +522,7 @@ async function removeAppWithContainers(app: AppConfig): Promise<void> {
 
   if (isComposeApp(app)) {
     try {
-      await composeDown(composeDir(app.name))
+      await composeDown(composeDir(app.name), { removeImages: true })
     } catch (err) {
       console.error(`[api] Compose down failed for ${app.name}:`, err)
     }
@@ -491,6 +533,15 @@ async function removeAppWithContainers(app: AppConfig): Promise<void> {
   }
 
   removeApp(app.name)
+
+  // Compose images are already removed by `composeDown --rmi all`, and compose deployments
+  // store bare tags, not image refs. Delete only after removeApp so the app's own
+  // deployments no longer count as references.
+  if (!isComposeApp(app)) {
+    for (const deployment of app.deployments) {
+      await removeImageIfUnreferenced(deployment)
+    }
+  }
 }
 
 route('DELETE', '/apps/:name/host-port', async (_req, res, { name }) => {

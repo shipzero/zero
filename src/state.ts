@@ -144,6 +144,33 @@ export function updateInternalPort(appName: string, port: number): void {
   saveState()
 }
 
+export interface AppConfigUpdate {
+  composeFile?: string
+  entryService?: string
+  imagePrefix?: string
+  internalPort?: number
+  command?: string[]
+  volumes?: string[]
+  healthPath?: string
+  healthTimeout?: string
+}
+
+/** Overwrites the provided config fields on an app and returns the names of the updated fields. */
+export function updateAppConfig(appName: string, updates: AppConfigUpdate): string[] {
+  const app = _state.apps[appName]
+  if (!app) throw new Error(`App "${appName}" not found`)
+
+  const updatedFields: string[] = []
+  for (const [field, value] of Object.entries(updates)) {
+    if (value === undefined) continue
+    ;(app as unknown as Record<string, unknown>)[field] = value
+    updatedFields.push(field)
+  }
+
+  if (updatedFields.length > 0) saveState()
+  return updatedFields
+}
+
 export function updateEnv(appName: string, env: Record<string, string>): void {
   const app = _state.apps[appName]
   if (!app) throw new Error(`App "${appName}" not found`)
@@ -179,7 +206,13 @@ export function addDeployment(appName: string, deployment: Deployment): Deployme
   return evicted
 }
 
-export function getDeploymentImageKey(deployment: { image: string; digest?: string }): string {
+/** The image identity shared by deployments and previews — a tag ref plus an optional digest. */
+export interface DeployedImage {
+  image: string
+  digest?: string
+}
+
+export function getDeploymentImageKey(deployment: DeployedImage): string {
   return deployment.digest ? `digest:${deployment.digest}` : `tag:${deployment.image}`
 }
 

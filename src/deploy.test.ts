@@ -48,7 +48,7 @@ vi.mock('./proxy.ts', () => ({
 }))
 
 const state = await import('./state.ts')
-const { deploy, rollback, getDeployLogs, deployEvents } = await import('./deploy.ts')
+const { deploy, rollback, getDeployLogs, deployEvents, removeImageIfUnreferenced } = await import('./deploy.ts')
 
 describe('deploy', () => {
   beforeEach(() => {
@@ -459,6 +459,52 @@ describe('deploy', () => {
       state.addDeployment('web', { image: 'nginx:v1', containerId: 'c1', port: 3001, deployedAt: '2024-01-01' })
 
       await expect(rollback('web')).rejects.toThrow()
+    })
+  })
+
+  describe('removeImageIfUnreferenced', () => {
+    it('removes the image by digest ref when nothing references it', async () => {
+      await removeImageIfUnreferenced({ image: 'ghcr.io/org/app:pr-1', digest: 'sha256:aaa' })
+
+      expect(mockRemoveImage).toHaveBeenCalledWith('ghcr.io/org/app@sha256:aaa')
+    })
+
+    it('removes the image by tag when it has no digest', async () => {
+      await removeImageIfUnreferenced({ image: 'ghcr.io/org/app:pr-1' })
+
+      expect(mockRemoveImage).toHaveBeenCalledWith('ghcr.io/org/app:pr-1')
+    })
+
+    it('keeps the image when a deployment references the same digest', async () => {
+      state.addApp({ name: 'web', image: 'ghcr.io/org/app', trackTag: 'latest', internalPort: 80, env: {} })
+      state.addDeployment('web', {
+        image: 'ghcr.io/org/app:v1',
+        digest: 'sha256:aaa',
+        containerId: 'c1',
+        port: 3001,
+        deployedAt: '2024-01-01'
+      })
+
+      await removeImageIfUnreferenced({ image: 'ghcr.io/org/app:pr-1', digest: 'sha256:aaa' })
+
+      expect(mockRemoveImage).not.toHaveBeenCalled()
+    })
+
+    it('keeps the image when a preview references the same tag', async () => {
+      state.addApp({ name: 'web', image: 'ghcr.io/org/app', trackTag: 'latest', internalPort: 80, env: {} })
+      state.setPreview('web', 'pr-1', {
+        label: 'pr-1',
+        domain: 'pr-1.web.com',
+        image: 'ghcr.io/org/app:pr-1',
+        containerId: 'c1',
+        port: 3001,
+        deployedAt: '2024-01-01',
+        expiresAt: '2099-01-01'
+      })
+
+      await removeImageIfUnreferenced({ image: 'ghcr.io/org/app:pr-1' })
+
+      expect(mockRemoveImage).not.toHaveBeenCalled()
     })
   })
 })

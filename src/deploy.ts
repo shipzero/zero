@@ -27,6 +27,7 @@ import type { Preview } from './state.ts'
 import {
   AppConfig,
   addDeployment,
+  DeployedImage,
   Deployment,
   findRollbackTarget,
   getApp,
@@ -185,20 +186,21 @@ function stripImageTag(image: string): string {
   return image
 }
 
-function buildImageRef(deployment: Deployment): string {
-  if (deployment.digest) return `${stripImageTag(deployment.image)}@${deployment.digest}`
-  return deployment.image
+function buildImageRef(target: DeployedImage): string {
+  if (target.digest) return `${stripImageTag(target.image)}@${target.digest}`
+  return target.image
+}
+
+/** Removes a Docker image unless any deployment or preview in the state still references it. */
+export async function removeImageIfUnreferenced(target: DeployedImage): Promise<void> {
+  if (getReferencedImageKeys().has(getDeploymentImageKey(target))) return
+  await removeImage(buildImageRef(target))
 }
 
 async function pruneEvictedImages(appName: string, evicted: Deployment[]): Promise<void> {
-  if (evicted.length === 0) return
-
-  const stillReferenced = getReferencedImageKeys()
-
   for (const deployment of evicted) {
-    if (stillReferenced.has(getDeploymentImageKey(deployment))) continue
     try {
-      await removeImage(buildImageRef(deployment))
+      await removeImageIfUnreferenced(deployment)
     } catch (err) {
       log(appName, `Warning: image cleanup for ${deployment.image} failed: ${getErrorMessage(err)}`)
     }
