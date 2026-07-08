@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [v2026.7.8]
+
+### Added
+
+- **Config updates on redeploy** — redeploying an existing app now updates its stored configuration instead of silently ignoring it. Works for both app types with the same mechanic: `--compose` replaces the stored compose file, and `--service`, `--image-prefix`, `--port`, `--command`, `--volume`, `--health-path`, and `--health-timeout` overwrite their stored values when provided; omitted flags keep their current value. The CLI reports the change (`Config updated (composeFile, ...)`)
+  - Preview deploys never modify the stored config — they deploy with it as-is
+  - Redeploying a single-container app with `--compose` is rejected instead of corrupting the app
+  - A compose file update is rejected if the entry service is missing from the new file
+- **Hourly image garbage collection** — the server prunes dangling images every hour and once at startup, so leftover layers can no longer fill up the disk between deploys
+
+### Fixed
+
+- **Preview images leaked on expiry** — expired or manually removed previews deleted the container but never the image, filling up the disk until deploys failed with `no space left on device`. Preview images are now removed on cleanup (compose previews via `docker compose down --rmi all`), unless another deployment or preview still references them
+- **App removal leaked images** — `zero remove <app>` now deletes the images of all recorded deployments (compose stacks included), keeping images still referenced elsewhere
+
 ## [v2026.6.26]
 
 ### Fixed
@@ -66,7 +81,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - **Self-upgrade** — `zero upgrade --server` updates zero remotely
 - **CLI binaries** — prebuilt for Linux, macOS, and Windows
 
-[Unreleased]: https://github.com/shipzero/zero/compare/v2026.6.26...HEAD
+[Unreleased]: https://github.com/shipzero/zero/compare/v2026.7.8...HEAD
+[v2026.7.8]: https://github.com/shipzero/zero/compare/v2026.6.26...v2026.7.8
 [v2026.6.26]: https://github.com/shipzero/zero/compare/v2026.5.18...v2026.6.26
 [v2026.5.18]: https://github.com/shipzero/zero/compare/v2026.5.6...v2026.5.18
 [v2026.5.6]: https://github.com/shipzero/zero/compare/v2026.4.8...v2026.5.6
