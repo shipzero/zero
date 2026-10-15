@@ -101,7 +101,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: [version, cli]
+    needs: [version, cli, docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
