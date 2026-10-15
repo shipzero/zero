@@ -6,12 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [v2026.10.15.1]
+
+Replaces v2026.10.15, which was published without a server image (its tag cannot be reused: releases are immutable).
+
 ### Added
 
 - **Wildcard domains** — `zero domain add myapp '*.myapp.com'` routes every host one label below the wildcard to the app (an exact domain still wins). Each host gets its own Let's Encrypt certificate on its first TLS handshake (on-demand TLS over HTTP-01) and renews like any other certificate
   - On-demand issuance is guarded: optional approval endpoint `ON_DEMAND_TLS_ASK` (`GET <url>?domain=<host>`, 2xx = issue, 4xx = deny, anything else = retry in a minute), at most `ON_DEMAND_TLS_PER_HOUR` (default 20) new certificates per hour, and no retry within an hour for a host that failed or was denied
   - Exact domains always win and renew without the approval check, even below a wildcard; `preview-*` hosts are never covered by a wildcard
   - A wildcard cannot be an app's primary domain, not on deploy and not by removing the primary domain, and malformed wildcards (`*.com`, `a.*.myapp.com`) are rejected
+
+### Fixed
+
+- **Docker image build** — the image is built from `package-lock.json` with `npm ci`. `npm install` without a lockfile started to crash (`Cannot read properties of null (reading 'edgesOut')`), so v2026.10.15 shipped CLI binaries but no `ghcr.io/shipzero/zero` image and `zero upgrade --server` failed
+- **Releases without an image** — a GitHub release is only published after its Docker image was pushed
 
 ## [v2026.7.9]
 
