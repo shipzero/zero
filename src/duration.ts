@@ -7,7 +7,7 @@ const UNITS: Record<string, number> = {
 
 /** Parses a duration string like "3m", "2h", "7d6h" into milliseconds. */
 export function parseDuration(input: string): number {
-  const matches = input.matchAll(/(\d+)\s*([smhd])/g)
+  const matches = input.matchAll(/(?<!\d)(\d+)\s*([smhd])/g)
   let total = 0
   let matched = false
   for (const [, value, unit] of matches) {

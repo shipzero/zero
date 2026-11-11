@@ -6,7 +6,7 @@ const UNITS: Record<string, number> = {
 
 /** Parses a size string like "100m", "1g", "512k" into bytes. */
 export function parseSize(input: string): number {
-  const matches = input.matchAll(/(\d+)\s*([kmg])/gi)
+  const matches = input.matchAll(/(?<!\d)(\d+)\s*([kmg])/gi)
   let total = 0
   let matched = false
   for (const [, value, unit] of matches) {

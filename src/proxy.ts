@@ -104,7 +104,7 @@ function forwardTo(req: http.IncomingMessage, res: http.ServerResponse, targetPo
   const forwardedFor = req.headers['x-forwarded-for']
   const isEncrypted = 'encrypted' in req.socket
 
-  const contentLength = parseInt(req.headers['content-length'] ?? '', 10)
+  const contentLength = Number.parseInt(req.headers['content-length'] ?? '', 10)
   if (contentLength > MAX_BODY_BYTES) {
     res.writeHead(413, { 'Content-Type': 'text/plain' })
     res.end('Request entity too large')

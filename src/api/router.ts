@@ -17,7 +17,7 @@ export type Handler = (
   req: http.IncomingMessage,
   res: http.ServerResponse,
   params: Record<string, string>
-) => Promise<void>
+) => Promise<void> | void
 
 interface Route {
   method: string
@@ -143,7 +143,7 @@ export function maskValues(env: Record<string, string>): Record<string, string> 
 export function parseTail(url?: string): number {
   const raw = new URLSearchParams(url?.split('?')[1] ?? '').get('tail')
   if (!raw) return DEFAULT_TAIL
-  const n = parseInt(raw, 10)
+  const n = Number.parseInt(raw, 10)
   return n > 0 ? n : DEFAULT_TAIL
 }
 
@@ -265,7 +265,9 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     return
   }
 
-  match.handler(req, res, match.params).catch((err) => {
+  // The executor runs the handler right away and turns a synchronous throw
+  // into a rejection, so sync and async handlers fail the same way.
+  new Promise<void>((resolve) => resolve(match.handler(req, res, match.params))).catch((err) => {
     console.error('[api]', err)
     json(res, 500, { error: getErrorMessage(err) })
   })

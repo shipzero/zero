@@ -2,7 +2,7 @@ import { getRegistryAuths, removeRegistryAuth, setRegistryAuth } from '../state.
 import type { MessageResponse } from '../types.ts'
 import { json, parseJSON, readBody, route } from './router.ts'
 
-route('GET', '/registries', async (_req, res) => {
+route('GET', '/registries', (_req, res) => {
   const auths = getRegistryAuths()
   const servers = Object.keys(auths)
   json(res, 200, servers)
@@ -18,7 +18,7 @@ route('POST', '/registries', async (req, res) => {
   json<MessageResponse>(res, 200, { message: `Registry ${body.server} saved` })
 })
 
-route('DELETE', '/registries/:server', async (_req, res, { server }) => {
+route('DELETE', '/registries/:server', (_req, res, { server }) => {
   if (!removeRegistryAuth(server)) {
     json(res, 404, { error: `No credentials for ${server}` })
     return

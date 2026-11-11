@@ -567,12 +567,21 @@ function resolveZeroBinary(): string | null {
   return null
 }
 
-function defaultEntryName(cwd: string): string {
-  const base = path
+/** Strips leading and trailing dashes without a pattern - `/^-+|-+$/` rescans a dash run from every dash. */
+function trimDashes(value: string): string {
+  let start = 0
+  let end = value.length
+  while (start < end && value[start] === '-') start++
+  while (end > start && value[end - 1] === '-') end--
+  return value.slice(start, end)
+}
+
+export function defaultEntryName(cwd: string): string {
+  const slug = path
     .basename(cwd)
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  const base = trimDashes(slug)
   if (!base || base === 'zero') return 'zero'
   if (base.startsWith('zero-')) return base
   return `zero-${base}`
@@ -654,7 +663,7 @@ function uninstallClaudeDesktop(name: string): 'removed' | 'missing' {
   return 'removed'
 }
 
-async function mcpAdd(positionals: string[], flags: Record<string, string | true>): Promise<void> {
+function mcpAdd(positionals: string[], flags: Record<string, string | true>): void {
   const cwd = process.cwd()
   if (!fs.existsSync(path.join(cwd, '.zero', 'config.json'))) {
     logError('Not linked — run "zero login user@server" in this directory first')
@@ -692,7 +701,7 @@ async function mcpAdd(positionals: string[], flags: Record<string, string | true
   }
 }
 
-async function mcpRemove(positionals: string[], flags: Record<string, string | true>): Promise<void> {
+function mcpRemove(positionals: string[], flags: Record<string, string | true>): void {
   const cwd = process.cwd()
   const customName = positionals[0] ?? (typeof flags['name'] === 'string' ? flags['name'] : undefined)
   const name = customName ?? defaultEntryName(cwd)

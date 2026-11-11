@@ -49,8 +49,8 @@ export async function inspectImage(imageRef: string): Promise<ImageInspection> {
     const data = await docker.getImage(imageRef).inspect()
 
     const exposedPorts = Object.keys(data.Config?.ExposedPorts ?? {})
-      .map((key) => parseInt(key, 10))
-      .filter((port) => !isNaN(port))
+      .map((key) => Number.parseInt(key, 10))
+      .filter((port) => !Number.isNaN(port))
       .sort((a, b) => a - b)
 
     const repoDigest = (data.RepoDigests ?? [])[0]
