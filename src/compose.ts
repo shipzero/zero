@@ -9,6 +9,12 @@ export function composeDir(appName: string): string {
   return path.join(COMPOSE_BASE_DIR, appName)
 }
 
+/** 'web: # comment' -> 'web'. No pattern: `/:.*$/` rescans the rest of the line from every colon. */
+function keyOf(entry: string): string {
+  const colon = entry.indexOf(':')
+  return colon === -1 ? entry : entry.slice(0, colon)
+}
+
 /** Extracts service names so the override can set unique container_name per service, avoiding conflicts across deploys and previews. */
 function parseServiceNames(composeContent: string): string[] {
   const services: string[] = []
@@ -22,14 +28,14 @@ function parseServiceNames(composeContent: string): string[] {
     }
     if (!inServices) continue
 
-    const stripped = line.replace(/\t/g, '  ')
+    const stripped = line.replaceAll('\t', '  ')
     if (stripped.trim() === '' || stripped.trim().startsWith('#')) continue
     const indent = stripped.search(/\S/)
     if (indent === 0) break
 
     if (serviceIndent === -1) serviceIndent = indent
     if (indent === serviceIndent) {
-      const name = stripped.trim().replace(/:.*$/, '')
+      const name = keyOf(stripped.trim())
       if (name) services.push(name)
     }
   }

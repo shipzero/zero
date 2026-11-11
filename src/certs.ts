@@ -286,11 +286,13 @@ async function _doObtainCert(domain: string): Promise<tls.SecureContext> {
   const cert = await client.auto({
     csr: serverCsr,
     termsOfServiceAgreed: true,
-    challengeCreateFn: async (_authz, _challenge, keyAuthorization) => {
+    challengeCreateFn: (_authz, _challenge, keyAuthorization) => {
       challengeTokens.set(_challenge.token, keyAuthorization)
+      return Promise.resolve()
     },
-    challengeRemoveFn: async (_authz, _challenge) => {
+    challengeRemoveFn: (_authz, _challenge) => {
       challengeTokens.delete(_challenge.token)
+      return Promise.resolve()
     }
   })
 

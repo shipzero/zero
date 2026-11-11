@@ -13,7 +13,7 @@ import {
 import { isTLSEnabled } from '../url.ts'
 import { getErrorMessage, json, parseJSON, readBody, requireApp, route } from './router.ts'
 
-route('GET', '/apps/:name/domains', async (_req, res, { name }) => {
+route('GET', '/apps/:name/domains', (_req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
 

@@ -78,7 +78,7 @@ function shutdown(signal: string) {
   }, GRACEFUL_TIMEOUT_MS)
   timeout.unref()
 
-  closeAllPortListeners()
+  void closeAllPortListeners()
 
   let remaining = servers.length
   for (const server of servers) {

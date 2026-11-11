@@ -16,7 +16,7 @@ export async function upgrade(flags: Record<string, string | true>): Promise<voi
   const isCanary = flags['canary'] === true
 
   if (shouldUpgradeCli) {
-    await upgradeCli(isForce, isCanary)
+    upgradeCli(isForce, isCanary)
   }
 
   if (shouldUpgradeServer) {
@@ -41,7 +41,7 @@ function fetchLatestRelease(isCanary: boolean): { tag: string } {
   return { tag: latest.tag_name }
 }
 
-async function upgradeCli(isForce: boolean, isCanary: boolean): Promise<void> {
+function upgradeCli(isForce: boolean, isCanary: boolean): void {
   const platform = process.platform === 'darwin' ? 'zero-macos' : 'zero-linux'
 
   const { tag } = fetchLatestRelease(isCanary)

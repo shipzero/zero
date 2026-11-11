@@ -344,7 +344,7 @@ route('POST', '/deploy', async (req, res) => {
   }
 })
 
-route('GET', '/apps/:name', async (_req, res, { name }) => {
+route('GET', '/apps/:name', (_req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
 
@@ -377,7 +377,7 @@ route('POST', '/apps/:name/deploy', async (req, res, { name }) => {
   json(res, result.success ? 200 : 500, result)
 })
 
-route('GET', '/apps/:name/rollback-target', async (_req, res, { name }) => {
+route('GET', '/apps/:name/rollback-target', (_req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
   try {
@@ -398,7 +398,7 @@ route('POST', '/apps/:name/rollback', async (_req, res, { name }) => {
   }
 })
 
-route('GET', '/apps/:name/deployments', async (_req, res, { name }) => {
+route('GET', '/apps/:name/deployments', (_req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
   json(
@@ -469,7 +469,7 @@ route('PATCH', '/apps/:name/env', async (req, res, { name }) => {
   json<MessageResponse>(res, 200, { message: 'Env updated — redeploy to apply' })
 })
 
-route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
+route('DELETE', '/apps/:name/env', (req, res, { name }) => {
   if (!requireApp(name, res)) return
   const keys = new URLSearchParams(req.url?.split('?')[1] ?? '').getAll('key')
   if (keys.length === 0) {
@@ -480,7 +480,7 @@ route('DELETE', '/apps/:name/env', async (req, res, { name }) => {
   json<MessageResponse>(res, 200, { message: 'Env removed — redeploy to apply' })
 })
 
-route('POST', '/apps/:name/webhook', async (_req, res, { name }) => {
+route('POST', '/apps/:name/webhook', (_req, res, { name }) => {
   if (!requireApp(name, res)) return
   const secret = resetWebhookSecret(name)
   json(res, 200, { webhookSecret: secret, webhookUrl: buildWebhookUrl(name) })
@@ -560,7 +560,7 @@ async function removeAppWithContainers(app: AppConfig): Promise<void> {
   }
 }
 
-route('DELETE', '/apps/:name/host-port', async (_req, res, { name }) => {
+route('DELETE', '/apps/:name/host-port', (_req, res, { name }) => {
   const app = requireApp(name, res)
   if (!app) return
 

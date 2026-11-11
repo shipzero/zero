@@ -19,11 +19,11 @@ import {
 
 const JWT_TTL_SECONDS = 24 * 60 * 60
 
-route('GET', '/version', async (_req, res) => {
+route('GET', '/version', (_req, res) => {
   json<VersionResponse>(res, 200, { version: VERSION })
 })
 
-route('POST', '/auth/token', async (_req, res) => {
+route('POST', '/auth/token', (_req, res) => {
   const now = Math.floor(Date.now() / 1000)
   const token = signJwt(JWT_SECRET, { exp: now + JWT_TTL_SECONDS })
   json(res, 200, { token })
